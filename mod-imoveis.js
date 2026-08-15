@@ -95,6 +95,7 @@
     if (im.publicar_no_site)    s.push(['vitrine','Site']);
     if (im.divulgacao_restrita) s.push(['restrito','Restrito']);
     if (im.destaque)            s.push(['autorizado','Destaque']);
+    if (im.alto_padrao)         s.push(['vitrine','Alto padrão']);
     if (im.rascunho) return '<span class="cad-selo cad-selo-restrito">Rascunho</span>';
     return s.length ? s.map(([c,t]) => `<span class="cad-selo cad-selo-${c}">${t}</span>`).join('')
                     : '<span class="cad-selo cad-selo-vazio">nenhum</span>';
@@ -369,6 +370,9 @@
             <span><strong>Divulgação restrita</strong><em>O proprietário não autoriza rede social nem WhatsApp. Mostrar ao vivo. Impede a publicação no site.</em></span></label>
           <label class="check"><input type="checkbox" id="fDestaque"${im.destaque?' checked':''}>
             <span><strong>Destaque</strong><em>Aparece nas seções de destaque do site.</em></span></label>
+          <label class="check"><input type="checkbox" id="fAltoPadrao"${im.alto_padrao?' checked':''}>
+            <span><strong>Alto padrão</strong><em>Monta a vitrine de alto padrão do site.
+              É curadoria sua, não faixa de preço: quem decide o padrão é quem conhece o imóvel.</em></span></label>
         </div>`
       )}
 
@@ -542,6 +546,7 @@
       link_tour360: v('fLinkTour') || null, link_anuncio: v('fLinkAnuncio') || null,
       no_mural: c('fMural'), publicar_no_site: site,
       divulgacao_restrita: restrita, autorizacao_venda: autoriz, destaque: c('fDestaque'),
+      alto_padrao: c('fAltoPadrao'),
       status: v('fStatus'), origem_captacao_id: v('fOrigem') || null,
       captado_em: v('fCaptadoEm') || null,
       slug: v('fSlug').trim() || null,

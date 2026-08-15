@@ -1119,3 +1119,8 @@ select option { background: #1a1a1a; }
 .ft-cartao-pe { padding: 11px 13px; }
 .ft-cartao-pe strong { display: block; font-size: 13.5px; }
 .ft-acoes { display: flex; gap: 6px; margin-top: 9px; }
+
+/* Campos de UF e região na linha da cidade. */
+.cfg-geo { display: flex; gap: 6px; align-items: center; }
+.cfg-geo input { padding: 5px 9px; font-size: 12.5px; width: 190px; }
+.cfg-geo input.cfg-uf { width: 56px; text-transform: uppercase; }

@@ -20,8 +20,9 @@
   const { db, esc, avisar } = Plataforma;
 
   const LISTAS = [
-    { grupo: 'Localização', tabela: 'cidade', titulo: 'Cidades',
-      descricao: 'Cidades em que você opera. Aparecem no cadastro do imóvel.' },
+    { grupo: 'Localização', tabela: 'cidade', titulo: 'Cidades', comRegiao: true,
+      descricao: 'Cidades em que você opera. A região agrupa cidades numa vitrine do site, '
+               + 'como "Litoral SC": cadastre a região uma vez e todo imóvel daquela cidade entra nela.' },
     { grupo: 'Localização', tabela: 'bairro', titulo: 'Bairros',
       descricao: 'Bairros usados no cadastro, na busca e nos filtros da vitrine.' },
     { grupo: 'Localização', tabela: 'zona', titulo: 'Zonas',
@@ -154,6 +155,15 @@
     let seg = '';
     if (l.hierarquica) {
       seg = `<span class="cfg-selo-seg">${esc((SEGMENTOS.find(s => s[0] === item.segmento) || [,item.segmento])[1])}</span>`;
+    } else if (l.comRegiao) {
+      // UF e região ficam na própria linha: são duas palavras por cidade, e
+      // abrir uma ficha inteira para isso seria desproporcional.
+      seg = `<span class="cfg-geo">
+        <input type="text" value="${esc(item.uf ?? '')}" data-campo="uf"
+               placeholder="UF" maxlength="2" aria-label="Estado" class="cfg-uf">
+        <input type="text" value="${esc(item.regiao ?? '')}" data-campo="regiao"
+               placeholder="Região (ex.: Litoral SC)" aria-label="Região">
+      </span>`;
     } else if (l.comResultado) {
       // Etapa de ganho e de perda precisam se distinguir na lista: são elas que
       // definem o que conta como negócio ganho e perdido no relatório.
@@ -288,6 +298,21 @@
       const original = campo.value;
       campo.addEventListener('blur', () => renomear(id, l.tabela, campo.value, original));
       campo.addEventListener('keydown', e => { if (e.key === 'Enter') campo.blur(); });
+
+      // UF e região gravam ao sair do campo, igual ao nome. Região em branco
+      // apaga o vínculo, que é como se tira uma cidade da vitrine.
+      li.querySelectorAll('input[data-campo="uf"],input[data-campo="regiao"]').forEach(c => {
+        const antes = c.value;
+        c.addEventListener('blur', async () => {
+          if (c.value === antes) return;
+          const valor = c.value.trim().toUpperCase && c.dataset.campo === 'uf'
+            ? c.value.trim().toUpperCase() : c.value.trim();
+          await db(supabaseClient.from(l.tabela)
+            .update({ [c.dataset.campo]: valor || null }).eq('id', id), 'salvar');
+          avisar('Salvo.');
+        });
+        c.addEventListener('keydown', e => { if (e.key === 'Enter') c.blur(); });
+      });
 
       li.querySelector('[data-acao="alternar"]').addEventListener('click', () =>
         alternarAtivo(id, l.tabela, !li.classList.contains('inativo')));
