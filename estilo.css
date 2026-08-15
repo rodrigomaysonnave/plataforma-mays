@@ -929,3 +929,127 @@ select option { background: #1a1a1a; }
   background: var(--superficie-2); border: 1px solid var(--borda); color: var(--texto-fraco);
 }
 .ag-alternar { white-space: nowrap; }
+
+/* ── Calendário: semana e mês ──────────────────────────────────────── */
+.ag-nav { display: flex; align-items: center; gap: 6px; }
+.ag-periodo {
+  min-width: 168px; text-align: center; font-size: 13px; font-weight: 600;
+  color: var(--texto);
+}
+
+.ag-cal {
+  background: var(--superficie); border: 1px solid var(--borda);
+  border-radius: var(--raio); overflow: hidden;
+}
+.ag-gutter { width: 58px; flex-shrink: 0; }
+
+/* ── Semana ── */
+.ag-cal-topo { display: flex; border-bottom: 1px solid var(--borda); }
+.ag-cab {
+  flex: 1; text-align: center; padding: 9px 4px;
+  border-left: 1px solid var(--borda);
+}
+.ag-cab-dia {
+  display: block; font-size: 10px; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--texto-fraco); font-weight: 700;
+}
+.ag-cab-num { display: block; font-size: 17px; font-weight: 600; margin-top: 1px; }
+.ag-cab.hoje .ag-cab-num {
+  color: #101010; background: var(--dourado); border-radius: 50%;
+  width: 28px; height: 28px; line-height: 28px; margin: 1px auto 0;
+}
+.ag-cab.hoje .ag-cab-dia { color: var(--dourado); }
+
+.ag-cal-inteiro { display: flex; border-bottom: 1px solid var(--borda); min-height: 30px; }
+.ag-cal-inteiro .ag-gutter {
+  font-size: 9.5px; color: var(--texto-fraco); text-transform: uppercase;
+  letter-spacing: .06em; padding: 7px 6px; text-align: right;
+}
+.ag-inteiro-cel {
+  flex: 1; border-left: 1px solid var(--borda); padding: 4px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+
+.ag-cal-corpo { display: flex; max-height: calc(100vh - 300px); overflow-y: auto; padding-top: 9px; }
+.ag-gutter-horas { position: relative; }
+/* O rótulo sobe meia linha para ficar NA linha da hora, e não dentro da
+   faixa seguinte. É o detalhe que faz o calendário parecer certo. */
+.ag-hora-rot { height: 52px; position: relative; }
+.ag-hora-rot span {
+  position: absolute; top: -7px; right: 8px;
+  font-size: 10.5px; color: var(--texto-fraco); font-variant-numeric: tabular-nums;
+}
+.ag-coluna-dia {
+  flex: 1; position: relative; border-left: 1px solid var(--borda);
+  min-width: 0; cursor: pointer;
+}
+.ag-coluna-dia.hoje { background: rgba(201,168,76,.045); }
+.ag-faixa { height: 52px; border-top: 1px solid var(--borda); opacity: .5; }
+.ag-blocos { position: absolute; inset: 0; pointer-events: none; }
+.ag-bloco {
+  position: absolute; pointer-events: auto; cursor: pointer; overflow: hidden;
+  padding: 3px 6px; border-radius: 4px; font-size: 11px; line-height: 1.25;
+  background: rgba(201,168,76,.2); border-left: 2.5px solid var(--dourado);
+  color: var(--texto);
+}
+.ag-bloco:hover { background: rgba(201,168,76,.32); }
+.ag-bloco-h { display: block; font-size: 9.5px; color: var(--texto-fraco); }
+.ag-bloco-t {
+  display: block; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* O que veio do Google é cinza e tracejado, igual à lista: fonte diferente,
+   aparência diferente, sem precisar de legenda. */
+.ag-bloco-google {
+  background: var(--superficie-2); border-left-style: dashed;
+  border-left-color: var(--texto-fraco);
+}
+.ag-bloco-google:hover { background: var(--borda); }
+
+/* ── Mês ── */
+.ag-mes-cab {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--borda);
+}
+.ag-mes-cab div {
+  padding: 8px 6px; text-align: center; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--texto-fraco);
+  border-left: 1px solid var(--borda);
+}
+.ag-mes-cab div:first-child { border-left: 0; }
+.ag-mes-grade { display: grid; grid-template-columns: repeat(7, 1fr); }
+.ag-cel {
+  min-height: 104px; padding: 5px 6px; cursor: pointer;
+  border-left: 1px solid var(--borda); border-top: 1px solid var(--borda);
+  display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.ag-cel:nth-child(7n+1) { border-left: 0; }
+.ag-cel:hover { background: var(--superficie-2); }
+/* Dia do mês vizinho: presente para a grade fechar, apagado para não
+   competir com o mês que se está olhando. */
+.ag-cel.fora { opacity: .38; }
+.ag-cel-num { font-size: 12px; font-weight: 600; color: var(--texto-fraco); }
+.ag-cel.hoje .ag-cel-num {
+  color: #101010; background: var(--dourado); border-radius: 50%;
+  width: 21px; height: 21px; line-height: 21px; text-align: center;
+}
+.ag-cel-itens { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ag-chip {
+  display: block; font-size: 10.5px; padding: 2px 5px; border-radius: 3px;
+  background: rgba(201,168,76,.2); border-left: 2px solid var(--dourado);
+  cursor: pointer; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ag-chip:hover { background: rgba(201,168,76,.34); }
+.ag-chip em { font-style: normal; color: var(--texto-fraco); margin-right: 4px; }
+.ag-chip-google {
+  background: var(--superficie-2); border-left-style: dashed;
+  border-left-color: var(--texto-fraco);
+}
+.ag-mais { font-size: 10px; color: var(--texto-fraco); padding-left: 5px; }
+
+@media (max-width: 900px) {
+  .ag-cal-semana { overflow-x: auto; }
+  .ag-cal-semana > * { min-width: 680px; }
+  .ag-cel { min-height: 74px; }
+}

@@ -23,7 +23,9 @@
   const { db, esc, avisar } = Plataforma;
 
   let alvoEl = null;
-  let janela = 'semana';
+  let vista = 'lista';        // lista | semana | mes
+  let janela = 'semana';      // só na vista de lista
+  let ancora = new Date();    // dia de referência da semana ou do mês
   let mostrarGoogle = true;
 
   const TIPOS = [['visita', 'Visita'], ['reuniao', 'Reunião'], ['ligacao', 'Ligação'],
@@ -65,14 +67,54 @@
     return nome.charAt(0).toUpperCase() + nome.slice(1);
   }
 
+  const meiaNoite = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+  const somarDias = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+  // Semana começando no domingo, como o Google mostra em português.
+  const domingoDa = d => somarDias(meiaNoite(d), -meiaNoite(d).getDay());
+
+  // O mês desenhado é sempre a grade inteira: começa no domingo anterior ao
+  // dia 1 e termina no sábado seguinte ao último dia. É por isso que aparecem
+  // dias do mês vizinho nas pontas, igual a qualquer calendário de parede.
+  function gradeDoMes(d) {
+    const primeiro = new Date(d.getFullYear(), d.getMonth(), 1);
+    const inicio = domingoDa(primeiro);
+    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const fim = somarDias(domingoDa(ultimo), 7);
+    return { inicio, fim };
+  }
+
   function intervalo() {
-    const de = new Date(); de.setHours(0, 0, 0, 0);
+    if (vista === 'semana') {
+      const de = domingoDa(ancora);
+      return { de, ate: somarDias(de, 7) };
+    }
+    if (vista === 'mes') {
+      const g = gradeDoMes(ancora);
+      return { de: g.inicio, ate: g.fim };
+    }
+    const de = meiaNoite(new Date());
     const ate = new Date(de);
     if (janela === 'hoje') ate.setDate(ate.getDate() + 1);
     else if (janela === 'semana') ate.setDate(ate.getDate() + 7);
     else if (janela === 'mes') ate.setMonth(ate.getMonth() + 1);
     else { de.setMonth(de.getMonth() - 6); ate.setMonth(ate.getMonth() + 12); }
     return { de, ate };
+  }
+
+  function tituloDoPeriodo() {
+    if (vista === 'semana') {
+      const de = domingoDa(ancora), ate = somarDias(de, 6);
+      const mesmoMes = de.getMonth() === ate.getMonth();
+      const f = (d, comMes) => d.toLocaleDateString('pt-BR',
+        comMes ? { day: '2-digit', month: 'short' } : { day: '2-digit' });
+      return `${f(de, !mesmoMes)} a ${f(ate, true)} de ${ate.getFullYear()}`;
+    }
+    if (vista === 'mes') {
+      const t = ancora.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    return '';
   }
 
   // ── Lista ───────────────────────────────────────────────────────────
@@ -112,6 +154,7 @@
     });
 
     const abas = [['hoje', 'Hoje'], ['semana', '7 dias'], ['mes', '30 dias'], ['tudo', 'Tudo']];
+    const layouts = [['lista', 'Lista'], ['semana', 'Semana'], ['mes', 'Mês']];
 
     alvoEl.innerHTML = `
       <div class="secao-topo">
@@ -121,8 +164,16 @@
               ligado ? ` · ${doGoogle.length} do Google` : ''}</div></div>
         </div>
         <div class="secao-acoes">
-          <div class="cp-abas">${abas.map(([k, r]) =>
-            `<button class="cp-aba${janela === k ? ' ativo' : ''}" data-janela="${k}">${r}</button>`).join('')}</div>
+          <div class="cp-abas">${layouts.map(([k, r]) =>
+            `<button class="cp-aba${vista === k ? ' ativo' : ''}" data-vista="${k}">${r}</button>`).join('')}</div>
+          ${vista === 'lista' ? `<div class="cp-abas">${abas.map(([k, r]) =>
+            `<button class="cp-aba${janela === k ? ' ativo' : ''}" data-janela="${k}">${r}</button>`).join('')}</div>`
+          : `<div class="ag-nav">
+              <button class="btn btn-mini" data-passo="-1" aria-label="Anterior">‹</button>
+              <span class="ag-periodo">${esc(tituloDoPeriodo())}</span>
+              <button class="btn btn-mini" data-passo="1" aria-label="Próximo">›</button>
+              <button class="btn btn-mini" data-passo="0">Hoje</button>
+            </div>`}
           ${ligado ? `<label class="campo-check ag-alternar"><input type="checkbox" id="agVerGoogle"${
             mostrarGoogle ? ' checked' : ''}><span>Ver o Google</span></label>` : ''}
           <button class="btn btn-primario" id="agNovo">Novo compromisso</button>
@@ -139,25 +190,192 @@
           está conectada. Ligue em <strong>Corretores › Agenda do Google</strong> para ver aqui
           o que você marca no celular.</p></div></div>` : ''}
 
-      ${porDia.size ? [...porDia.entries()].map(([dia, lista]) => `
-        <section class="ag-dia">
-          <h3 class="ag-dia-rot">${esc(rotuloDoDia(dia))}</h3>
-          <div class="ag-linhas">${lista.map(i => i.tipo === 'meu'
-            ? linhaMinha(i.dado) : linhaGoogle(i.dado)).join('')}</div>
-        </section>`).join('')
-      : `<div class="vazio"><div class="vazio-ico">▦</div>
-          <h3>Nada marcado nesse período</h3>
-          <p>Visita, reunião, vistoria. O que estiver aqui vai junto para o seu Google,
-             se a conta estiver conectada.</p></div>`}`;
+      ${vista === 'semana' ? desenharSemana(porDia)
+        : vista === 'mes' ? desenharMes(porDia)
+        : porDia.size ? [...porDia.entries()].map(([dia, lista]) => `
+            <section class="ag-dia">
+              <h3 class="ag-dia-rot">${esc(rotuloDoDia(dia))}</h3>
+              <div class="ag-linhas">${lista.map(i => i.tipo === 'meu'
+                ? linhaMinha(i.dado) : linhaGoogle(i.dado)).join('')}</div>
+            </section>`).join('')
+        : `<div class="vazio"><div class="vazio-ico">▦</div>
+            <h3>Nada marcado nesse período</h3>
+            <p>Visita, reunião, vistoria. O que estiver aqui vai junto para o seu Google,
+               se a conta estiver conectada.</p></div>`}`;
 
     alvoEl.querySelectorAll('[data-janela]').forEach(b => b.addEventListener('click', () => {
       janela = b.dataset.janela; montarLista();
+    }));
+    alvoEl.querySelectorAll('[data-vista]').forEach(b => b.addEventListener('click', () => {
+      vista = b.dataset.vista;
+      // Trocar de layout sempre volta para hoje. Ficar em outubro porque foi
+      // lá que se parou da última vez é o tipo de memória que confunde.
+      ancora = new Date();
+      montarLista();
+    }));
+    alvoEl.querySelectorAll('[data-passo]').forEach(b => b.addEventListener('click', () => {
+      const n = Number(b.dataset.passo);
+      if (n === 0) ancora = new Date();
+      else if (vista === 'semana') ancora = somarDias(ancora, 7 * n);
+      else ancora = new Date(ancora.getFullYear(), ancora.getMonth() + n, 1);
+      montarLista();
+    }));
+    // Clicar num espaço vazio do calendário já abre o compromisso naquele
+    // dia e hora. É o gesto que todo mundo tenta.
+    alvoEl.querySelectorAll('[data-novo-em]').forEach(el => el.addEventListener('click', e => {
+      if (e.target.closest('[data-abrir],[data-link]')) return;
+      abrirFicha('novo', el.dataset.novoEm);
+    }));
+    alvoEl.querySelectorAll('[data-link]').forEach(el => el.addEventListener('click', e => {
+      e.stopPropagation();
+      window.open(el.dataset.link, '_blank', 'noopener');
     }));
     const ver = document.getElementById('agVerGoogle');
     if (ver) ver.addEventListener('change', () => { mostrarGoogle = ver.checked; montarLista(); });
     document.getElementById('agNovo').addEventListener('click', () => abrirFicha('novo'));
     alvoEl.querySelectorAll('[data-abrir]').forEach(el =>
       el.addEventListener('click', () => abrirFicha(el.dataset.abrir)));
+  }
+
+  // ══ Calendário ════════════════════════════════════════════════════
+  const SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  const chave = d => { const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
+  const ehHoje = d => chave(d) === chave(new Date());
+
+  const tituloDe = i => i.tipo === 'meu' ? i.dado.titulo : i.dado.titulo;
+  const minutos = iso => { const d = new Date(iso); return d.getHours() * 60 + d.getMinutes(); };
+
+  // Fim de verdade do item, para desenhar altura. Sem fim gravado, uma hora:
+  // é a duração de visita mais comum e evita bloco de altura zero.
+  function fimEm(i) {
+    const f = i.tipo === 'meu' ? i.dado.fim : i.dado.fim;
+    return f ? minutos(f) : minutos(i.inicio) + 60;
+  }
+
+  // Dois compromissos na mesma hora não podem se tapar. Agrupa o que se
+  // sobrepõe e divide a largura entre eles, como o Google faz.
+  function repartir(itens) {
+    const ordenados = [...itens].sort((a, b) => minutos(a.inicio) - minutos(b.inicio));
+    const grupos = [];
+    let atual = [], limite = -1;
+    ordenados.forEach(i => {
+      if (atual.length && minutos(i.inicio) >= limite) { grupos.push(atual); atual = []; limite = -1; }
+      atual.push(i);
+      limite = Math.max(limite, fimEm(i));
+    });
+    if (atual.length) grupos.push(atual);
+
+    const posicao = new Map();
+    grupos.forEach(g => g.forEach((i, n) => posicao.set(i, { col: n, de: g.length })));
+    return posicao;
+  }
+
+  function blocoDoDia(itens, hInicio, hFim) {
+    const posicao = repartir(itens.filter(i => !(i.tipo === 'google' && i.dado.diaInteiro)));
+    const alturaTotal = (hFim - hInicio) * 60;
+    return itens.map(i => {
+      const pos = posicao.get(i);
+      if (!pos) return '';
+      const de = Math.max(minutos(i.inicio) - hInicio * 60, 0);
+      const ate = Math.min(fimEm(i) - hInicio * 60, alturaTotal);
+      const larg = 100 / pos.de;
+      const meu = i.tipo === 'meu';
+      const attr = meu ? `data-abrir="${i.dado.id}"`
+                       : (i.dado.link ? `data-link="${esc(i.dado.link)}"` : '');
+      return `<div class="ag-bloco${meu ? '' : ' ag-bloco-google'}" ${attr}
+        style="top:${de / alturaTotal * 100}%;height:${Math.max((ate - de) / alturaTotal * 100, 2.2)}%;
+               left:${pos.col * larg}%;width:calc(${larg}% - 3px)"
+        title="${esc(tituloDe(i))}">
+        <span class="ag-bloco-h">${hora(i.inicio)}</span>
+        <span class="ag-bloco-t">${esc(tituloDe(i))}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function desenharSemana(porDia) {
+    const de = domingoDa(ancora);
+    const dias = [...Array(7)].map((_, n) => somarDias(de, n));
+    const todos = dias.flatMap(d => porDia.get(chave(d)) || []);
+
+    // A faixa de horas se ajusta ao que existe. Mostrar 0h às 23h sempre
+    // deixaria dois terços da tela vazios num dia comum de trabalho.
+    const comHora = todos.filter(i => !(i.tipo === 'google' && i.dado.diaInteiro));
+    const hInicio = Math.min(8, ...comHora.map(i => Math.floor(minutos(i.inicio) / 60)));
+    const hFim = Math.max(19, ...comHora.map(i => Math.ceil(fimEm(i) / 60)));
+    const horas = [...Array(hFim - hInicio)].map((_, n) => hInicio + n);
+
+    const diaInteiro = dias.map(d => (porDia.get(chave(d)) || [])
+      .filter(i => i.tipo === 'google' && i.dado.diaInteiro));
+    const temDiaInteiro = diaInteiro.some(l => l.length);
+
+    return `
+      <div class="ag-cal ag-cal-semana">
+        <div class="ag-cal-topo">
+          <div class="ag-gutter"></div>
+          ${dias.map(d => `
+            <div class="ag-cab${ehHoje(d) ? ' hoje' : ''}">
+              <span class="ag-cab-dia">${SEMANA[d.getDay()]}</span>
+              <span class="ag-cab-num">${d.getDate()}</span>
+            </div>`).join('')}
+        </div>
+
+        ${temDiaInteiro ? `<div class="ag-cal-inteiro">
+          <div class="ag-gutter">dia todo</div>
+          ${diaInteiro.map(lista => `<div class="ag-inteiro-cel">${lista.map(i =>
+            `<span class="ag-chip ag-chip-google"${i.dado.link ? ` data-link="${esc(i.dado.link)}"` : ''}
+             >${esc(i.dado.titulo)}</span>`).join('')}</div>`).join('')}
+        </div>` : ''}
+
+        <div class="ag-cal-corpo">
+          <div class="ag-gutter ag-gutter-horas">
+            ${horas.map(h => `<div class="ag-hora-rot"><span>${String(h).padStart(2, '0')}:00</span></div>`).join('')}
+          </div>
+          ${dias.map((d, n) => `
+            <div class="ag-coluna-dia${ehHoje(d) ? ' hoje' : ''}"
+                 data-novo-em="${chave(d)}T09:00">
+              ${horas.map(() => '<div class="ag-faixa"></div>').join('')}
+              <div class="ag-blocos">${blocoDoDia(porDia.get(chave(d)) || [], hInicio, hFim)}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  function desenharMes(porDia) {
+    const g = gradeDoMes(ancora);
+    const celulas = [];
+    for (let d = new Date(g.inicio); d < g.fim; d = somarDias(d, 1)) celulas.push(new Date(d));
+    const mesAtual = ancora.getMonth();
+
+    return `
+      <div class="ag-cal ag-cal-mes">
+        <div class="ag-mes-cab">${SEMANA.map(d => `<div>${d}</div>`).join('')}</div>
+        <div class="ag-mes-grade">
+          ${celulas.map(d => {
+            const lista = porDia.get(chave(d)) || [];
+            // Três cabem sem espremer a célula; o resto vira contagem, e o
+            // clique no dia leva para a lista completa daquele dia.
+            const visiveis = lista.slice(0, 3);
+            const sobra = lista.length - visiveis.length;
+            return `
+              <div class="ag-cel${d.getMonth() === mesAtual ? '' : ' fora'}${ehHoje(d) ? ' hoje' : ''}"
+                   data-novo-em="${chave(d)}T09:00">
+                <span class="ag-cel-num">${d.getDate()}</span>
+                <div class="ag-cel-itens">
+                  ${visiveis.map(i => {
+                    const meu = i.tipo === 'meu';
+                    const attr = meu ? `data-abrir="${i.dado.id}"`
+                                     : (i.dado.link ? `data-link="${esc(i.dado.link)}"` : '');
+                    return `<span class="ag-chip${meu ? '' : ' ag-chip-google'}" ${attr}
+                      title="${esc(tituloDe(i))}"><em>${
+                      i.tipo === 'google' && i.dado.diaInteiro ? '' : hora(i.inicio)}</em>${esc(tituloDe(i))}</span>`;
+                  }).join('')}
+                  ${sobra > 0 ? `<span class="ag-mais">+${sobra}</span>` : ''}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
   }
 
   function linhaMinha(c) {
@@ -191,13 +409,16 @@
   }
 
   // ── Ficha ───────────────────────────────────────────────────────────
-  async function abrirFicha(id) {
+  // `quando` chega do clique num dia do calendário, no formato do próprio
+  // campo (2026-08-20T09:00). Sem ele, o padrão é daqui a uma hora.
+  async function abrirFicha(id, quando) {
     const novo = id === 'novo';
     const [contatos, imoveis] = await Promise.all([
       Crud.listaApoio('contato'), Crud.listaApoio('imovel'),
     ]);
     const c = novo
-      ? { tipo: 'visita', situacao: 'marcado', inicio: new Date(Date.now() + 3600000).toISOString() }
+      ? { tipo: 'visita', situacao: 'marcado',
+          inicio: (quando ? new Date(quando) : new Date(Date.now() + 3600000)).toISOString() }
       : (await db(supabaseClient.from('compromisso').select('*').eq('id', id).limit(1), 'abrir'))[0];
 
     const ops = (lista, sel, vazio) => `<option value="">${vazio}</option>` +

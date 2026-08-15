@@ -86,7 +86,7 @@
         ${cp('cfgEmail', 'E-mail de contato', c.email_contato, '')}
         ${cp('cfgCidade', 'Cidade padrão', c.cidade_padrao, 'Pelotas', 'Já vem preenchida ao cadastrar imóvel.')}
         ${cp('cfgEstado', 'Estado padrão', c.estado_padrao, 'RS')}
-        ${cp('cfgSite', 'Endereço do site', c.site_url, 'https://maysimoveis.com', 'Usado pelo botão "Ver no site" na ficha do imóvel.')}
+        ${cp('cfgSite', 'Endereço do site', c.site_url, 'https://maysimoveis.com', 'O endereço ONDE O SITE ESTÁ NO AR agora, não o domínio que você pretende usar. É ele que o botão "Ver no site" abre, e é dele que saem os endereços canônicos e o sitemap quando o site é gerado. Trocou de domínio, troque aqui e gere o site de novo.')}
       </div>
       <div class="ficha-rodape" style="padding:0 20px 18px">
         <button class="btn btn-primario" id="cfgSalvarAjustes">Salvar ajustes</button>
