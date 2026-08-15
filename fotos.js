@@ -68,6 +68,54 @@ const Fotos = (() => {
     return { url, url_thumb };
   }
 
+  // ── Retrato do corretor ────────────────────────────────────────────
+  // Foto de pessoa é sempre quadrada aqui, e o corte é feito pelo sistema.
+  // Se dependesse de cada um mandar no formato certo, a página do imóvel
+  // teria uma foto vertical, uma horizontal e uma cortada no queixo, e o
+  // admin viraria máquina de recusar por motivo técnico.
+  //
+  // O corte é central e um pouco acima do meio: em retrato, o rosto quase
+  // nunca está no centro geométrico, está no terço de cima.
+  const LADO_RETRATO = 600;
+  const LADO_RETRATO_MINI = 160;
+  const LADO_MINIMO = 400;   // abaixo disso a foto aparece borrada na página
+
+  function recortarQuadrado(arquivo, lado) {
+    return new Promise((ok, falhou) => {
+      const img = new Image();
+      const url = URL.createObjectURL(arquivo);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        if (Math.min(img.width, img.height) < LADO_MINIMO) {
+          falhou(new Error(`a imagem tem ${img.width}x${img.height}. O menor lado precisa ter pelo menos ${LADO_MINIMO} pixels`));
+          return;
+        }
+        const corte = Math.min(img.width, img.height);
+        const x = (img.width - corte) / 2;
+        const y = Math.max((img.height - corte) / 2 - corte * 0.08, 0);
+        const tela = document.createElement('canvas');
+        tela.width = tela.height = lado;
+        tela.getContext('2d').drawImage(img, x, y, corte, corte, 0, 0, lado, lado);
+        tela.toBlob(b => b ? ok(b) : falhou(new Error('não consegui gerar o JPEG')), 'image/jpeg', 0.86);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); falhou(new Error('o arquivo não é uma imagem válida')); };
+      img.src = url;
+    });
+  }
+
+  async function enviarRetrato(arquivo, pasta) {
+    const base = `${pasta}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const [grande, mini] = await Promise.all([
+      recortarQuadrado(arquivo, LADO_RETRATO),
+      recortarQuadrado(arquivo, LADO_RETRATO_MINI),
+    ]);
+    const [url, url_thumb] = await Promise.all([
+      subir(`${base}.jpg`, grande),
+      subir(`${base}_mini.jpg`, mini),
+    ]);
+    return { url, url_thumb };
+  }
+
   // ── Galeria ────────────────────────────────────────────────────────
   // `dono` é { tabela, coluna, id } — assim serve para imóvel hoje e para
   // empreendimento depois, sem duplicar código.
@@ -163,5 +211,5 @@ const Fotos = (() => {
     carregar();
   }
 
-  return { montar, enviarUma };
+  return { montar, enviarUma, enviarRetrato };
 })();

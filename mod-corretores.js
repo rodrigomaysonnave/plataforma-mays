@@ -34,6 +34,7 @@
     if (sub === 'agenda') return montarAgenda(alvo);
     if (sub === 'modelos') return montarModelos(alvo);
     if (sub === 'convidar') return montarConvite(alvo);
+    if (sub === 'foto') return montarMinhaFoto(alvo);
     if (sub && sub !== 'equipe') { editando = sub; return montarFicha(alvo, sub); }
 
     const eu = Plataforma.perfil;
@@ -90,6 +91,37 @@
           : `<p class="ini-vazio" style="padding:18px 20px">${esc(vazio)}</p>`}
       </section>`;
 
+    // Foto esperando revisão precisa CHAMAR, não esperar ser procurada.
+    // Parada duas semanas, o site segue mostrando monograma e ninguém percebe.
+    const comFotoPendente = perfis.filter(p => p.foto_pendente_url);
+    const filaFotos = comFotoPendente.length ? `
+      <section class="ficha-secao ft-fila">
+        <div class="ficha-secao-topo">
+          <h3>Fotos aguardando revisão<span class="ini-conta">${comFotoPendente.length}</span></h3>
+          <p>Só entra no site depois que você aprovar. Recusando, escreva o motivo:
+             recusa sem explicação garante que a próxima venha igual.</p>
+        </div>
+        <div class="ft-fila-itens">${comFotoPendente.map(p => `
+          <div class="ft-cartao" data-fila="${esc(p.id)}">
+            <div class="ft-par">
+              <figure><img src="${esc(p.foto_pendente_url)}" alt="Foto enviada por ${esc(p.nome)}">
+                <figcaption>nova</figcaption></figure>
+              <figure>${p.foto_url
+                ? `<img src="${esc(p.foto_url)}" alt="Foto atual de ${esc(p.nome)}">`
+                : monograma(p.nome, 'ft-mono-grande')}
+                <figcaption>${p.foto_url ? 'no ar hoje' : 'sem foto no ar'}</figcaption></figure>
+            </div>
+            <div class="ft-cartao-pe">
+              <strong>${esc(p.nome)}</strong>
+              <span class="cad-end-sub">enviada ${p.foto_enviada_em ? data(p.foto_enviada_em) : '—'}</span>
+              <div class="ft-acoes">
+                <button class="btn btn-mini btn-primario" data-aprovar="${esc(p.id)}">Aprovar</button>
+                <button class="btn btn-mini btn-remover" data-recusar="${esc(p.id)}">Recusar</button>
+              </div>
+            </div>
+          </div>`).join('')}</div>
+      </section>` : '';
+
     alvo.innerHTML = `
       <div class="secao-topo">
         <div class="secao-titulo"><div class="ponto"></div>
@@ -107,8 +139,11 @@
       <div class="painel-numeros">
         <div class="num${esperando.length ? ' num-alerta' : ''}"><span class="num-v">${esperando.length}</span><span class="num-r">Esperando aprovação</span></div>
         <div class="num"><span class="num-v">${ativos.length}</span><span class="num-r">Ativos</span></div>
+        <div class="num${comFotoPendente.length ? ' fi-atencao' : ''}"><span class="num-v">${comFotoPendente.length}</span><span class="num-r">Fotos a revisar</span></div>
         <div class="num"><span class="num-v">${ativos.filter(p => p.papel === 'admin').length}</span><span class="num-r">Administradores</span></div>
       </div>
+
+      ${filaFotos}
 
       ${tabela('Esperando aprovação', esperando,
         'Ninguém na fila. Quem se cadastrar aparece aqui.', 'espera')}
@@ -130,6 +165,32 @@
     document.getElementById('crConvidar').addEventListener('click', () => montarConvite(alvoEl));
 
     // ── Ações ────────────────────────────────────────────────────────
+    alvo.querySelectorAll('[data-aprovar]').forEach(b => b.addEventListener('click', async () => {
+      const alvoP = perfis.find(x => x.id === b.dataset.aprovar);
+      // Aprovar é MOVER: a pendente vira a publicada e some da fila. O site
+      // nunca fica sem foto no meio do caminho, porque a troca é atômica.
+      await db(supabaseClient.from('perfil').update({
+        foto_url: alvoP.foto_pendente_url, foto_pendente_url: null,
+        foto_recusa: null, foto_revisada_em: new Date().toISOString(),
+      }).eq('id', alvoP.id), 'aprovar a foto');
+      avisar('Foto aprovada. Entra no site na próxima geração.');
+      await montar(alvoEl, 'equipe');
+    }));
+
+    alvo.querySelectorAll('[data-recusar]').forEach(b => b.addEventListener('click', async () => {
+      const motivo = prompt('Por que esta foto não serve? O corretor vai ler isso:',
+        'Enquadramento: precisa ser do peito para cima, com fundo limpo.');
+      if (motivo === null) return;
+      if (!motivo.trim()) { avisar('Escreva o motivo. Recusa sem explicação volta igual.'); return; }
+      // Recusar apaga só a pendente. A que está no ar não é tocada.
+      await db(supabaseClient.from('perfil').update({
+        foto_pendente_url: null, foto_recusa: motivo.trim(),
+        foto_revisada_em: new Date().toISOString(),
+      }).eq('id', b.dataset.recusar), 'recusar a foto');
+      avisar('Recusada, com o motivo registrado.');
+      await montar(alvoEl, 'equipe');
+    }));
+
     alvo.querySelectorAll('[data-acao]').forEach(b => {
       b.addEventListener('click', async e => {
         const tr = b.closest('tr');
@@ -733,6 +794,133 @@
       </body></html>`);
     w.document.close();
     avisar(lacunas ? `Documento gerado com ${lacunas} lacuna(s).` : 'Documento gerado.');
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // MINHA FOTO
+  //
+  // Aberta a todos, como a Agenda do Google: é a pessoa mexendo na própria
+  // conta. A revisão fica com o admin, na tela da equipe.
+  //
+  // O padrão se ENSINA antes do envio. Aprovação sozinha não cria padrão,
+  // ela só rejeita, e aí o admin vira máquina de recusar e o corretor vira
+  // máquina de tentar de novo. A parte mecânica (corte quadrado, tamanho
+  // mínimo) o sistema resolve sozinho, para ninguém ser recusado por motivo
+  // técnico.
+  // ══════════════════════════════════════════════════════════════════
+  const REGRAS_FOTO = [
+    'Do peito para cima, rosto centralizado e olhando para a câmera.',
+    'Fundo limpo e liso. Nada de casa, carro, praia ou parede bagunçada.',
+    'Luz de frente. Contraluz deixa o rosto escuro e não tem conserto.',
+    'Roupa de atendimento, a mesma com que você recebe um cliente.',
+    'Você sozinho. Foto cortada de uma festa aparece cortada.',
+    'Sem selfie, sem óculos escuros, sem filtro que muda o rosto.',
+  ];
+
+  // Sem foto aprovada a página mostra as iniciais no estilo da marca. Tem
+  // que parecer escolha, não imagem quebrada.
+  function monograma(nome, classe) {
+    const partes = String(nome || '?').trim().split(/\s+/);
+    const iniciais = (partes[0][0] + (partes.length > 1 ? partes[partes.length - 1][0] : ''))
+      .toUpperCase();
+    return `<span class="ft-mono ${classe || ''}">${esc(iniciais)}</span>`;
+  }
+
+  async function montarMinhaFoto(alvo) {
+    const eu = Plataforma.perfil;
+    const linhas = await db(supabaseClient.from('perfil').select('*').eq('id', eu.id).limit(1),
+      'carregar seu perfil');
+    const p = linhas[0] || {};
+
+    const estado = p.foto_pendente_url ? 'aguardando'
+      : p.foto_url ? 'no ar'
+      : p.foto_recusa ? 'recusada' : 'sem foto';
+
+    alvo.innerHTML = `
+      <div class="secao-topo">
+        <div class="secao-titulo"><div class="ponto"></div>
+          <div><h2>Minha foto</h2>
+          <div class="secao-meta">Ela aparece no site, no fim da página dos imóveis que
+            você captou. É o rosto da Maysonnave para quem está decidindo.</div></div>
+        </div>
+      </div>
+
+      <div class="ft-grade">
+        <section class="ficha-secao">
+          <div class="ficha-secao-topo"><h3>Como está hoje</h3></div>
+          <div class="ft-atual">
+            <div class="ft-slot">
+              ${p.foto_url ? `<img src="${esc(p.foto_url)}" alt="Sua foto publicada">`
+                           : monograma(p.nome, 'ft-mono-grande')}
+              <span class="ft-rot">${p.foto_url ? 'no ar' : 'sem foto no site'}</span>
+            </div>
+            ${p.foto_pendente_url ? `
+              <div class="ft-slot ft-slot-espera">
+                <img src="${esc(p.foto_pendente_url)}" alt="Foto aguardando revisão">
+                <span class="ft-rot">aguardando revisão</span>
+              </div>` : ''}
+          </div>
+          <div style="padding:0 20px 18px">
+            ${estado === 'aguardando' ? `<p class="campo-dica">Enviada. Enquanto o administrador
+              não revisa, o site continua mostrando ${p.foto_url ? 'a foto de antes' : 'suas iniciais'},
+              então nada fica quebrado.</p>` : ''}
+            ${p.foto_recusa && !p.foto_pendente_url ? `
+              <div class="ft-recusa">
+                <strong>A última foto não foi aprovada</strong>
+                <p>${esc(p.foto_recusa)}</p>
+              </div>` : ''}
+            ${estado === 'sem foto' ? `<p class="campo-dica">Sem foto aprovada, o site mostra
+              suas iniciais. Funciona, mas foto converte mais: o cliente fala com uma pessoa,
+              não com um monograma.</p>` : ''}
+          </div>
+        </section>
+
+        <section class="ficha-secao">
+          <div class="ficha-secao-topo"><h3>O que se espera da foto</h3>
+            <p>Ler isto antes evita a ida e volta de enviar, ser recusado e enviar de novo.</p></div>
+          <div style="padding:4px 20px 18px">
+            <ul class="ft-regras">${REGRAS_FOTO.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+            <p class="campo-dica">O recorte quadrado e o tamanho o sistema faz sozinho.
+              Só não dá para consertar foto pequena: o menor lado precisa ter 400 pixels.</p>
+            <label class="ft-enviar" id="ftZona">
+              <input type="file" id="ftArquivo" accept="image/*" hidden>
+              <span id="ftRotulo">${p.foto_pendente_url ? 'Trocar a foto enviada' : 'Escolher a minha foto'}</span>
+            </label>
+          </div>
+        </section>
+      </div>`;
+
+    const zona = document.getElementById('ftZona');
+    const arq = document.getElementById('ftArquivo');
+    const rot = document.getElementById('ftRotulo');
+    zona.addEventListener('click', () => arq.click());
+    ['dragover', 'dragleave', 'drop'].forEach(ev => zona.addEventListener(ev, e => {
+      e.preventDefault();
+      zona.classList.toggle('sobre', ev === 'dragover');
+      if (ev === 'drop' && e.dataTransfer.files[0]) enviar(e.dataTransfer.files[0]);
+    }));
+    arq.addEventListener('change', () => arq.files[0] && enviar(arq.files[0]));
+
+    async function enviar(arquivo) {
+      rot.textContent = 'Enviando…';
+      zona.classList.add('ocupado');
+      try {
+        const r = await Fotos.enviarRetrato(arquivo, 'corretores');
+        // Grava SEMPRE na pendente. A publicada nem é mencionada aqui, e o
+        // banco recusaria de qualquer jeito: mudar a publicada exige admin.
+        await db(supabaseClient.from('perfil').update({
+          foto_pendente_url: r.url,
+          foto_enviada_em: new Date().toISOString(),
+          foto_recusa: null,
+        }).eq('id', eu.id), 'enviar a foto');
+        avisar('Foto enviada para revisão.');
+        await montarMinhaFoto(alvo);
+      } catch (e) {
+        zona.classList.remove('ocupado');
+        rot.textContent = 'Escolher a minha foto';
+        avisar('Não consegui usar essa imagem: ' + e.message);
+      }
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════

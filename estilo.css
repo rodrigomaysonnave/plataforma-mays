@@ -1053,3 +1053,69 @@ select option { background: #1a1a1a; }
   .ag-cal-semana > * { min-width: 680px; }
   .ag-cel { min-height: 74px; }
 }
+
+/* ── Foto do corretor ──────────────────────────────────────────────── */
+.ft-grade { display: grid; gap: 16px; grid-template-columns: 340px 1fr; align-items: start; }
+@media (max-width: 860px) { .ft-grade { grid-template-columns: 1fr; } }
+
+.ft-atual { display: flex; gap: 16px; padding: 18px 20px; flex-wrap: wrap; }
+.ft-slot { width: 132px; }
+.ft-slot img, .ft-mono {
+  display: block; width: 132px; height: 132px; border-radius: var(--raio);
+  object-fit: cover; border: 1px solid var(--borda);
+}
+/* A que espera revisão vem tracejada: dá para ver que ainda não vale. */
+.ft-slot-espera img { border-style: dashed; border-color: var(--dourado-fosco); }
+.ft-rot {
+  display: block; margin-top: 6px; font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--texto-fraco); text-align: center;
+}
+
+/* Monograma: sem foto aprovada o site mostra as iniciais no estilo da marca.
+   Precisa parecer escolha, não imagem que não carregou. */
+.ft-mono {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--superficie-2); color: var(--dourado);
+  font-family: Georgia, serif; font-size: 40px; font-weight: 700; letter-spacing: .02em;
+}
+.ft-mono-grande { width: 132px; height: 132px; }
+
+.ft-recusa {
+  border: 1px solid rgba(224,82,82,.45); border-radius: var(--raio);
+  padding: 12px 14px; margin-top: 4px;
+}
+.ft-recusa strong { display: block; font-size: 13px; color: var(--vermelho); margin-bottom: 4px; }
+.ft-recusa p { font-size: 13px; margin: 0; white-space: pre-wrap; }
+
+.ft-regras { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 6px; }
+.ft-regras li { font-size: 13px; color: var(--texto); }
+
+.ft-enviar {
+  display: block; margin-top: 14px; padding: 22px 18px; text-align: center;
+  border: 1.5px dashed var(--borda); border-radius: var(--raio); cursor: pointer;
+  color: var(--texto-fraco); font-size: 13px; font-weight: 500;
+  transition: border-color .14s, color .14s;
+}
+.ft-enviar:hover, .ft-enviar.sobre { border-color: var(--dourado); color: var(--texto); }
+.ft-enviar.ocupado { opacity: .6; pointer-events: none; }
+
+/* ── Fila de revisão, na tela da equipe ── */
+.ft-fila { border-color: var(--dourado-fosco); }
+.ft-fila-itens {
+  display: grid; gap: 14px; padding: 16px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+}
+.ft-cartao { border: 1px solid var(--borda); border-radius: var(--raio); overflow: hidden; }
+.ft-par { display: flex; gap: 1px; background: var(--borda); }
+.ft-par figure { flex: 1; margin: 0; background: var(--superficie); }
+.ft-par img, .ft-par .ft-mono {
+  width: 100%; height: 128px; border: 0; border-radius: 0; object-fit: cover; display: block;
+}
+.ft-par .ft-mono { font-size: 34px; }
+.ft-par figcaption {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--texto-fraco); text-align: center; padding: 5px 4px;
+}
+.ft-cartao-pe { padding: 11px 13px; }
+.ft-cartao-pe strong { display: block; font-size: 13.5px; }
+.ft-acoes { display: flex; gap: 6px; margin-top: 9px; }
