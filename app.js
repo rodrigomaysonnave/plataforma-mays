@@ -155,6 +155,34 @@ const Plataforma = (() => {
     return true;
   }
 
+  // ── Volta do Google ─────────────────────────────────────────────────
+  // O Google devolve a pessoa nesta mesma página com ?code= na barra. O
+  // código vale uma vez só e por poucos minutos, então é trocado logo na
+  // chegada e some da barra em seguida: endereço com código dentro acaba
+  // copiado, colado e mandado para alguém sem querer.
+  async function tentarRetornoDoGoogle() {
+    const q = new URLSearchParams(location.search);
+    const code = q.get('code');
+    if (!code) return false;
+
+    const limpar = () => history.replaceState(null, '', location.pathname);
+    if (q.get('error')) {
+      limpar();
+      avisar('O Google não autorizou: ' + q.get('error'));
+      return false;
+    }
+    try {
+      const r = await Plataforma.google('conectar',
+        { code, redirect_uri: location.origin + location.pathname });
+      limpar();
+      avisar(`Google conectado${r && r.conta ? ' · ' + r.conta : ''}.`);
+    } catch (e) {
+      limpar();
+      avisar('Não consegui concluir a conexão: ' + e.message);
+    }
+    return true;
+  }
+
   async function aposLogin(sessaoUsuario) {
     usuario = sessaoUsuario;
     const linhas = await db(
@@ -179,6 +207,11 @@ const Plataforma = (() => {
     } catch (e) { /* segue com o padrão do HTML */ }
 
     mostrar('app');
+
+    // Voltando do Google, a tela certa é a da própria integração: é onde a
+    // pessoa estava e onde ela confere se deu certo.
+    if (await tentarRetornoDoGoogle()) return irPara('corretores', 'agenda');
+
     let inicial = 'configuracoes';
     try { inicial = localStorage.getItem('plat_modulo') || inicial; } catch (e) {}
     if (!document.querySelector(`.menu-item[data-modulo="${inicial}"]`)) inicial = 'configuracoes';

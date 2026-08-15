@@ -85,38 +85,8 @@
   });
 
   // ── Agenda e visitas ────────────────────────────────────────────────
-  Crud.criar({
-    nome: 'agenda', titulo: 'Agenda e visitas',
-    tabela: 'compromisso', singular: 'compromisso', plural: 'compromissos',
-    rotuloNovo: 'Novo compromisso',
-    placeholderBusca: 'Título, local…',
-    busca: ['titulo','local'],
-    ordem: { campo: 'inicio', asc: false },
-    obrigatorios: ['titulo','inicio'],
-    padrao: { tipo: 'visita', situacao: 'marcado' },
-    filtro: { campo: 'situacao', rotulo: 'Toda situação', opcoes: SIT_COMPROMISSO.map(o => [o[0], o[1]]) },
-    colunas: [
-      { campo: 'inicio', rotulo: 'Quando', tipo: 'datahora' },
-      { campo: 'titulo', rotulo: 'Compromisso' },
-      { campo: 'tipo', rotulo: 'Tipo', tipo: 'fixa', opcoes: TIPO_COMPROMISSO },
-      { campo: 'contato_id', rotulo: 'Cliente', tipo: 'ref', ref: 'contato' },
-      { campo: 'local', rotulo: 'Local' },
-      { campo: 'situacao', rotulo: 'Situação', tipo: 'selo', opcoes: SIT_COMPROMISSO },
-    ],
-    campos: [
-      { campo: 'titulo', rotulo: 'Título', largo: true, ph: 'Visita ao apartamento do Centro' },
-      { campo: 'tipo', rotulo: 'Tipo', tipo: 'fixa', opcoes: TIPO_COMPROMISSO },
-      { campo: 'inicio', rotulo: 'Início', tipo: 'datahora' },
-      { campo: 'fim', rotulo: 'Fim', tipo: 'datahora' },
-      { campo: 'local', rotulo: 'Local', largo: true },
-      { campo: 'contato_id', rotulo: 'Cliente', tipo: 'ref', ref: 'contato' },
-      { campo: 'situacao', rotulo: 'Situação', tipo: 'fixa', opcoes: SIT_COMPROMISSO.map(o => [o[0], o[1]]) },
-      { campo: 'obs', rotulo: 'Observações', tipo: 'texto', largo: true, secao: 'Depois da visita' },
-      { campo: 'feedback', rotulo: 'O que o cliente achou', tipo: 'texto', largo: true, linhas: 4,
-        secao: 'Depois da visita',
-        dica: 'A ficha de visita. É daqui que sai o argumento para a próxima oferta.' },
-    ],
-  });
+  // Saiu daqui. Agenda não se lê em tabela, se lê por dia, e desde que ela
+  // espelha o Google precisa de salvamento próprio. Ver mod-agenda.js.
 
   // ── Propostas e contratos ───────────────────────────────────────────
   Crud.criar({

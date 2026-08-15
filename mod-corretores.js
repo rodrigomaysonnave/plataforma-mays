@@ -737,99 +737,146 @@
 
   // ══════════════════════════════════════════════════════════════════
   // AGENDA DO GOOGLE
+  //
+  // A ligação é por corretor: cada um autoriza a própria conta. Não existe
+  // "conta da imobiliária" que enxergue a agenda de todo mundo, e é assim
+  // que tem que ser.
+  //
+  // O navegador nunca vê a chave secreta nem o refresh_token. Ele só manda
+  // o código de autorização para a função `google-agenda`, e daí em diante
+  // quem fala com o Google é o servidor.
   // ══════════════════════════════════════════════════════════════════
+  const ESCOPOS = [
+    'https://www.googleapis.com/auth/calendar.events',
+    'openid', 'email',
+  ].join(' ');
+
+  // O endereço de retorno é sempre a própria página, montado na hora. Assim
+  // o mesmo código serve em localhost e no endereço publicado, sem ninguém
+  // lembrar de trocar constante nenhuma.
+  const enderecoDeRetorno = () => location.origin + location.pathname;
+
+  async function chamarGoogle(acao, extra) {
+    const { data, error } = await supabaseClient.functions.invoke('google-agenda',
+      { body: { acao, ...(extra || {}) } });
+    let motivo = (error && error.message) || (data && data.error);
+    if (error && error.context && typeof error.context.json === 'function') {
+      try { const c = await error.context.json(); if (c && c.error) motivo = c.error; } catch (e) {}
+    }
+    if (motivo) throw new Error(motivo);
+    return data;
+  }
+  Plataforma.google = chamarGoogle;
+
   async function montarAgenda(alvo) {
     const eu = Plataforma.perfil;
-    const linhas = await db(supabaseClient.from('integracao_google')
-      .select('*').eq('perfil_id', eu.id).limit(1), 'carregar a integração');
-    const meu = linhas[0] || {};
     const cfgs = await db(supabaseClient.from('configuracao').select('*').limit(1), 'carregar configuração');
     const cfg = cfgs[0] || {};
+
+    let estado = { conectado: false };
+    let falha = null;
+    try { estado = await chamarGoogle('estado'); }
+    catch (e) { falha = e.message; }
+
+    const temId = !!cfg.google_client_id;
 
     alvo.innerHTML = `
       <div class="secao-topo">
         <div class="secao-titulo"><div class="ponto"></div>
           <div><h2>Agenda do Google</h2>
-          <div class="secao-meta">A conexão é por corretor: cada um liga a própria conta,
-            como você definiu.</div></div>
+          <div class="secao-meta">A conexão é por corretor: cada um liga a própria conta.</div></div>
         </div>
       </div>
 
       <div class="ficha-secao">
         <div class="ficha-secao-topo">
-          <h3>Funcionando hoje, sem configurar nada</h3>
-          <p>Todo compromisso da Agenda tem o botão <strong>Adicionar ao Google Agenda</strong>.
-             Ele abre o Google já preenchido com título, data, hora e local, e você confirma.
-             Funciona no computador e no celular, sem login e sem token.</p>
+          <h3>Sua conta</h3>
+          <p>Conectado, o compromisso marcado aqui nasce na sua agenda do Google, e o que
+             você marcar no celular aparece aqui.</p>
         </div>
-        <div style="padding:16px 20px">
-          <p class="campo-dica">Serve para a maioria dos casos. O que ele não faz é trazer de
-          volta o que você marcou direto no Google, nem apagar lá o que você cancelar aqui.</p>
+        <div style="padding:18px 20px">
+          ${falha ? `<p class="campo-dica" style="color:var(--vermelho)">Não consegui falar com o
+              servidor da integração: ${esc(falha)}</p>` : ''}
+          ${estado.conectado ? `
+            <div class="ag-estado ag-ligado">
+              <span class="ag-bolinha"></span>
+              <div>
+                <strong>Conectado</strong>
+                <div class="cad-end-sub">${esc(estado.conta || '')}${
+                  estado.desde ? ' · desde ' + data(estado.desde) : ''}</div>
+              </div>
+              <button class="btn btn-remover" id="agDesconectar">Desconectar</button>
+            </div>`
+          : `<div class="ag-estado">
+              <span class="ag-bolinha ag-off"></span>
+              <div>
+                <strong>Não conectado</strong>
+                <div class="cad-end-sub">${temId
+                  ? 'Clique em conectar e escolha a conta Google que você usa no dia a dia.'
+                  : 'Falta o ID do cliente OAuth, logo abaixo.'}</div>
+              </div>
+              ${temId ? '<button class="btn btn-primario" id="agConectar">Conectar com o Google</button>' : ''}
+            </div>`}
         </div>
       </div>
 
       <div class="ficha-secao">
-        <div class="ficha-secao-topo">
-          <h3>Sincronia de mão dupla</h3>
-          <p>Para o compromisso nascer no Google sozinho e o cancelamento sumir dos dois lados,
-             o Google exige autorização por conta, e isso depende de um projeto no Google Cloud.</p>
-        </div>
+        <div class="ficha-secao-topo"><h3>Ajustes</h3>
+          <p>Preenchidos uma vez, valem para a imobiliária inteira.</p></div>
         <div class="ficha-grade">
           <div class="campo campo-largo">
             <label for="agClientId">ID do cliente OAuth</label>
             <input type="text" id="agClientId" value="${esc(cfg.google_client_id ?? '')}"
                    placeholder="000000000000-xxxxxxxx.apps.googleusercontent.com">
-            <p class="campo-dica">Google Cloud → APIs e serviços → Credenciais → Criar credenciais
-              → ID do cliente OAuth. Ative a Google Calendar API no mesmo projeto.</p>
+            <p class="campo-dica">Este é público por desenho. A chave secreta do par fica
+              guardada no servidor, nunca aqui.</p>
           </div>
           <div class="campo campo-largo">
-            <label for="agCalendario">Sua agenda</label>
-            <input type="text" id="agCalendario" value="${esc(meu.calendar_id ?? '')}"
-                   placeholder="${esc(eu.email)}">
-            <p class="campo-dica">Em branco usa a agenda principal da sua conta.</p>
-          </div>
-          <div class="campo campo-largo">
-            <div class="check" style="cursor:default">
-              <span><strong>Situação:</strong>
-                <em>${meu.conectado_em
-                  ? 'Conectado em ' + data(meu.conectado_em)
-                  : 'Não conectado. Falta o ID do cliente para o botão de conectar aparecer.'}</em></span>
-            </div>
+            <label>Endereço de retorno cadastrado no Google</label>
+            <input type="text" value="${esc(enderecoDeRetorno())}" readonly>
+            <p class="campo-dica">Precisa estar igual no Google Cloud, em URIs de
+              redirecionamento autorizados. Mudou o endereço da plataforma, acrescenta lá.</p>
           </div>
         </div>
         <div class="ficha-rodape" style="padding:0 20px 18px">
           <button class="btn btn-primario" id="agSalvar">Salvar</button>
         </div>
-      </div>
-
-      <div class="ficha-secao">
-        <div class="ficha-secao-topo"><h3>O que falta para ligar de vez</h3></div>
-        <div style="padding:16px 20px">
-          <ol class="passos">
-            <li><h3>Criar o projeto no Google Cloud</h3>
-              <p>Gratuito. Ativar a Google Calendar API e criar um ID de cliente OAuth.</p></li>
-            <li><h3>Publicar a plataforma em HTTPS</h3>
-              <p>O Google só aceita retorno de endereço seguro. Enquanto ela roda em
-                 <code>localhost</code>, funciona para teste, mas não para a equipe.</p></li>
-            <li><h3>Autorizar, cada um na própria conta</h3>
-              <p>Você, o Marcos e cada parceiro clicam em conectar uma vez. A partir daí o
-                 compromisso criado aqui aparece na agenda de cada um.</p></li>
-          </ol>
-          <p class="campo-dica" style="margin-top:14px">Os campos do banco já existem
-          (<code>google_event_id</code> em cada compromisso), então ligar isso depois não
-          exige mudar estrutura nenhuma.</p>
-        </div>
       </div>`;
 
     document.getElementById('agSalvar').addEventListener('click', async () => {
-      const cal = document.getElementById('agCalendario').value.trim() || null;
       const cid = document.getElementById('agClientId').value.trim() || null;
-      await db(supabaseClient.from('integracao_google')
-        .upsert({ perfil_id: eu.id, calendar_id: cal }, { onConflict: 'perfil_id' }),
-        'salvar a agenda');
       await db(supabaseClient.from('configuracao')
         .update({ google_client_id: cid }).eq('id', true), 'salvar o ID do cliente');
       avisar('Salvo.');
+      await montarAgenda(alvo);
+    });
+
+    const conectar = document.getElementById('agConectar');
+    if (conectar) conectar.addEventListener('click', () => {
+      // `prompt=consent` com `access_type=offline` é o que garante o
+      // refresh_token. Sem os dois, o Google devolve só um acesso de uma
+      // hora e a sincronia morre sozinha no fim do dia.
+      const q = new URLSearchParams({
+        client_id: cfg.google_client_id,
+        redirect_uri: enderecoDeRetorno(),
+        response_type: 'code',
+        scope: ESCOPOS,
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true',
+        state: 'agenda',
+      });
+      location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + q;
+    });
+
+    const desconectar = document.getElementById('agDesconectar');
+    if (desconectar) desconectar.addEventListener('click', async () => {
+      if (!confirm('Desconectar o Google? Os compromissos já criados continuam lá; só param de sincronizar.')) return;
+      try {
+        await chamarGoogle('desconectar');
+        avisar('Desconectado.');
+      } catch (e) { avisar('Falhou ao desconectar: ' + e.message); }
+      await montarAgenda(alvo);
     });
   }
 
