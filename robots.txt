@@ -1,0 +1,7 @@
+# A plataforma é ferramenta interna e não deve aparecer em buscador nenhum.
+# Diferente do site, aqui não existe caso em que indexar seja desejável:
+# a tela de login exposta no Google só serve para quem procura o que atacar.
+#
+# Isto vale para sempre. Não é provisório como era o do site.
+User-agent: *
+Disallow: /
