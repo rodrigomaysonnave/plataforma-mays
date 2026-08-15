@@ -86,6 +86,7 @@
         ${cp('cfgEmail', 'E-mail de contato', c.email_contato, '')}
         ${cp('cfgCidade', 'Cidade padrão', c.cidade_padrao, 'Pelotas', 'Já vem preenchida ao cadastrar imóvel.')}
         ${cp('cfgEstado', 'Estado padrão', c.estado_padrao, 'RS')}
+        ${cp('cfgEndereco', 'Endereço da imobiliária', c.endereco, 'Rua XV de Novembro, 666 · loja 67', 'Aparece no rodapé do site. Endereço físico também conta para o Google entender que existe um negócio real em Pelotas.')}
         ${cp('cfgSite', 'Endereço do site', c.site_url, 'https://maysimoveis.com', 'O endereço ONDE O SITE ESTÁ NO AR agora, não o domínio que você pretende usar. É ele que o botão "Ver no site" abre, e é dele que saem os endereços canônicos e o sitemap quando o site é gerado. Trocou de domínio, troque aqui e gere o site de novo.')}
       </div>
       <div class="ficha-rodape" style="padding:0 20px 18px">
@@ -99,6 +100,7 @@
         nome_imobiliaria: v('cfgNomeImob') || 'Maysonnave Imóveis',
         creci: v('cfgCreci'), whatsapp: v('cfgWhatsapp'), email_contato: v('cfgEmail'),
         cidade_padrao: v('cfgCidade'), estado_padrao: v('cfgEstado'), site_url: v('cfgSite'),
+        endereco: v('cfgEndereco'),
       }).eq('id', true), 'salvar os ajustes');
       // Reflete na hora na barra lateral, sem exigir recarregar.
       document.getElementById('nomeSistema').textContent = v('cfgNomeSistema') || 'Plataforma Mays';
