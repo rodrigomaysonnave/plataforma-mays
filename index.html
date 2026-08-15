@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plataforma Mays</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f0f0f'/%3E%3Crect x='3.5' y='3.5' width='25' height='25' rx='4' fill='none' stroke='%23c9a84c' stroke-width='2'/%3E%3Ctext x='16' y='21' font-family='Georgia,serif' font-size='13' font-weight='700' fill='%23c9a84c' text-anchor='middle'%3EMI%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<!-- ── Entrada ────────────────────────────────────────────────────── -->
+<div id="telaLogin" class="tela-centro">
+  <div class="cartao-auth">
+    <div class="marca-quadro">MI</div>
+    <h1 class="auth-titulo">Plataforma Mays</h1>
+    <p class="auth-sub">Gestão imobiliária</p>
+
+    <div class="campo">
+      <label for="loginEmail">E-mail</label>
+      <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="username">
+    </div>
+    <div class="campo">
+      <label for="loginSenha">Senha</label>
+      <input type="password" id="loginSenha" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primario btn-largo" id="btnEntrar">Entrar</button>
+    <p class="auth-erro" id="loginErro"></p>
+  </div>
+</div>
+
+<!-- ── Aceitar convite ────────────────────────────────────────────── -->
+<div id="telaConvite" class="tela-centro" hidden>
+  <div class="cartao-auth">
+    <div class="marca-quadro">MI</div>
+    <h1 class="auth-titulo">Você foi convidado</h1>
+    <p class="auth-sub" id="conviteQuem"></p>
+
+    <div class="campo">
+      <label for="conviteSenha">Crie sua senha</label>
+      <input type="password" id="conviteSenha" placeholder="pelo menos 6 caracteres" autocomplete="new-password">
+    </div>
+    <div class="campo">
+      <label for="conviteSenha2">Repita a senha</label>
+      <input type="password" id="conviteSenha2" placeholder="••••••••" autocomplete="new-password">
+    </div>
+    <button class="btn btn-primario btn-largo" id="btnAceitar">Criar meu acesso</button>
+    <p class="auth-erro" id="conviteErro"></p>
+  </div>
+</div>
+
+<!-- ── Aguardando aprovação ───────────────────────────────────────── -->
+<div id="telaEspera" class="tela-centro" hidden>
+  <div class="cartao-auth">
+    <div class="marca-quadro">MI</div>
+    <h1 class="auth-titulo">Cadastro recebido</h1>
+    <p class="auth-sub" style="margin-bottom:24px">
+      Sua conta existe e está aguardando aprovação de um administrador.
+    </p>
+    <button class="btn btn-fantasma btn-largo" id="btnSairEspera">Sair</button>
+  </div>
+</div>
+
+<!-- ── Aplicação ──────────────────────────────────────────────────── -->
+<div id="app" hidden>
+
+  <aside class="lateral" id="lateral">
+    <div class="lateral-marca">
+      <div class="marca-quadro pequeno">MI</div>
+      <div class="lateral-marca-texto">
+        <strong id="nomeSistema">Plataforma Mays</strong>
+        <span id="nomeImobiliaria">Maysonnave Imóveis</span>
+      </div>
+    </div>
+
+    <!-- Menu agrupado. Onze itens soltos não se leem, e "CRM" precisa existir
+         com esse nome: é assim que o mercado chama e é onde ele procura.
+         Clientes, Funil, Atendimento e Agenda são o CRM, só estavam espalhados. -->
+    <nav class="menu" id="menu">
+      <button class="menu-item" data-modulo="inicio"><span class="menu-ico">◎</span><span class="menu-txt">Início</span></button>
+
+      <div class="menu-grupo"><span>Cadastros</span></div>
+      <button class="menu-item" data-modulo="imoveis"><span class="menu-ico">▤</span><span class="menu-txt">Imóveis</span></button>
+      <button class="menu-item" data-modulo="proprietarios"><span class="menu-ico">◈</span><span class="menu-txt">Proprietários</span></button>
+
+      <div class="menu-grupo"><span>CRM</span></div>
+      <button class="menu-item" data-modulo="clientes"><span class="menu-ico">◇</span><span class="menu-txt">Clientes</span></button>
+      <button class="menu-item" data-modulo="funil"><span class="menu-ico">≡</span><span class="menu-txt">Funil de vendas</span></button>
+      <button class="menu-item" data-modulo="campanhas"><span class="menu-ico">◍</span><span class="menu-txt">Campanhas</span></button>
+      <button class="menu-item" data-modulo="atendimento"><span class="menu-ico">◐</span><span class="menu-txt">Atendimento</span></button>
+      <button class="menu-item" data-modulo="agenda"><span class="menu-ico">▦</span><span class="menu-txt">Agenda e visitas</span></button>
+
+      <div class="menu-grupo"><span>Negócio</span></div>
+      <button class="menu-item" data-modulo="contratos"><span class="menu-ico">✓</span><span class="menu-txt">Propostas e contratos</span></button>
+      <button class="menu-item tem-sub" data-modulo="financeiro"><span class="menu-ico">$</span><span class="menu-txt">Financeiro</span><span class="menu-seta" aria-hidden="true">›</span></button>
+      <div class="submenu" data-de="financeiro">
+        <button class="menu-sub" data-modulo="financeiro" data-sub="visao">Visão geral</button>
+        <button class="menu-sub" data-modulo="financeiro" data-sub="receber">A receber</button>
+        <button class="menu-sub" data-modulo="financeiro" data-sub="pagar">A pagar</button>
+        <button class="menu-sub" data-modulo="financeiro" data-sub="lancamentos">Lançamentos</button>
+        <button class="menu-sub" data-modulo="financeiro" data-sub="contas">Contas e cartões</button>
+        <button class="menu-sub" data-modulo="financeiro" data-sub="categorias">Categorias</button>
+      </div>
+      <button class="menu-item tem-sub" data-modulo="site"><span class="menu-ico">▨</span><span class="menu-txt">Site e portais</span><span class="menu-seta" aria-hidden="true">›</span></button>
+      <div class="submenu" data-de="site">
+        <button class="menu-sub" data-modulo="site" data-sub="publicacao">Publicação</button>
+        <button class="menu-sub" data-modulo="site" data-sub="midia">Reels e vídeos</button>
+        <button class="menu-sub" data-modulo="site" data-sub="portais">Portais</button>
+        <button class="menu-sub" data-modulo="site" data-sub="seo">SEO e medição</button>
+      </div>
+      <button class="menu-item" data-modulo="blog"><span class="menu-ico">✎</span><span class="menu-txt">Blog</span></button>
+      <button class="menu-item" data-modulo="relatorios"><span class="menu-ico">◔</span><span class="menu-txt">Relatórios</span></button>
+
+      <div class="menu-grupo"><span>Sistema</span></div>
+      <button class="menu-item tem-sub" data-modulo="corretores"><span class="menu-ico">◉</span><span class="menu-txt">Corretores</span><span class="menu-seta" aria-hidden="true">›</span></button>
+      <div class="submenu" data-de="corretores">
+        <button class="menu-sub" data-modulo="corretores" data-sub="equipe">Equipe e acessos</button>
+        <button class="menu-sub" data-modulo="corretores" data-sub="agenda">Agenda do Google</button>
+        <button class="menu-sub" data-modulo="corretores" data-sub="modelos">Modelos de contrato</button>
+      </div>
+      <button class="menu-item ativo" data-modulo="configuracoes"><span class="menu-ico">⚙</span><span class="menu-txt">Configurações</span></button>
+    </nav>
+
+    <div class="lateral-pe">
+      <span class="versao" id="versao">v1.0</span>
+    </div>
+  </aside>
+
+  <header class="topo">
+    <button class="alternar-menu" id="alternarMenu" aria-label="Recolher menu" title="Recolher menu">☰</button>
+    <div class="trilha">
+      <span class="trilha-raiz">Plataforma</span>
+      <span class="trilha-sep">›</span>
+      <span id="trilhaAtual">Configurações</span>
+    </div>
+    <div class="topo-espaco"></div>
+    <span class="topo-usuario" id="topoUsuario"></span>
+    <button class="btn btn-fantasma" id="btnSair">Sair</button>
+  </header>
+
+  <main id="conteudo">
+    <!-- Cada módulo desenha aqui dentro. Ver mod-*.js -->
+    <div class="vazio-modulo" id="moduloVazio">
+      <div class="vazio-ico">◎</div>
+      <h3>Módulo ainda não construído</h3>
+      <p>Este é o esqueleto da plataforma. Os módulos entram um por vez, cada um
+         terminado antes do seguinte.</p>
+    </div>
+  </main>
+
+</div>
+
+<script src="configuracao.js"></script>
+<script src="app.js"></script>
+<script src="fotos.js"></script>
+<script src="arrastar.js"></script>
+<script src="mod-configuracoes.js"></script>
+<script src="mod-imoveis.js"></script>
+<script src="crud.js"></script>
+<script src="mod-cadastros.js"></script>
+<script src="mod-funil.js"></script>
+<script src="mod-inicio.js"></script>
+<script src="mod-relatorios.js"></script>
+<script src="mod-site.js"></script>
+<script src="mod-atendimento.js"></script>
+<script src="mod-blog.js"></script>
+<script src="mod-corretores.js"></script>
+<script src="mod-financeiro.js"></script>
+<script src="mod-campanhas.js"></script>
+</body>
+</html>
