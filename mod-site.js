@@ -171,11 +171,13 @@
 
       <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>A página inicial na busca</h3>
-          <p>Deixe em branco para usar o texto automático. Assim nenhuma página fica sem
-             resumo, que é o defeito do site atual dele.</p></div>
+          <p>São as meta tags que o Google de fato usa: title e meta description.
+             Meta keywords não existe mais aqui de propósito, nenhum buscador lê essa tag
+             desde 2009. Deixe em branco para usar o texto automático, assim nenhuma
+             página fica sem resumo.</p></div>
         <div class="ficha-grade">
-          ${campo('seoTitulo', 'Título na busca', c.site_titulo, sugTitulo, 'Até 60 caracteres. Cidade e nicho valem mais que nome bonito.', true)}
-          <div class="campo campo-largo"><label for="seoDesc">Resumo na busca</label>
+          ${campo('seoTitulo', 'Título na busca (tag title)', c.site_titulo, sugTitulo, 'Até 60 caracteres. Cidade e nicho valem mais que nome bonito.', true)}
+          <div class="campo campo-largo"><label for="seoDesc">Resumo na busca (meta description)</label>
             <textarea id="seoDesc" rows="2" placeholder="${esc(sugDesc)}">${esc(c.site_descricao ?? '')}</textarea>
             <p class="campo-dica">Até 158 caracteres.</p></div>
           ${campo('seoImagem', 'Imagem ao compartilhar', c.site_imagem, 'https://…', 'Aparece no WhatsApp e nas redes. Vazio usa a foto do primeiro imóvel.', true)}
