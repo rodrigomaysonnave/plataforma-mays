@@ -97,16 +97,12 @@
       ${tabela('Falta alguma coisa', travados, 'Nenhum imóvel travado.', null)}
 
       <div class="ficha-secao">
-        <div class="ficha-secao-topo"><h3>Como o site é gerado</h3>
-          <p>O site é HTML estático, gerado deste banco por um script e publicado
-             com HTTPS gratuito. Não é página montada no navegador: a vitrine é
-             destino de tráfego pago, e página pronta carrega em 1,8 segundo
-             contra 5,4 do site atual.</p></div>
-        <div style="padding:18px 20px">
-          <p class="campo-dica">O gerador e a publicação automática entram na
-          próxima etapa. Este painel já controla o que entra e o que sai, e o
-          feed XML dos portais já pode ser baixado.</p>
-        </div>
+        <div class="ficha-secao-topo"><h3>Publicar no ar</h3>
+          <p>Marcar aqui em cima muda o banco. O site em si só reflete isso quando
+             alguém gera de novo. Este botão faz os dois passos: baixa foto e vídeo
+             que faltam, escreve o HTML e publica, tudo numa máquina do GitHub, sem
+             precisar do seu computador ligado.</p></div>
+        <div style="padding:18px 20px" id="publicarCorpo">Carregando…</div>
       </div>`;
 
     // A linha inteira abre o imóvel. Antes ela tinha aparência de clicável e
@@ -129,6 +125,85 @@
     });
 
     document.getElementById('siteFeed').addEventListener('click', () => gerarFeed(publicados));
+    montarPublicar();
+  }
+
+  // ── Publicar no ar ────────────────────────────────────────────────
+  let temporizadorPublicar = null;
+
+  async function chamarPublicar(acao) {
+    const { data, error } = await supabaseClient.functions.invoke('publicar-site', { body: { acao } });
+    let motivo = (error && error.message) || (data && data.error);
+    if (error && error.context && typeof error.context.json === 'function') {
+      try { const c = await error.context.json(); if (c && c.error) motivo = c.error; } catch (e) {}
+    }
+    if (motivo) throw new Error(motivo);
+    return data;
+  }
+
+  function horaCurta(iso) {
+    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function montarPublicar() {
+    const corpo = document.getElementById('publicarCorpo');
+    if (!corpo) return;
+    clearTimeout(temporizadorPublicar);
+
+    let est;
+    try { est = await chamarPublicar('estado'); }
+    catch (e) {
+      corpo.innerHTML = `<p class="campo-dica" style="color:var(--vermelho)">Não consegui checar:
+        ${esc(e.message)}</p><button class="btn btn-primario" id="btnPublicar">Publicar site</button>`;
+      ligarBotaoPublicar();
+      return;
+    }
+
+    const emAndamento = est.existe && (est.status === 'queued' || est.status === 'in_progress');
+
+    if (emAndamento) {
+      corpo.innerHTML = `
+        <div class="ag-estado">
+          <span class="ag-bolinha" style="background:var(--dourado);box-shadow:0 0 0 3px rgba(201,168,76,.18)"></span>
+          <div><strong>Publicando…</strong>
+            <div class="cad-end-sub">Baixando foto e vídeo, gerando o HTML. Leva de dois a cinco minutos.</div></div>
+        </div>`;
+      // Sem botão enquanto roda: clicar de novo empilharia uma segunda
+      // execução disputando os mesmos arquivos no repositório do site.
+      temporizadorPublicar = setTimeout(montarPublicar, 12000);
+      return;
+    }
+
+    const ultima = est.existe ? `
+      <div class="ag-estado${est.conclusao === 'failure' ? '' : ' ag-ligado'}">
+        <span class="ag-bolinha${est.conclusao === 'failure' ? ' ag-off' : ''}"
+              style="${est.conclusao === 'failure' ? 'background:var(--vermelho)' : ''}"></span>
+        <div><strong>${est.conclusao === 'failure' ? 'A última publicação falhou' : 'No ar'}</strong>
+          <div class="cad-end-sub">${est.conclusao === 'failure' ? 'Erro' : 'Publicado'} às ${esc(horaCurta(est.iniciado_em))}
+            · <a href="${esc(est.link)}" target="_blank" rel="noopener">ver o log</a></div></div>
+      </div>` : `<p class="campo-dica">Ainda não foi publicado por aqui nenhuma vez.</p>`;
+
+    corpo.innerHTML = ultima + '<button class="btn btn-primario" id="btnPublicar" style="margin-top:14px">Publicar site</button>';
+    ligarBotaoPublicar();
+  }
+
+  function ligarBotaoPublicar() {
+    const b = document.getElementById('btnPublicar');
+    if (!b) return;
+    b.addEventListener('click', async () => {
+      b.disabled = true; b.textContent = 'Disparando…';
+      try {
+        await chamarPublicar('disparar');
+        avisar('Publicação disparada.');
+      } catch (e) {
+        avisar('Não consegui disparar: ' + e.message);
+        b.disabled = false; b.textContent = 'Publicar site';
+        return;
+      }
+      // O GitHub demora alguns segundos para a execução aparecer na lista;
+      // sem essa espera, a primeira checagem ainda veria a execução anterior.
+      setTimeout(montarPublicar, 4000);
+    });
   }
 
   // ── Vídeos e reels na home ─────────────────────────────────────────
