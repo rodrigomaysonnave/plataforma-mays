@@ -1124,3 +1124,29 @@ select option { background: #1a1a1a; }
 .cfg-geo { display: flex; gap: 6px; align-items: center; }
 .cfg-geo input { padding: 5px 9px; font-size: 12.5px; width: 190px; }
 .cfg-geo input.cfg-uf { width: 56px; text-transform: uppercase; }
+
+/* ── Sino de notificação ──────────────────────────────────────────── */
+.topo-sino {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border: 1px solid transparent; border-radius: 50%;
+  background: transparent; cursor: pointer; font-size: 15px; opacity: .75;
+}
+.topo-sino:hover { background: var(--superficie-2); opacity: 1; }
+.topo-sino.tem-pendente { opacity: 1; }
+.topo-sino-n {
+  position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px;
+  padding: 0 3px; border-radius: 8px; background: var(--vermelho); color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+}
+/* Pulsa só enquanto existir pendente. Sino calado não deveria puxar o olho;
+   sino com gente esperando, sim. */
+.topo-sino.tem-pendente .topo-sino-n { animation: sino-pulsa 1.8s ease-in-out infinite; }
+@keyframes sino-pulsa {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+.cad-msg {
+  max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--texto-fraco); font-size: 12.5px;
+}

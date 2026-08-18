@@ -207,6 +207,9 @@ const Plataforma = (() => {
     } catch (e) { /* segue com o padrão do HTML */ }
 
     mostrar('app');
+    atualizarSino();
+    clearInterval(sinoTimer);
+    sinoTimer = setInterval(atualizarSino, 120000);
 
     // Voltando do Google, a tela certa é a da própria integração: é onde a
     // pessoa estava e onde ela confere se deu certo.
@@ -251,6 +254,28 @@ const Plataforma = (() => {
     $('loginSenha').value = '';
   }
 
+  // ── Sino de notificação ──────────────────────────────────────────────
+  // Conta lead pendente, não lead total: o número precisa dizer "isto pede
+  // ação", senão vira decoração que ninguém mais olha depois da primeira
+  // semana. Reconsultado ao entrar, ao trocar de módulo, e sozinho a cada
+  // dois minutos — sem depender de recarregar a página pra saber que chegou
+  // gente nova enquanto ele trabalhava em outra tela.
+  let sinoTimer = null;
+  async function atualizarSino() {
+    const botao = $('topoSino');
+    if (!botao || !perfil) return;
+    try {
+      const { count } = await supabaseClient.from('lead_site')
+        .select('id', { count: 'exact', head: true }).eq('atendido', false);
+      const n = count || 0;
+      const rot = $('topoSinoN');
+      rot.hidden = n === 0;
+      rot.textContent = n > 99 ? '99+' : String(n);
+      botao.classList.toggle('tem-pendente', n > 0);
+      botao.title = n ? `${n} lead${n > 1 ? 's' : ''} aguardando resposta` : 'Nenhum lead pendente';
+    } catch (e) { /* falha de rede não pode travar o resto da tela */ }
+  }
+
   // ── Recolher a barra lateral ───────────────────────────────────────
   function aplicarRecolhido(recolhido) {
     $('app').classList.toggle('menu-recolhido', recolhido);
@@ -286,6 +311,7 @@ const Plataforma = (() => {
     $('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginSenha').focus(); });
     $('btnSair').addEventListener('click', sair);
     $('btnSairEspera').addEventListener('click', sair);
+    $('topoSino').addEventListener('click', () => irPara('leads'));
 
     $('menu').addEventListener('click', e => {
       const sub = e.target.closest('.menu-sub');
@@ -314,5 +340,5 @@ const Plataforma = (() => {
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
-  return { registrar, irPara, db, esc, avisar, $, get perfil() { return perfil; } };
+  return { registrar, irPara, db, esc, avisar, $, atualizarSino, get perfil() { return perfil; } };
 })();

@@ -87,6 +87,7 @@
       <button class="menu-item" data-modulo="proprietarios"><span class="menu-ico">◈</span><span class="menu-txt">Proprietários</span></button>
 
       <div class="menu-grupo"><span>CRM</span></div>
+      <button class="menu-item" data-modulo="leads"><span class="menu-ico">✉</span><span class="menu-txt">Leads do site</span></button>
       <button class="menu-item" data-modulo="clientes"><span class="menu-ico">◇</span><span class="menu-txt">Clientes</span></button>
       <button class="menu-item" data-modulo="funil"><span class="menu-ico">≡</span><span class="menu-txt">Funil de vendas</span></button>
       <button class="menu-item" data-modulo="campanhas"><span class="menu-ico">◍</span><span class="menu-txt">Campanhas</span></button>
@@ -138,6 +139,9 @@
       <span id="trilhaAtual">Configurações</span>
     </div>
     <div class="topo-espaco"></div>
+    <button class="topo-sino" id="topoSino" data-modulo="leads" title="Leads aguardando resposta">
+      <span aria-hidden="true">🔔</span><span class="topo-sino-n" id="topoSinoN" hidden>0</span>
+    </button>
     <span class="topo-usuario" id="topoUsuario"></span>
     <button class="btn btn-fantasma" id="btnSair">Sair</button>
   </header>
@@ -172,5 +176,6 @@
 <script src="mod-financeiro.js"></script>
 <script src="mod-campanhas.js"></script>
 <script src="mod-agenda.js"></script>
+<script src="mod-leads.js"></script>
 </body>
 </html>
