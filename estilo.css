@@ -1150,3 +1150,38 @@ select option { background: #1a1a1a; }
   max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--texto-fraco); font-size: 12.5px;
 }
+
+/* ── Ficha completa do lead, em janela ─────────────────────────────── */
+.lead-modal-caixa { width: min(100%, 520px); max-height: 88vh; overflow-y: auto; }
+.lead-modal-topo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--borda);
+}
+.lead-modal-topo h3 { margin: 0; font-size: 18px; }
+.lead-modal-linha {
+  display: flex; gap: 10px; padding: 6px 0; font-size: 13.5px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.lead-modal-linha b {
+  flex-shrink: 0; width: 84px; color: var(--texto-fraco);
+  font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  padding-top: 1px;
+}
+.lead-modal-linha a { color: var(--dourado); text-decoration: none; }
+.lead-modal-linha a:hover { text-decoration: underline; }
+.lead-modal-msg { margin-top: 16px; }
+.lead-modal-msg b {
+  display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--texto-fraco); font-weight: 600; margin-bottom: 6px;
+}
+.lead-modal-msg p {
+  margin: 0; padding: 12px 14px; background: var(--superficie-2);
+  border-radius: var(--raio-p); font-size: 14px; line-height: 1.6; white-space: pre-wrap;
+}
+.lead-modal-atribuir { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--borda); }
+.lead-modal-atribuir > b {
+  display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--texto-fraco); font-weight: 600; margin-bottom: 8px;
+}
+.lead-modal-atribuir-linha { display: flex; gap: 8px; }
+.lead-modal-atribuir-linha select { flex: 1; }
