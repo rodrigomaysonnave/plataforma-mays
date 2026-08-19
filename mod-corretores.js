@@ -557,6 +557,30 @@
             O contrato sai com lacuna enquanto isso.</p></div></div>` : ''}
 
       <div class="ficha-secao">
+        <div class="ficha-secao-topo"><h3>Foto e apresentação</h3>
+          <p>O que aparece com o nome dele em qualquer apresentação pública — hoje é o que "Minha foto" também mostra; enviando por aqui, o admin já publica direto, sem fila de revisão.</p></div>
+        <div style="padding:4px 20px 18px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+          <figure style="margin:0;flex-shrink:0">
+            ${c.foto_url ? `<img src="${esc(c.foto_url)}" alt="Foto de ${esc(c.nome)}" style="width:96px;height:96px;border-radius:50%;object-fit:cover;display:block">`
+                         : `<div style="width:96px;height:96px;border-radius:50%;background:var(--superficie-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--texto-fraco)">sem foto</div>`}
+          </figure>
+          <div style="flex:1;min-width:220px">
+            <label class="ft-enviar" id="crFotoZona">
+              <input type="file" id="crFotoArquivo" accept="image/*" hidden>
+              <span id="crFotoRotulo">${c.foto_url ? 'Trocar a foto' : 'Enviar foto'}</span>
+            </label>
+            <p class="campo-dica">Recorte quadrado automático. O menor lado precisa ter pelo menos 400 pixels.</p>
+          </div>
+        </div>
+        <div class="ficha-grade" style="padding:0 20px 18px">
+          <div class="campo campo-largo"><label for="crBio">Apresentação pública</label>
+            <textarea id="crBio" rows="3" placeholder="Duas ou três frases sobre ele, pra acompanhar a foto onde o site apresentar o corretor.">${esc(c.bio ?? '')}</textarea>
+            <p class="campo-dica">Ainda não existe página pública que mostre isso — o campo já nasce pronto pra quando existir.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>Pessoa</h3></div>
         <div class="ficha-grade">
           ${campo('crNome', 'Nome completo', c.nome, 'text', '', true)}
@@ -633,6 +657,30 @@
       document.getElementById(i).addEventListener('click', salvar));
     document.getElementById('crContrato').addEventListener('click', () => emitirContrato(c));
 
+    // Admin envia direto pra foto_url — ele já É a revisão, então não passa
+    // pela fila de "Minha foto" (essa é só pro corretor se autoenviando).
+    const fotoZona = document.getElementById('crFotoZona');
+    const fotoArq = document.getElementById('crFotoArquivo');
+    const fotoRot = document.getElementById('crFotoRotulo');
+    fotoZona.addEventListener('click', () => fotoArq.click());
+    fotoArq.addEventListener('change', () => fotoArq.files[0] && enviarFoto(fotoArq.files[0]));
+    async function enviarFoto(arquivo) {
+      fotoRot.textContent = 'Enviando…';
+      fotoZona.classList.add('ocupado');
+      try {
+        const r = await Fotos.enviarRetrato(arquivo, 'corretores');
+        await db(supabaseClient.from('perfil').update({
+          foto_url: r.url, foto_pendente_url: null, foto_recusa: null,
+        }).eq('id', id), 'salvar a foto');
+        avisar('Foto publicada.');
+        await montarFicha(alvoEl, id);
+      } catch (e) {
+        fotoZona.classList.remove('ocupado');
+        fotoRot.textContent = c.foto_url ? 'Trocar a foto' : 'Enviar foto';
+        avisar('Não consegui usar essa imagem: ' + e.message);
+      }
+    }
+
     async function salvar() {
       const v = i => {
         const el = document.getElementById(i);
@@ -648,7 +696,7 @@
         cep: v('crCep'), endereco: v('crEndereco'), numero: v('crNumero'),
         complemento: v('crCompl'), bairro: v('crBairro'), cidade: v('crCidade'), uf: v('crUf'),
         pix: v('crPix'), banco: v('crBanco'), agencia: v('crAgencia'), conta: v('crConta'),
-        obs: v('crObs'),
+        obs: v('crObs'), bio: v('crBio'),
       };
       await db(supabaseClient.from('perfil').update(dados).eq('id', id), 'salvar a ficha');
       avisar('Ficha salva.');
