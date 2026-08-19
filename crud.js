@@ -201,6 +201,11 @@ const Crud = (() => {
             <div class="ficha-secao-topo"><h3>${esc(nome)}</h3></div>
             <div class="ficha-grade">${campos.map(c => htmlCampo(c, reg)).join('')}</div>
           </div>`).join('')}
+        ${d.galeria ? (id === 'novo'
+          ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Fotos</h3></div>
+              <p class="campo-dica">Salve para poder enviar fotos.</p></div>`
+          : `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Fotos</h3></div>
+              <div id="cFotos"></div></div>`) : ''}
         <div class="ficha-rodape">
           <button class="btn" id="cVoltar2">Voltar à lista</button>
           <button class="btn btn-primario" id="cSalvar2">Salvar</button>
@@ -210,6 +215,8 @@ const Crud = (() => {
       ['cSalvar', 'cSalvar2'].forEach(i => document.getElementById(i).addEventListener('click', salvar));
       const ex = document.getElementById('cExcluir');
       if (ex) ex.addEventListener('click', excluir);
+      if (d.galeria && id !== 'novo')
+        Fotos.montar(document.getElementById('cFotos'), { tabela: d.galeria.tabela, coluna: d.galeria.coluna, id, pasta: d.galeria.pasta });
     }
 
     async function salvar() {
@@ -228,6 +235,10 @@ const Crud = (() => {
         avisar(`${c ? c.rotulo : falta} é obrigatório.`);
         document.getElementById('f_' + falta)?.focus();
         return;
+      }
+      if (d.validar) {
+        const erro = await d.validar(dados, editando);
+        if (erro) { avisar(erro); return; }
       }
       if (editando === 'novo') {
         await db(supabaseClient.from(d.tabela).insert(dados), `salvar o ${d.singular}`);
@@ -250,7 +261,11 @@ const Crud = (() => {
 
     Plataforma.registrar(d.nome, {
       titulo: d.titulo,
-      async montar(alvo) { alvoEl = alvo; await montarLista(); },
+      async montar(alvo, arg) {
+        alvoEl = alvo;
+        if (arg === 'novo') { await abrirFicha('novo'); return; }
+        await montarLista();
+      },
     });
   }
 

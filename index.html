@@ -84,6 +84,7 @@
 
       <div class="menu-grupo"><span>Cadastros</span></div>
       <button class="menu-item" data-modulo="imoveis"><span class="menu-ico">▤</span><span class="menu-txt">Imóveis</span></button>
+      <button class="menu-item" data-modulo="condominios"><span class="menu-ico">◫</span><span class="menu-txt">Condomínios / Empreendimentos</span></button>
       <button class="menu-item" data-modulo="proprietarios"><span class="menu-ico">◈</span><span class="menu-txt">Proprietários</span></button>
 
       <div class="menu-grupo"><span>CRM</span></div>
@@ -138,6 +139,42 @@
       <span class="trilha-sep">›</span>
       <span id="trilhaAtual">Configurações</span>
     </div>
+
+    <nav class="topo-atalhos" aria-label="Acesso rápido">
+      <div class="topo-atalho">
+        <button class="topo-atalho-alvo" data-ir="inicio">Início</button>
+        <div class="topo-flyout topo-flyout-larga" id="flyoutInicio">
+          <p class="flyout-carregando">Carregando…</p>
+        </div>
+      </div>
+      <div class="topo-atalho">
+        <button class="topo-atalho-alvo">Imóveis<span class="topo-atalho-seta" aria-hidden="true">⌄</span></button>
+        <div class="topo-flyout">
+          <button class="topo-flyout-item" data-ir="imoveis" data-arg="novo">+ Novo imóvel</button>
+          <button class="topo-flyout-item" data-ir="imoveis">Pesquisar imóveis</button>
+          <button class="topo-flyout-item" data-ir="condominios">Condomínios / Empreendimentos</button>
+          <button class="topo-flyout-item" data-ir="proprietarios">Proprietários</button>
+        </div>
+      </div>
+      <div class="topo-atalho">
+        <button class="topo-atalho-alvo">Clientes<span class="topo-atalho-seta" aria-hidden="true">⌄</span></button>
+        <div class="topo-flyout">
+          <button class="topo-flyout-item" data-ir="clientes" data-arg="novo">+ Novo cliente</button>
+          <button class="topo-flyout-item" data-ir="clientes">Meus clientes</button>
+          <button class="topo-flyout-item" data-ir="funil">Funil de vendas</button>
+          <button class="topo-flyout-item" data-ir="leads">Leads do site</button>
+        </div>
+      </div>
+      <div class="topo-atalho">
+        <button class="topo-atalho-alvo">CRM<span class="topo-atalho-seta" aria-hidden="true">⌄</span></button>
+        <div class="topo-flyout">
+          <button class="topo-flyout-item" data-ir="atendimento">Atendimento</button>
+          <button class="topo-flyout-item" data-ir="agenda">Agenda e visitas</button>
+          <button class="topo-flyout-item" data-ir="campanhas">Campanhas</button>
+        </div>
+      </div>
+    </nav>
+
     <div class="topo-espaco"></div>
     <button class="topo-sino" id="topoSino" data-modulo="leads" title="Leads aguardando resposta">
       <span aria-hidden="true">🔔</span><span class="topo-sino-n" id="topoSinoN" hidden>0</span>
@@ -160,12 +197,14 @@
 
 <script src="configuracao.js"></script>
 <script src="app.js"></script>
+<script src="mod-topo.js"></script>
 <script src="fotos.js"></script>
 <script src="arrastar.js"></script>
 <script src="mod-configuracoes.js"></script>
 <script src="mod-imoveis.js"></script>
 <script src="crud.js"></script>
 <script src="mod-cadastros.js"></script>
+<script src="mod-condominios.js"></script>
 <script src="mod-funil.js"></script>
 <script src="mod-inicio.js"></script>
 <script src="mod-relatorios.js"></script>

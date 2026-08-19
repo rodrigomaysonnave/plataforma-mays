@@ -171,6 +171,52 @@ select option { background: #1a1a1a; }
 .topo-espaco { flex: 1; }
 .topo-usuario { font-size: 12px; color: var(--texto-fraco); }
 
+/* ── Barra de atalhos do topo ─────────────────────────────────────── */
+/* A sidebar já navega pro sistema inteiro; isto é atalho pras quatro coisas
+   que se repetem o dia inteiro, abrindo ao passar o mouse. */
+.topo-atalhos { display: flex; align-items: stretch; gap: 2px; height: 100%; }
+.topo-atalho { position: relative; display: flex; }
+.topo-atalho-alvo {
+  background: transparent; border: none; color: var(--texto-fraco);
+  font-size: 13px; font-weight: 600; padding: 0 12px; cursor: pointer;
+  display: flex; align-items: center; gap: 5px; border-radius: var(--raio-p);
+  transition: all .12s;
+}
+.topo-atalho-alvo:hover, .topo-atalho.aberto .topo-atalho-alvo { color: var(--texto); background: var(--superficie); }
+.topo-atalho-seta { font-size: 10px; opacity: .6; transition: transform .12s; }
+.topo-atalho.aberto .topo-atalho-seta { transform: rotate(180deg); }
+
+.topo-flyout {
+  display: none; position: absolute; top: calc(100% + 8px); left: 0; z-index: 50;
+  min-width: 220px; background: var(--superficie); border: 1px solid var(--borda);
+  border-radius: var(--raio); box-shadow: 0 12px 28px rgba(0,0,0,.28);
+  padding: 8px; flex-direction: column; gap: 2px;
+}
+.topo-atalho.aberto .topo-flyout { display: flex; }
+.topo-flyout-larga { min-width: 320px; }
+.topo-flyout-item {
+  background: transparent; border: none; color: var(--texto); text-align: left;
+  font-size: 13px; padding: 9px 10px; border-radius: var(--raio-p); cursor: pointer;
+  transition: background .1s;
+}
+.topo-flyout-item:hover { background: var(--superficie-2); }
+.topo-flyout-ver { color: var(--dourado); font-weight: 600; margin-top: 4px; border-top: 1px solid var(--borda); border-radius: 0; padding-top: 12px; }
+.flyout-carregando, .flyout-erro { font-size: 12.5px; color: var(--texto-fraco); padding: 10px; margin: 0; }
+
+.topo-numeros { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.topo-num {
+  background: var(--superficie-2); border: 1px solid var(--borda);
+  border-radius: var(--raio-p); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.topo-num-v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.topo-num-r { font-size: 10.5px; color: var(--texto-fraco); }
+.topo-num-alerta .topo-num-v { color: var(--vermelho); }
+
+@media (max-width: 900px) {
+  .topo-atalhos { display: none; }
+}
+
 #conteudo { grid-column: 2; grid-row: 2; padding: 24px 28px 60px; min-width: 0; }
 
 /* ── Cabeçalho de seção ───────────────────────────────────────────── */
@@ -970,7 +1016,7 @@ select option { background: #1a1a1a; }
   display: flex; flex-direction: column; gap: 2px; min-width: 0;
 }
 
-.ag-cal-corpo { display: flex; max-height: calc(100vh - 300px); overflow-y: auto; padding-top: 9px; }
+.ag-cal-corpo { display: flex; padding-top: 9px; }
 .ag-gutter-horas { position: relative; }
 /* O rótulo sobe meia linha para ficar NA linha da hora, e não dentro da
    faixa seguinte. É o detalhe que faz o calendário parecer certo. */

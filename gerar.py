@@ -300,6 +300,13 @@ a{color:var(--marca)}
 .semelhantes h2{font-family:Georgia,serif;font-weight:400;font-size:24px;margin-bottom:6px}
 .semelhantes .cartao{background:var(--superficie);color:var(--tinta)}
 
+/* Condomínio */
+.cond-capa{aspect-ratio:16/7;border-radius:4px;overflow:hidden;margin-top:18px}
+.cond-capa img{width:100%;height:100%;object-fit:cover;display:block}
+.cond-galeria{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:10px;margin-top:16px}
+.cond-galeria img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:3px;display:block}
+
 /* Formulário de lead */
 .form-lead{background:var(--superficie-2);padding:48px 0}
 .form-caixa{max-width:620px;margin:0 auto;background:var(--superficie);
@@ -448,6 +455,16 @@ a{color:var(--marca)}
 .busca-texto input{width:100%;border:1px solid var(--linha);border-radius:3px;
   padding:12px 14px;font-size:15px;font-family:inherit;color:var(--tinta)}
 .busca-texto input:focus{outline:none;border-color:var(--marca)}
+/* Busca só de condomínios, dentro da própria queda: digitar filtra ali,
+   sem precisar de página de resultado à parte. */
+.mm-col-busca{display:flex;flex-direction:column}
+.mm-busca-campo{border:1px solid var(--linha);border-radius:3px;padding:9px 11px;
+  font-size:13.5px;font-family:inherit;color:var(--tinta);margin-bottom:8px}
+.mm-busca-campo:focus{outline:none;border-color:var(--marca)}
+.mm-busca-resultado{display:flex;flex-direction:column;max-height:180px;overflow-y:auto}
+.mm-busca-resultado a{padding:6px 0;color:var(--tinta-2);text-decoration:none;font-size:13.5px}
+.mm-busca-resultado a:hover{color:var(--marca)}
+.mm-busca-vazio{font-size:12.5px;color:var(--tinta-3);margin:4px 0 0}
 @media(max-width:980px){.mm-caixa{display:none}}
 
 /* ── Favoritos ───────────────────────────────────────────────────── */
@@ -579,6 +596,7 @@ a{color:var(--marca)}
 # ele cadastra. Menu com "Coberturas (0)" é pior que menu sem coberturas.
 MENU = {}
 POSTS = []
+EMPREENDIMENTOS = []
 
 # Contagem ao lado de cada categoria. Vale a pena quando os números impressionam
 # e atrapalha quando denunciam carteira pequena. Uma linha para desligar.
@@ -648,6 +666,61 @@ def _coluna(titulo, itens, param, raiz, extra=""):
     return f'<div class="mm-col"><h4>{e(titulo)}</h4>{"".join(linhas)}</div>'
 
 
+def _coluna_condominios(raiz):
+    """Até 6 favoritos escolhidos por ele, mais um campo de busca pros
+    demais — nome e slug de TODOS os empreendimentos ativos entram embutidos
+    como JSON, e o filtro roda no navegador. Site estático não tem como
+    buscar no banco a cada letra digitada, então a lista inteira já vai
+    junto; são dezenas de linhas, não milhares."""
+    favoritos = sorted((c for c in EMPREENDIMENTOS if c.get("favorito") and c.get("slug")),
+                        key=lambda c: (c.get("ordem_favorito") or 0, c["nome"]))[:6]
+    col_favoritos = ""
+    if favoritos:
+        links = "".join(f'<a href="{e(raiz)}/condominio/{e(c["slug"])}/">{e(c["nome"])}</a>'
+                        for c in favoritos)
+        col_favoritos = f'<div class="mm-col"><h4>Em destaque</h4>{links}</div>'
+
+    todos = [{"nome": c["nome"], "slug": c["slug"]} for c in EMPREENDIMENTOS if c.get("slug")]
+    if not todos:
+        return [col_favoritos] if col_favoritos else []
+
+    busca_html = f"""<div class="mm-col mm-col-busca">
+      <h4>Buscar</h4>
+      <input type="search" class="mm-busca-campo" id="buscaCondominios"
+             placeholder="Nome do condomínio…" autocomplete="off">
+      <div class="mm-busca-resultado" id="resultadoCondominios"></div>
+    </div>
+    <script>
+    (function () {{
+      var RAIZ_COND = {json.dumps(raiz)}, LISTA = {json.dumps(todos)};
+      var campo = document.getElementById('buscaCondominios'),
+          alvo = document.getElementById('resultadoCondominios');
+      if (!campo) return;
+      campo.addEventListener('input', function () {{
+        var q = campo.value.trim().toLowerCase();
+        alvo.innerHTML = '';
+        if (!q) return;
+        var achados = LISTA.filter(function (c) {{
+          return c.nome.toLowerCase().indexOf(q) !== -1;
+        }}).slice(0, 8);
+        if (!achados.length) {{
+          var p = document.createElement('p');
+          p.className = 'mm-busca-vazio'; p.textContent = 'Nenhum encontrado.';
+          alvo.appendChild(p);
+          return;
+        }}
+        achados.forEach(function (c) {{
+          var a = document.createElement('a');
+          a.href = RAIZ_COND + '/condominio/' + c.slug + '/';
+          a.textContent = c.nome;
+          alvo.appendChild(a);
+        }});
+      }});
+    }})();
+    </script>"""
+    return [col_favoritos, busca_html] if col_favoritos else [busca_html]
+
+
 def _queda(rotulo, href, colunas, raiz, direita=False, largura=None):
     """Um item do topo com a sua queda. Sem colunas, vira link simples."""
     corpo = "".join(colunas)
@@ -682,6 +755,9 @@ def menus_html(cfg, raiz):
     ]
     if any(aluguel):
         itens.append(_queda("Aluguel", raiz + "/?fin=aluguel#imoveis", aluguel, raiz, largura=470))
+
+    if EMPREENDIMENTOS:
+        itens.append(_queda("Condomínios", raiz + "/#destaques", _coluna_condominios(raiz), raiz, largura=460))
 
     itens.append(_queda("Destaques", raiz + "/#destaques", [], raiz))
 
@@ -1666,15 +1742,25 @@ def pagina_imovel(cfg, im, base, todos=None):
     # ── Imóveis semelhantes ────────────────────────────────────────
     # Mesmo bairro primeiro, depois faixa de preço parecida. Sem isso a ficha
     # é beco sem saída: quem não gostou deste imóvel fecha o site.
+    # Venda e aluguel nunca se misturam, e o candidato precisa bater em bairro
+    # ou tipo de verdade — sem isso, dois imóveis sem bairro/tipo cadastrado
+    # (None == None) se achavam "iguais" e preço sozinho bastava pra aparecer
+    # como semelhante mesmo sendo um tipo e bairro completamente diferentes.
     semelhantes_html = ""
     if todos:
         def parecido(o):
             if o["id"] == im["id"] or not o.get("slug"):
                 return -1
+            if (o.get("finalidade") or "venda") != (im.get("finalidade") or "venda"):
+                return -1
+            mesmo_bairro = bool(o.get("bairro_id")) and o["bairro_id"] == im.get("bairro_id")
+            mesmo_tipo = bool(o.get("tipo_imovel_id")) and o.get("tipo_imovel_id") == im.get("tipo_imovel_id")
+            if not (mesmo_bairro or mesmo_tipo):
+                return -1
             nota = 0
-            if o.get("bairro_id") and o["bairro_id"] == im.get("bairro_id"):
+            if mesmo_bairro:
                 nota += 3
-            if o.get("tipo_imovel_id") == im.get("tipo_imovel_id"):
+            if mesmo_tipo:
                 nota += 2
             v1, v2 = im.get("valor"), o.get("valor")
             if v1 and v2 and 0.6 <= float(v2) / float(v1) <= 1.6:
@@ -1826,6 +1912,66 @@ def pagina_imovel(cfg, im, base, todos=None):
     return (cabeca_html(cfg, titulo, desc, url, cam(raiz, im.get("_capa")), jsonld, raiz=raiz)
             + corpo + semelhantes_html + visualizador + formulario + rodape_html(cfg, raiz=raiz))
 
+
+# ── Condomínio ───────────────────────────────────────────────────────────
+def pagina_condominio(cfg, emp, unidades, base):
+    """Ficha do empreendimento: mesma casca do imóvel (cabeça, rodapé,
+    grade de cartões), sem o aparato de negociação de uma unidade só — quem
+    chega aqui está escolhendo entre várias."""
+    raiz = "../.."
+    titulo = f"{emp['nome']} — Condomínio em {emp.get('_bairro') or 'Pelotas'}, Pelotas/RS · {cfg.get('nome_imobiliaria')}"
+    desc = (emp.get("descricao") or titulo)[:158]
+    url = f"{base}/condominio/{emp['slug']}/"
+
+    jsonld = {"@context": "https://schema.org", "@type": "ApartmentComplex",
+              "name": emp["nome"], "description": desc, "url": url}
+    if emp.get("_capa"):
+        jsonld["image"] = base + "/" + emp["_capa"].lstrip("./")
+
+    local = e(emp.get("_bairro") or "")
+    if emp.get("endereco"):
+        local += (" · " if local else "") + e(emp["endereco"])
+
+    capa_html = ""
+    if emp.get("_capa"):
+        capa_html = (f'<div class="cond-capa"><img src="{cam(raiz, emp["_capa"])}" '
+                     f'alt="{e(emp["nome"])}" loading="eager" width="1400" height="700"></div>')
+
+    outras = [cam(raiz, f) for f in (emp.get("_fotos") or [])[1:]]
+    galeria_html = ('<div class="cond-galeria">' +
+                     "".join(f'<img src="{o}" alt="" loading="lazy" width="360" height="240">' for o in outras) +
+                     "</div>") if outras else ""
+
+    desc_html = f'<div class="prose">{paragrafos(emp["descricao"])}</div>' if emp.get("descricao") else ""
+
+    link_zap = zap(cfg, msg=f"Olá Rodrigo, tenho interesse no {emp['nome']} e gostaria de saber mais.")
+    botao = (f'<a class="botao botao-cheio" href="{e(link_zap)}" target="_blank" rel="noopener">'
+              'Falar sobre este empreendimento</a>') if link_zap else ""
+
+    unidades_html = ""
+    if unidades:
+        unidades_html = f"""
+<section class="semelhantes">
+  <div class="env">
+    <h2>Unidades disponíveis</h2>
+    <div class="grade">{"".join(cartao_html(u, raiz=raiz) for u in unidades)}</div>
+  </div>
+</section>"""
+
+    corpo = f"""
+<div class="env">
+  <nav class="trilha-site" aria-label="Você está em">
+    <a href="{raiz}/">Início</a> <i>›</i> <span>{e(emp['nome'])}</span></nav>
+  {capa_html}
+  <h1 style="margin-top:22px">{e(emp['nome'])}</h1>
+  <div class="ficha-local">{local}{(" · " + e(emp["construtora"])) if emp.get("construtora") else ""}</div>
+  {galeria_html}
+  {desc_html}
+  {botao}
+</div>"""
+
+    return (cabeca_html(cfg, titulo, desc, url, cam(raiz, emp.get("_capa")), jsonld, raiz=raiz)
+            + corpo + unidades_html + rodape_html(cfg, raiz=raiz))
 
 
 # ── Blog ───────────────────────────────────────────────────────────────
@@ -2205,6 +2351,9 @@ def main():
     caracts = {c["id"]: c["nome"] for c in curl_json("caracteristica?select=id,nome")}
     vinculos = curl_json("imovel_caracteristica?select=imovel_id,caracteristica_id")
 
+    empreendimentos = curl_json("empreendimento?select=*&ativo=eq.true&order=nome")
+    fotos_emp = curl_json("empreendimento_foto?select=*&order=ordem")
+
     SAIDA.mkdir(parents=True, exist_ok=True)
 
     # Limpa ANTES de escrever de novo. Sem isso, um imóvel ou post excluído no
@@ -2217,7 +2366,7 @@ def main():
     # imagem baixada uma vez e reaproveitada; apagá-las forçaria rebaixar
     # tudo de novo a cada geração.
     import shutil
-    for pasta in ("imovel", "blog"):
+    for pasta in ("imovel", "blog", "condominio"):
         alvo = SAIDA / pasta
         if alvo.exists():
             shutil.rmtree(alvo)
@@ -2267,6 +2416,25 @@ def main():
                     variantes.append((f"fotos/{v.name}", larg))
             if variantes:
                 im["_capa_set"] = variantes
+
+    # Fotos do empreendimento — mesma lógica do imóvel, sem o srcset em três
+    # larguras: a capa aqui não é LCP de página de venda de uma unidade só.
+    if empreendimentos:
+        print(f"Preparando fotos de {len(empreendimentos)} empreendimentos…")
+    for emp in empreendimentos:
+        emp["_bairro"] = bairros.get(emp.get("bairro_id"))
+        minhas = [f for f in fotos_emp if f["empreendimento_id"] == emp["id"]]
+        minhas.sort(key=lambda f: (not f.get("capa"), f.get("ordem") or 0))
+        locais = []
+        for n, f in enumerate(minhas):
+            nome = f"emp-{emp['id'][:8]}-{n}.jpg"
+            if baixar_foto(f["url"], SAIDA / "fotos" / nome):
+                locais.append(f"fotos/{nome}"); baixadas += 1
+        emp["_fotos"] = locais
+        emp["_capa"] = locais[0] if locais else None
+
+    EMPREENDIMENTOS.clear()
+    EMPREENDIMENTOS.extend(empreendimentos)
 
     posts = curl_json("post?select=*&publicado=eq.true&order=publicado_em.desc")
 
@@ -2328,6 +2496,15 @@ def main():
         # sai na hora de desenhar, por quem sabe em que pasta está.
         (pasta / "index.html").write_text(pagina_imovel(cfg, im, base, imoveis), encoding="utf-8")
 
+    # Condomínios — cada um lista as unidades publicadas que apontam pra ele.
+    for emp in empreendimentos:
+        if not emp.get("slug"):
+            continue
+        unidades = [im for im in imoveis if im.get("empreendimento_id") == emp["id"]]
+        pasta = SAIDA / "condominio" / emp["slug"]
+        pasta.mkdir(parents=True, exist_ok=True)
+        (pasta / "index.html").write_text(pagina_condominio(cfg, emp, unidades, base), encoding="utf-8")
+
     # Blog
     if posts:
         (SAIDA / "blog").mkdir(parents=True, exist_ok=True)
@@ -2343,6 +2520,8 @@ def main():
     urls = [f"  <url><loc>{base}/</loc><lastmod>{agora}</lastmod><priority>1.0</priority></url>"]
     urls += [f"  <url><loc>{base}/imovel/{i['slug']}/</loc><lastmod>{agora}</lastmod><priority>0.8</priority></url>"
              for i in imoveis if i.get("slug")]
+    urls += [f"  <url><loc>{base}/condominio/{c['slug']}/</loc><lastmod>{agora}</lastmod><priority>0.7</priority></url>"
+             for c in empreendimentos if c.get("slug")]
     if posts:
         urls.append(f"  <url><loc>{base}/blog/</loc><lastmod>{agora}</lastmod><priority>0.7</priority></url>")
         urls += [f"  <url><loc>{base}/blog/{p['slug']}/</loc><lastmod>{p.get('publicado_em') or agora}</lastmod><priority>0.6</priority></url>"
@@ -2361,8 +2540,8 @@ def main():
         print(f"  {len(lps)} landing pages sob o domínio:")
         for nome, url in lps:
             print(f"    {url}")
-    print(f"  {len(imoveis)} imóveis · {len(posts)} artigos · {len(videos)} vídeos · "
-          f"{len(reels)} reels · {baixadas} fotos · {len(urls)} URLs no sitemap")
+    print(f"  {len(imoveis)} imóveis · {len(empreendimentos)} condomínios · {len(posts)} artigos · "
+          f"{len(videos)} vídeos · {len(reels)} reels · {baixadas} fotos · {len(urls)} URLs no sitemap")
     print(f"  peso total: {total/1024/1024:.1f} MB")
 
     if "--abrir" in sys.argv:
