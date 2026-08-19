@@ -244,8 +244,11 @@
     // se ligar, e obrigar a salvar antes quebrava o jeito natural de trabalhar
     // (quem chega com as fotos na mão quer soltar tudo junto).
     if (id === 'novo') {
+      // Quem está cadastrando é o agenciador por padrão — ele muda na
+      // ficha se o imóvel veio de outra pessoa da equipe.
       const r = await db(supabaseClient.from('imovel')
-        .insert({ rascunho: true, finalidade: 'venda', status: 'disponivel' })
+        .insert({ rascunho: true, finalidade: 'venda', status: 'disponivel',
+                  agenciador_id: Plataforma.perfil && Plataforma.perfil.id })
         .select('id'), 'iniciar o cadastro');
       id = r[0].id;
     }

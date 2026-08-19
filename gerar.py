@@ -283,11 +283,18 @@ a{color:var(--marca)}
 .lateral-ref{font-size:12px;color:var(--tinta-3);margin-top:4px}
 .lateral-empreendimento{font-size:12.5px;color:var(--tinta-3);margin-top:10px}
 .lateral-empreendimento a{color:var(--marca);font-weight:600;text-decoration:underline}
-.cond-fotos{margin-top:36px}
-.cond-fotos h2{font-family:Georgia,serif;font-weight:400;font-size:19px;margin-bottom:12px}
-.cond-fotos-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
-.cond-fotos-grade img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:5px}
+.cond-resumo{margin-top:36px;padding-top:28px;border-top:1px solid var(--linha)}
+.cond-resumo h2{font-family:Georgia,serif;font-weight:400;font-size:19px;margin-bottom:12px}
 .cond-fotos-link{display:inline-block;margin-top:10px;font-size:13.5px;font-weight:600;color:var(--marca)}
+.lateral-agenciador{display:flex;gap:12px;align-items:flex-start;margin-top:20px;padding-top:18px;border-top:1px solid var(--linha)}
+.ag-foto img,.ag-iniciais{width:52px;height:52px;border-radius:50%;object-fit:cover;flex-shrink:0}
+.ag-iniciais{display:flex;align-items:center;justify-content:center;background:var(--superficie-2);
+  color:var(--marca);font-family:Georgia,serif;font-size:19px}
+.ag-corpo{min-width:0}
+.ag-rot{display:block;font-size:11px;color:var(--tinta-3);text-transform:uppercase;letter-spacing:.04em}
+.ag-corpo strong{display:block;font-size:14.5px;margin-top:2px}
+.ag-creci{display:block;font-size:12px;color:var(--tinta-3);margin-top:1px}
+.ag-bio{font-size:12.5px;color:var(--tinta-2);line-height:1.55;margin-top:6px}
 .botao{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
   padding:13px 18px;border-radius:5px;font-size:14.5px;font-weight:700;text-decoration:none;
   margin-top:12px;border:1px solid var(--marca);color:var(--marca);background:transparent}
@@ -614,6 +621,7 @@ a{color:var(--marca)}
 MENU = {}
 POSTS = []
 EMPREENDIMENTOS = []
+CORRETORES = []
 
 # Contagem ao lado de cada categoria. Vale a pena quando os números impressionam
 # e atrapalha quando denunciam carteira pequena. Uma linha para desligar.
@@ -1638,7 +1646,16 @@ def pagina_imovel(cfg, im, base, todos=None):
     for c in im.get("_caracteristicas", []):
         extras.append(c)
 
-    fotos = [cam(raiz, f) for f in im.get("_fotos", [])]
+    fotos_imovel = [cam(raiz, f) for f in im.get("_fotos", [])]
+    minis_imovel = [cam(raiz, m) for m in (im.get("_miniaturas") or [])] or fotos_imovel
+    # Área comum é do condomínio, não da unidade, mas quem procura
+    # apartamento quer ver a piscina e a portaria também — junto na mesma
+    # galeria, fotos do imóvel primeiro e do condomínio na sequência.
+    fotos_condominio = [cam(raiz, f) for f in (emp.get("_fotos") or [])] if emp else []
+    fotos = fotos_imovel + fotos_condominio
+    # Condomínio não tem miniatura própria (a capa dele não é LCP de venda
+    # de unidade), reaproveita a foto cheia como se fosse a miniatura dela.
+    minis = minis_imovel + fotos_condominio
 
     # Tudo montado fora da f-string. Além de compilar no Python 3.9, fica bem
     # mais legível que HTML aninhado dentro de expressão.
@@ -1660,7 +1677,6 @@ def pagina_imovel(cfg, im, base, todos=None):
                      ' alt="' + e(im.get("titulo") or "Imóvel") +
                      '" width="1400" height="788" fetchpriority="high"></div>')
     galeria_html = ""
-    minis = [cam(raiz, m) for m in (im.get("_miniaturas") or [])] or fotos
     # Miniaturas em coluna ao lado da foto grande, como na referência. Em grade
     # embaixo, a pessoa precisa rolar para ver que existem mais fotos.
     tiras = ""
@@ -1706,24 +1722,34 @@ def pagina_imovel(cfg, im, base, todos=None):
         local_html += " · " + e(im["_cidade"])
 
     # Unidade que pertence a um condomínio cadastrado leva pra ficha dele —
-    # sem isso o vínculo existe só no banco, ninguém vê.
+    # sem isso o vínculo existe só no banco, ninguém vê. As fotos do
+    # condomínio já entraram na galeria principal (fotos_condominio, acima);
+    # aqui fica só o resumo em texto, no fim da ficha.
     emp_html = ""
-    emp_fotos_html = ""
+    emp_resumo_html = ""
     if emp and emp.get("slug"):
         emp_html = (f'<div class="lateral-empreendimento">Unidade no '
                     f'<a href="{raiz}/condominio/{e(emp["slug"])}/">{e(emp["nome"])}</a></div>')
-        # Área comum é do condomínio, não da unidade — mas quem procura
-        # apartamento quer ver a piscina e a portaria também.
-        emp_fotos = emp.get("_fotos") or []
-        if emp_fotos:
-            itens_emp = "".join(
-                f'<img src="{cam(raiz, f)}" alt="Foto {i+1} de {e(emp["nome"])}" loading="lazy">'
-                for i, f in enumerate(emp_fotos[:8]))
-            emp_fotos_html = (
-                f'<div class="cond-fotos"><h2>Fotos do condomínio</h2>'
-                f'<div class="cond-fotos-grade">{itens_emp}</div>'
+        if emp.get("descricao"):
+            emp_resumo_html = (
+                f'<div class="cond-resumo"><h2>Sobre o {e(emp["nome"])}</h2>'
+                f'<div class="ficha-desc">{e(emp["descricao"])}</div>'
                 f'<a class="cond-fotos-link" href="{raiz}/condominio/{e(emp["slug"])}/">'
                 f'Ver a ficha completa de {e(emp["nome"])} →</a></div>')
+
+    # Quem agenciou este imóvel — rosto por trás do anúncio, não só o
+    # WhatsApp da imobiliária.
+    agenciador_html = ""
+    ag = next((c for c in CORRETORES if c["id"] == im.get("agenciador_id")), None)
+    if ag:
+        foto = (f'<img src="{e(ag["foto_url"])}" alt="{e(ag["nome"])}">' if ag.get("foto_url")
+                else f'<span class="ag-iniciais">{e((ag["nome"] or "?")[:1])}</span>')
+        creci = f'<span class="ag-creci">CRECI {e(ag["creci"])}{"/" + e(ag["creci_estado"]) if ag.get("creci_estado") else ""}</span>' if ag.get("creci") else ""
+        bio = f'<p class="ag-bio">{e(ag["bio"])}</p>' if ag.get("bio") else ""
+        agenciador_html = (
+            f'<div class="lateral-agenciador"><div class="ag-foto">{foto}</div>'
+            f'<div class="ag-corpo"><span class="ag-rot">Agenciado por</span>'
+            f'<strong>{e(ag["nome"])}</strong>{creci}{bio}</div></div>')
 
     # Trilha: ajuda a navegar e é sinal de estrutura para o buscador.
     migalhas = ['<a href="' + raiz + '/">Início</a>']
@@ -1767,7 +1793,7 @@ def pagina_imovel(cfg, im, base, todos=None):
       {dados_html}
       {desc_html}
       {extras_html}
-      {emp_fotos_html}
+      {emp_resumo_html}
     </div>
 
     <aside class="lateral">
@@ -1777,6 +1803,7 @@ def pagina_imovel(cfg, im, base, todos=None):
       <div class="lateral-ref">Referência {e(im.get('codigo') or '')}</div>
       {emp_html}
       {botoes}
+      {agenciador_html}
       <p style="font-size:12.5px;color:var(--tinta-3);margin-top:18px;line-height:1.55">
         Avaliação técnica por perito. {e(cfg.get('creci') or '')}</p>
     </aside>
@@ -2479,6 +2506,12 @@ def main():
 
     EMPREENDIMENTOS.clear()
     EMPREENDIMENTOS.extend(empreendimentos)
+
+    # Recorte público do corretor — id, nome, foto, bio, creci. Nada
+    # sensível: a view perfil_publico já filtra as colunas.
+    corretores = curl_json("perfil_publico?select=*")
+    CORRETORES.clear()
+    CORRETORES.extend(corretores if isinstance(corretores, list) else [])
 
     posts = curl_json("post?select=*&publicado=eq.true&order=publicado_em.desc")
 
