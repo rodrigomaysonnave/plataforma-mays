@@ -283,6 +283,11 @@ a{color:var(--marca)}
 .lateral-ref{font-size:12px;color:var(--tinta-3);margin-top:4px}
 .lateral-empreendimento{font-size:12.5px;color:var(--tinta-3);margin-top:10px}
 .lateral-empreendimento a{color:var(--marca);font-weight:600;text-decoration:underline}
+.cond-fotos{margin-top:36px}
+.cond-fotos h2{font-family:Georgia,serif;font-weight:400;font-size:19px;margin-bottom:12px}
+.cond-fotos-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.cond-fotos-grade img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:5px}
+.cond-fotos-link{display:inline-block;margin-top:10px;font-size:13.5px;font-weight:600;color:var(--marca)}
 .botao{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
   padding:13px 18px;border-radius:5px;font-size:14.5px;font-weight:700;text-decoration:none;
   margin-top:12px;border:1px solid var(--marca);color:var(--marca);background:transparent}
@@ -1595,7 +1600,12 @@ document.querySelectorAll('.cartao-foto').forEach(moldura => {{
 def pagina_imovel(cfg, im, base, todos=None):
     raiz = "../.."
     acao_titulo = "para alugar" if im.get("finalidade") == "aluguel" else "à venda"
-    titulo = im.get("meta_titulo") or f"{im.get('_tipo') or 'Imóvel'} {acao_titulo} em {im.get('_bairro') or 'Pelotas'}, Pelotas/RS · {cfg.get('nome_imobiliaria')}"
+    emp = next((c for c in EMPREENDIMENTOS if c["id"] == im.get("empreendimento_id")), None)
+    # Quem procura um condomínio específico digita o nome dele, não o
+    # bairro — o resumo automático (só entra quando o campo está em
+    # branco) busca melhor assim.
+    local_seo = (emp["nome"] if emp else None) or im.get("_bairro") or "Pelotas"
+    titulo = im.get("meta_titulo") or f"{im.get('_tipo') or 'Imóvel'} {acao_titulo} em {local_seo}, Pelotas/RS · {cfg.get('nome_imobiliaria')}"
     desc = im.get("meta_descricao") or (im.get("descricao_publica") or titulo)[:158]
     url = f"{base}/imovel/{im['slug']}/"
 
@@ -1698,10 +1708,22 @@ def pagina_imovel(cfg, im, base, todos=None):
     # Unidade que pertence a um condomínio cadastrado leva pra ficha dele —
     # sem isso o vínculo existe só no banco, ninguém vê.
     emp_html = ""
-    emp = next((c for c in EMPREENDIMENTOS if c["id"] == im.get("empreendimento_id")), None)
+    emp_fotos_html = ""
     if emp and emp.get("slug"):
         emp_html = (f'<div class="lateral-empreendimento">Unidade no '
                     f'<a href="{raiz}/condominio/{e(emp["slug"])}/">{e(emp["nome"])}</a></div>')
+        # Área comum é do condomínio, não da unidade — mas quem procura
+        # apartamento quer ver a piscina e a portaria também.
+        emp_fotos = emp.get("_fotos") or []
+        if emp_fotos:
+            itens_emp = "".join(
+                f'<img src="{cam(raiz, f)}" alt="Foto {i+1} de {e(emp["nome"])}" loading="lazy">'
+                for i, f in enumerate(emp_fotos[:8]))
+            emp_fotos_html = (
+                f'<div class="cond-fotos"><h2>Fotos do condomínio</h2>'
+                f'<div class="cond-fotos-grade">{itens_emp}</div>'
+                f'<a class="cond-fotos-link" href="{raiz}/condominio/{e(emp["slug"])}/">'
+                f'Ver a ficha completa de {e(emp["nome"])} →</a></div>')
 
     # Trilha: ajuda a navegar e é sinal de estrutura para o buscador.
     migalhas = ['<a href="' + raiz + '/">Início</a>']
@@ -1745,6 +1767,7 @@ def pagina_imovel(cfg, im, base, todos=None):
       {dados_html}
       {desc_html}
       {extras_html}
+      {emp_fotos_html}
     </div>
 
     <aside class="lateral">

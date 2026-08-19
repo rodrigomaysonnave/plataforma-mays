@@ -66,7 +66,7 @@
   async function carregarApoio() {
     if (apoio) return apoio;
     const pega = (t, extra) => supabaseClient.from(t).select(extra || 'id,nome').eq('ativo', true).order('ordem').order('nome');
-    const [tipos, subtipos, cidades, bairros, zonas, caracts, origens, props, empreendimentos, cfgs] = await Promise.all([
+    const [tipos, subtipos, cidades, bairros, zonas, caracts, origens, props, empreendimentos, corretores, cfgs] = await Promise.all([
       db(pega('tipo_imovel','id,nome,segmento'), 'carregar tipos'),
       db(supabaseClient.from('subtipo_imovel').select('id,nome,tipo_imovel_id').eq('ativo',true).order('ordem'), 'carregar subtipos'),
       db(pega('cidade'), 'carregar cidades'),
@@ -76,9 +76,10 @@
       db(pega('origem_captacao'), 'carregar origens'),
       db(supabaseClient.from('proprietario').select('id,nome').eq('ativo',true).order('nome'), 'carregar proprietários'),
       db(supabaseClient.from('empreendimento').select('id,nome,bairro_id,endereco').eq('ativo',true).order('nome'), 'carregar empreendimentos'),
+      db(supabaseClient.from('perfil').select('id,nome').eq('ativo',true).order('nome'), 'carregar corretores'),
       db(supabaseClient.from('configuracao').select('site_url').limit(1), 'carregar configuração'),
     ]);
-    apoio = { tipos, subtipos, cidades, bairros, zonas, caracts, origens, props, empreendimentos,
+    apoio = { tipos, subtipos, cidades, bairros, zonas, caracts, origens, props, empreendimentos, corretores,
               siteUrl: (cfgs[0] && cfgs[0].site_url) || null };
     return apoio;
   }
@@ -303,7 +304,10 @@
              <button class="btn btn-primario" id="propSalvar" type="button">Salvar proprietário</button>
              <button class="btn" id="propCancelar" type="button">Cancelar</button>
            </div>`, true) +
-        campo('Empreendimento', `<select id="fEmpreendimento">${opcoes(apoio.empreendimentos, im.empreendimento_id, 'Nenhum (imóvel avulso)')}</select>`)
+        campo('Empreendimento', `<select id="fEmpreendimento">${opcoes(apoio.empreendimentos, im.empreendimento_id, 'Nenhum (imóvel avulso)')}</select>`) +
+        campo('Agenciador',
+          `<select id="fAgenciador">${opcoes(apoio.corretores, im.agenciador_id, 'Sem agenciador')}</select>
+           <p class="campo-dica">Quem trouxe este imóvel pra carteira — diferente de quem toca a venda.</p>`)
       )}
 
       ${secao('Valores', 'Guardados como número, então dá para filtrar por faixa e somar a carteira.',
@@ -547,6 +551,7 @@
       bairro_id: v('fBairro') || null, cidade_id: v('fCidade') || null, zona_id: v('fZona') || null,
       proprietario_id: v('fProprietario') || null,
       empreendimento_id: v('fEmpreendimento') || null,
+      agenciador_id: v('fAgenciador') || null,
       valor: num(v('fValor')), valor_aluguel: num(v('fValorAluguel')),
       iptu: num(v('fIptu')), condominio: num(v('fCondominio')),
       aceita_financiamento: c('fFinanciamento'), aceita_permuta: c('fPermuta'),
