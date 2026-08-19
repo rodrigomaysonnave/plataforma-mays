@@ -539,6 +539,7 @@ select option { background: #1a1a1a; }
 }
 .num-v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .num-r { font-size: 11.5px; color: var(--texto-fraco); }
+.num-obs { font-size: 10px; color: var(--amarelo); line-height: 1.4; margin-top: 1px; }
 .num-destaque { border-color: var(--dourado); }
 .num-destaque .num-v { color: var(--dourado); }
 .num-alerta { border-color: rgba(224,82,82,.45); }

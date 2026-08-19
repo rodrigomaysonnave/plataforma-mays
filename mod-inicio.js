@@ -39,6 +39,9 @@
       (Date.now() - new Date(n.updated_at)) / 86400000 >= DIAS_PARADO);
     const abertos = negocios.filter(n => emAndamento(n.etapa_id));
     const vgvAberto = abertos.reduce((s, n) => s + Number(n.valor || 0), 0);
+    // Negócio sem valor cadastrado não soma no VGV — sem avisar isso, o
+    // número parece o total quando na verdade é só o que foi preenchido.
+    const semValorNegocio = abertos.filter(n => !n.valor).length;
     const vencidas = tarefas.filter(t => t.prazo && t.prazo < d);
     const semValor = imoveis.filter(i => !i.rascunho && i.valor == null);
     const rascunhos = imoveis.filter(i => i.rascunho);
@@ -64,7 +67,7 @@
         <div class="num${vencidas.length ? ' num-alerta' : ''}"><span class="num-v">${vencidas.length}</span><span class="num-r">Tarefas vencidas</span></div>
         <div class="num${parados.length ? ' num-alerta' : ''}"><span class="num-v">${parados.length}</span><span class="num-r">Negócios parados</span></div>
         <div class="num"><span class="num-v">${abertos.length}</span><span class="num-r">Negócios em aberto</span></div>
-        <div class="num"><span class="num-v">${vgv(vgvAberto)}</span><span class="num-r">VGV em aberto</span></div>
+        <div class="num"><span class="num-v">${vgv(vgvAberto)}</span><span class="num-r">VGV em aberto</span>${semValorNegocio ? `<span class="num-obs">${abertos.length - semValorNegocio} de ${abertos.length} com valor — ${semValorNegocio} sem valor não entram na soma</span>` : ''}</div>
       </div>
 
       <div class="ini-grade">

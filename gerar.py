@@ -137,12 +137,22 @@ def converter_webp(origem, largura):
 
 
 def baixar_foto(url, destino):
-    """Baixa uma vez. Se já existe, reaproveita: gerar de novo não rebaixa tudo."""
+    """Baixa uma vez. Se já existe, reaproveita: gerar de novo não rebaixa tudo.
+
+    `--connect-timeout` separado do `--max-time` porque foi exatamente a
+    conexão que ficou presa (preso em SYN_SENT) numa geração — o vídeo de um
+    reel do Instagram. O timeout do próprio `subprocess.run` é o último
+    cinto de segurança, caso o curl não se mate sozinho."""
     if destino.exists() and destino.stat().st_size > 0:
         return True
     destino.parent.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(["curl", "-sS", "--max-time", "90", "-o", str(destino), url],
-                       capture_output=True, text=True)
+    try:
+        r = subprocess.run(
+            ["curl", "-sS", "--connect-timeout", "15", "--max-time", "90", "-o", str(destino), url],
+            capture_output=True, text=True, timeout=100)
+    except subprocess.TimeoutExpired:
+        print(f"      download travou (mais de 100s): {url[:80]}")
+        return False
     return r.returncode == 0 and destino.exists() and destino.stat().st_size > 0
 
 
@@ -1740,12 +1750,12 @@ def pagina_imovel(cfg, im, base, todos=None):
 </div>"""
 
     # ── Imóveis semelhantes ────────────────────────────────────────
-    # Mesmo bairro primeiro, depois faixa de preço parecida. Sem isso a ficha
-    # é beco sem saída: quem não gostou deste imóvel fecha o site.
-    # Venda e aluguel nunca se misturam, e o candidato precisa bater em bairro
-    # ou tipo de verdade — sem isso, dois imóveis sem bairro/tipo cadastrado
-    # (None == None) se achavam "iguais" e preço sozinho bastava pra aparecer
-    # como semelhante mesmo sendo um tipo e bairro completamente diferentes.
+    # Tipo tem que bater sempre — é o que faz terreno nunca aparecer como
+    # "semelhante" de sobrado, por mais que dividam bairro e faixa de preço.
+    # Bairro e preço parecido só entram depois, pra ordenar entre quem já
+    # passou no corte do tipo. Venda e aluguel também nunca se misturam.
+    # Tipo em branco nos dois lados (None == None) não conta como bater —
+    # sem essa guarda, dois imóveis sem tipo cadastrado se achavam "iguais".
     semelhantes_html = ""
     if todos:
         def parecido(o):
@@ -1753,15 +1763,12 @@ def pagina_imovel(cfg, im, base, todos=None):
                 return -1
             if (o.get("finalidade") or "venda") != (im.get("finalidade") or "venda"):
                 return -1
-            mesmo_bairro = bool(o.get("bairro_id")) and o["bairro_id"] == im.get("bairro_id")
             mesmo_tipo = bool(o.get("tipo_imovel_id")) and o.get("tipo_imovel_id") == im.get("tipo_imovel_id")
-            if not (mesmo_bairro or mesmo_tipo):
+            if not mesmo_tipo:
                 return -1
-            nota = 0
-            if mesmo_bairro:
+            nota = 5
+            if o.get("bairro_id") and o["bairro_id"] == im.get("bairro_id"):
                 nota += 3
-            if mesmo_tipo:
-                nota += 2
             v1, v2 = im.get("valor"), o.get("valor")
             if v1 and v2 and 0.6 <= float(v2) / float(v1) <= 1.6:
                 nota += 2
@@ -2352,7 +2359,10 @@ def main():
     vinculos = curl_json("imovel_caracteristica?select=imovel_id,caracteristica_id")
 
     empreendimentos = curl_json("empreendimento?select=*&ativo=eq.true&order=nome")
-    fotos_emp = curl_json("empreendimento_foto?select=*&order=ordem")
+    if not isinstance(empreendimentos, list):
+        print(f"Condomínios fora do ar nesta geração: {empreendimentos}")
+        empreendimentos = []
+    fotos_emp = curl_json("empreendimento_foto?select=*&order=ordem") if empreendimentos else []
 
     SAIDA.mkdir(parents=True, exist_ok=True)
 

@@ -75,7 +75,7 @@
       db(pega('caracteristica'), 'carregar características'),
       db(pega('origem_captacao'), 'carregar origens'),
       db(supabaseClient.from('proprietario').select('id,nome').eq('ativo',true).order('nome'), 'carregar proprietários'),
-      db(supabaseClient.from('empreendimento').select('id,nome').eq('ativo',true).order('nome'), 'carregar empreendimentos'),
+      db(supabaseClient.from('empreendimento').select('id,nome,bairro_id,endereco').eq('ativo',true).order('nome'), 'carregar empreendimentos'),
       db(supabaseClient.from('configuracao').select('site_url').limit(1), 'carregar configuração'),
     ]);
     apoio = { tipos, subtipos, cidades, bairros, zonas, caracts, origens, props, empreendimentos,
@@ -435,6 +435,18 @@
     document.getElementById('fTipo').addEventListener('change', e => {
       const subs = apoio.subtipos.filter(s => s.tipo_imovel_id === e.target.value);
       document.getElementById('fSubtipo').innerHTML = opcoes(subs, null);
+    });
+
+    // Empreendimento escolhido preenche bairro e endereço — só o que estiver
+    // vazio, pra não sobrescrever o que já foi digitado à mão.
+    document.getElementById('fEmpreendimento').addEventListener('change', e => {
+      const emp = apoio.empreendimentos.find(x => x.id === e.target.value);
+      if (!emp) return;
+      const fBairro = document.getElementById('fBairro');
+      const fEndereco = document.getElementById('fEndereco');
+      if (emp.bairro_id && !fBairro.value) fBairro.value = emp.bairro_id;
+      if (emp.endereco && !fEndereco.value.trim()) fEndereco.value = emp.endereco;
+      atualizarPrevia();
     });
 
     ['imVoltar','imVoltar2'].forEach(i => document.getElementById(i).addEventListener('click', voltar));

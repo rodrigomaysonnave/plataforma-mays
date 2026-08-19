@@ -25,10 +25,77 @@ const Fotos = (() => {
   const LARGURA_GRANDE = 1600;
   const LARGURA_THUMB  = 500;
 
+  // Marca d'água em efeito "gota d'água": refrata o fundo (borra de leve a
+  // própria região da foto), soma brilho especular e um aro claro na borda
+  // — nunca escurece o que está atrás, só clareia. Mesmo tratamento do
+  // script marca_dagua.py, que carimba o que já estava no Storage; aqui é
+  // a versão que roda no navegador pra foto nova, no mesmo instante do
+  // envio. Só a foto de imóvel/empreendimento passa por aqui; retrato de
+  // corretor usa recortarQuadrado, função separada, e não é tocado.
+  const MARCA_TAMANHO = 0.20 * 4 / 3;  // fração da largura da foto
+  const MARCA_OPACIDADE = 0.30;
+  let logoMaskPromise = null, logoAroPromise = null;
+  function carregarImg(src) {
+    return new Promise((ok, falhou) => {
+      const img = new Image();
+      img.onload = () => ok(img);
+      img.onerror = () => falhou(new Error(`não consegui carregar ${src} pra marca d'água`));
+      img.src = src;
+    });
+  }
+  function carregarMarcaDagua() {
+    if (!logoMaskPromise) logoMaskPromise = carregarImg('logo-marca-mask.png');
+    if (!logoAroPromise) logoAroPromise = carregarImg('logo-marca-aro.png');
+    return Promise.all([logoMaskPromise, logoAroPromise]);
+  }
+
+  function brilhoEspecular(vctx, cx, cy, r, alpha) {
+    const g = vctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    vctx.fillStyle = g;
+    vctx.beginPath(); vctx.arc(cx, cy, r, 0, Math.PI * 2); vctx.fill();
+  }
+
+  function aplicarMarcaDagua(ctx, largura, altura, logoMask, logoAro) {
+    const lw = largura * MARCA_TAMANHO;
+    const lh = lw * (logoMask.height / logoMask.width);
+    const x0 = (largura - lw) / 2, y0 = (altura - lh) / 2;
+
+    const vidro = document.createElement('canvas');
+    vidro.width = Math.max(1, Math.round(lw));
+    vidro.height = Math.max(1, Math.round(lh));
+    const vctx = vidro.getContext('2d');
+
+    // refrata: recorta o fundo dessa região da própria foto e borra de leve
+    vctx.filter = `blur(${Math.max(1.5, lw * 0.006)}px)`;
+    vctx.drawImage(ctx.canvas, x0, y0, lw, lh, 0, 0, vidro.width, vidro.height);
+    vctx.filter = 'none';
+
+    // véu bem leve, só pra esfriar a cor (água, não vidro amarelado)
+    vctx.fillStyle = 'rgba(240,247,253,0.12)';
+    vctx.fillRect(0, 0, vidro.width, vidro.height);
+
+    brilhoEspecular(vctx, vidro.width * 0.30, vidro.height * 0.18, vidro.width * 0.24, 0.55);
+    brilhoEspecular(vctx, vidro.width * 0.335, vidro.height * 0.205, vidro.width * 0.08, 0.8);
+
+    vctx.drawImage(logoAro, 0, 0, vidro.width, vidro.height);
+
+    // recorta pela forma fina do logo — só o que sobrar dentro dela conta
+    vctx.globalCompositeOperation = 'destination-in';
+    vctx.drawImage(logoMask, 0, 0, vidro.width, vidro.height);
+    vctx.globalCompositeOperation = 'source-over';
+
+    ctx.globalAlpha = MARCA_OPACIDADE;
+    ctx.drawImage(vidro, x0, y0, lw, lh);
+    ctx.globalAlpha = 1;
+  }
+
   // Redimensiona no navegador antes de subir. Foto de celular tem 4 a 8MB e
   // 4000px de largura; nenhuma tela precisa disso, e subir o original custaria
   // tempo do usuário e espaço no Storage.
-  function redimensionar(arquivo, larguraMax, qualidade) {
+  async function redimensionar(arquivo, larguraMax, qualidade) {
+    const [logoMask, logoAro] = await carregarMarcaDagua();
     return new Promise((ok, falhou) => {
       const img = new Image();
       const url = URL.createObjectURL(arquivo);
@@ -38,7 +105,11 @@ const Fotos = (() => {
         const tela = document.createElement('canvas');
         tela.width  = Math.round(img.width  * escala);
         tela.height = Math.round(img.height * escala);
-        tela.getContext('2d').drawImage(img, 0, 0, tela.width, tela.height);
+        const ctx = tela.getContext('2d');
+        ctx.drawImage(img, 0, 0, tela.width, tela.height);
+
+        aplicarMarcaDagua(ctx, tela.width, tela.height, logoMask, logoAro);
+
         tela.toBlob(b => b ? ok(b) : falhou(new Error('não consegui gerar o JPEG')),
                     'image/jpeg', qualidade);
       };
