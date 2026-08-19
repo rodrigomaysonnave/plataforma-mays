@@ -281,6 +281,8 @@ a{color:var(--marca)}
 .lateral{position:sticky;top:96px;background:var(--superficie);border:1px solid var(--linha);border-radius:6px;padding:22px}
 .lateral-preco{font-family:Georgia,serif;font-size:29px;font-variant-numeric:tabular-nums}
 .lateral-ref{font-size:12px;color:var(--tinta-3);margin-top:4px}
+.lateral-empreendimento{font-size:12.5px;color:var(--tinta-3);margin-top:10px}
+.lateral-empreendimento a{color:var(--marca);font-weight:600;text-decoration:underline}
 .botao{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
   padding:13px 18px;border-radius:5px;font-size:14.5px;font-weight:700;text-decoration:none;
   margin-top:12px;border:1px solid var(--marca);color:var(--marca);background:transparent}
@@ -1693,6 +1695,14 @@ def pagina_imovel(cfg, im, base, todos=None):
     if im.get("_cidade"):
         local_html += " · " + e(im["_cidade"])
 
+    # Unidade que pertence a um condomínio cadastrado leva pra ficha dele —
+    # sem isso o vínculo existe só no banco, ninguém vê.
+    emp_html = ""
+    emp = next((c for c in EMPREENDIMENTOS if c["id"] == im.get("empreendimento_id")), None)
+    if emp and emp.get("slug"):
+        emp_html = (f'<div class="lateral-empreendimento">Unidade no '
+                    f'<a href="{raiz}/condominio/{e(emp["slug"])}/">{e(emp["nome"])}</a></div>')
+
     # Trilha: ajuda a navegar e é sinal de estrutura para o buscador.
     migalhas = ['<a href="' + raiz + '/">Início</a>']
     if im.get("_tipo"):
@@ -1742,6 +1752,7 @@ def pagina_imovel(cfg, im, base, todos=None):
       {icones_html}
       <div class="lateral-preco">{brl(im.get('valor'), im.get('finalidade'))}</div>
       <div class="lateral-ref">Referência {e(im.get('codigo') or '')}</div>
+      {emp_html}
       {botoes}
       <p style="font-size:12.5px;color:var(--tinta-3);margin-top:18px;line-height:1.55">
         Avaliação técnica por perito. {e(cfg.get('creci') or '')}</p>
