@@ -282,9 +282,6 @@ a{color:var(--marca)}
   background-size:cover;background-position:center;filter:blur(26px) saturate(1.15);
   transform:scale(1.08);opacity:.6}
 .ficha-capa img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:1}
-.galeria{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.galeria a{display:block}
-.galeria img{aspect-ratio:4/3;object-fit:cover;border-radius:4px;width:100%}
 .ficha{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:32px;align-items:start;margin:32px 0 56px}
 .ficha h1{font-family:Georgia,serif;font-weight:400;font-size:clamp(24px,3.6vw,34px);line-height:1.2;margin-bottom:8px}
 .ficha-local{font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--marca);margin-bottom:20px}
@@ -350,9 +347,6 @@ a{color:var(--marca)}
 /* Condomínio */
 .cond-capa{aspect-ratio:16/7;border-radius:4px;overflow:hidden;margin-top:18px}
 .cond-capa img{width:100%;height:100%;object-fit:cover;display:block}
-.cond-galeria{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
-  gap:10px;margin-top:16px}
-.cond-galeria img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:3px;display:block}
 
 /* Formulário de lead */
 .form-lead{background:var(--superficie-2);padding:48px 0}
@@ -572,8 +566,6 @@ button.video-capa{display:block;width:100%;padding:0;font:inherit;cursor:pointer
 @media(max-width:640px){.video-cartao{flex-basis:240px}.reel-cartao{flex-basis:160px}}
 
 /* Visualizador de fotos */
-.galeria-item{padding:0;border:none;background:none;cursor:zoom-in;display:block;width:100%}
-.galeria-item:focus-visible{outline:2px solid var(--marca);outline-offset:2px;border-radius:4px}
 .visor{position:fixed;inset:0;z-index:200;background:rgba(20,15,10,.94);
   display:flex;align-items:center;justify-content:center;padding:20px}
 .visor[hidden]{display:none}
@@ -1681,19 +1673,6 @@ def pagina_imovel(cfg, im, base, todos=None):
                      '<img src="' + e(principal) + '"' + atr + dados_capa +
                      ' alt="' + e(im.get("titulo") or "Imóvel") +
                      '" width="1400" height="788" fetchpriority="high">' + setas_capa + '</div>')
-    galeria_html = ""
-    if False:
-        # Miniatura na grade, foto grande no visualizador. Antes cada clique
-        # abria uma aba nova do navegador, o que tirava a pessoa do site e
-        # obrigava a fechar aba por aba para ver as fotos.
-        itens_g = "".join(
-            '<button type="button" class="galeria-item" data-i="' + str(i) + '"'
-            ' aria-label="Ver foto ' + str(i + 1) + '">'
-            '<img src="' + e(minis[i] if i < len(minis) else g) + '"'
-            ' alt="Foto ' + str(i + 1) + ' do imóvel" loading="lazy"'
-            ' width="300" height="225"></button>'
-            for i, g in enumerate(fotos))
-        galeria_html = '<div class="galeria">' + itens_g + '</div>'
     dados_html = '<dl class="dados">' + "".join(dados) + '</dl>' if dados else ""
     desc_html = ('<div class="ficha-desc">' + paragrafos_import(im["descricao_publica"]) + '</div>'
                  if im.get("descricao_publica") else "")
@@ -2023,10 +2002,6 @@ def pagina_condominio(cfg, emp, unidades, base):
                           "".join('<i></i>' for _ in range(len(outras) + 1)) + '</span>')
         capa_html = (f'<div class="cond-capa cartao-foto"><img src="{cam(raiz, emp["_capa"])}"{dados_capa} '
                      f'alt="{e(emp["nome"])}" loading="eager" width="1400" height="700">{setas_capa}</div>')
-    galeria_html = ('<div class="cond-galeria">' +
-                     "".join(f'<img src="{o}" alt="" loading="lazy" width="360" height="240">' for o in outras) +
-                     "</div>") if outras else ""
-
     desc_html = f'<div class="prose">{paragrafos_import(emp["descricao"])}</div>' if emp.get("descricao") else ""
 
     video_html = ""
@@ -2061,7 +2036,6 @@ def pagina_condominio(cfg, emp, unidades, base):
   {capa_html}
   <h1 style="margin-top:22px">{e(emp['nome'])}</h1>
   <div class="ficha-local">{local}{(" · " + e(emp["_construtora"])) if emp.get("_construtora") else ""}</div>
-  {galeria_html}
   {desc_html}
   {video_html}
   {botao}
