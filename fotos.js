@@ -209,11 +209,11 @@ const Fotos = (() => {
             <input type="file" accept="image/*" multiple hidden id="fotoEntrada">
           </label>
           <span class="fotos-conta">${fotos.length ? `${fotos.length} foto${fotos.length===1?'':'s'}` : 'Nenhuma foto ainda'}</span>
-          <span class="fotos-dica">A primeira é a capa. Clique em "Capa" para trocar.</span>
+          <span class="fotos-dica">A primeira é a capa. Arraste pra reordenar, ou use as setas.</span>
         </div>
         <div class="fotos-grade" id="fotosGrade">
           ${fotos.map((f, i) => `
-            <figure class="foto${f.capa || (i === 0 && !fotos.some(x => x.capa)) ? ' foto-capa' : ''}" data-id="${f.id}">
+            <figure class="foto${f.capa || (i === 0 && !fotos.some(x => x.capa)) ? ' foto-capa' : ''}" data-id="${f.id}" draggable="true">
               <img src="${esc(f.url_thumb || f.url)}" alt="${esc(f.legenda || 'Foto do imóvel')}" loading="lazy">
               ${f.capa || (i === 0 && !fotos.some(x => x.capa)) ? '<span class="foto-selo">Capa</span>' : ''}
               <figcaption>
@@ -275,6 +275,35 @@ const Fotos = (() => {
             }
             await carregar();
           });
+        });
+      });
+
+      // Arrastar solta a foto no lugar de outra — todo mundo entre as duas
+      // posições reflui, então grava a ordem da grade inteira de uma vez,
+      // não só das duas trocadas (diferente do botão de seta).
+      let arrastandoId = null;
+      alvo.querySelectorAll('.foto').forEach(fig => {
+        fig.addEventListener('dragstart', () => {
+          arrastandoId = fig.dataset.id;
+          fig.classList.add('foto-arrastando');
+        });
+        fig.addEventListener('dragend', () => fig.classList.remove('foto-arrastando'));
+        fig.addEventListener('dragover', ev => {
+          ev.preventDefault();
+          if (fig.dataset.id !== arrastandoId) fig.classList.add('foto-alvo');
+        });
+        fig.addEventListener('dragleave', () => fig.classList.remove('foto-alvo'));
+        fig.addEventListener('drop', async ev => {
+          ev.preventDefault();
+          fig.classList.remove('foto-alvo');
+          const destinoId = fig.dataset.id;
+          if (!arrastandoId || arrastandoId === destinoId) return;
+          const nova = fotos.filter(f => f.id !== arrastandoId);
+          const j = nova.findIndex(f => f.id === destinoId);
+          nova.splice(j, 0, fotos.find(f => f.id === arrastandoId));
+          await Promise.all(nova.map((f, i) =>
+            db(supabaseClient.from(dono.tabela).update({ ordem: i }).eq('id', f.id), 'reordenar')));
+          await carregar();
         });
       });
     }

@@ -472,8 +472,11 @@ select option { background: #1a1a1a; }
 .foto {
   position: relative; margin: 0; border: 1px solid var(--borda);
   border-radius: var(--raio-p); overflow: hidden; background: var(--superficie-2);
+  cursor: grab; transition: opacity .12s, border-color .12s;
 }
 .foto-capa { border-color: var(--dourado); }
+.foto-arrastando { opacity: .35; cursor: grabbing; }
+.foto-alvo { border-color: var(--dourado); border-style: dashed; }
 .foto img { width: 100%; height: 118px; object-fit: cover; display: block; }
 .foto-selo {
   position: absolute; top: 7px; left: 7px; z-index: 2;
