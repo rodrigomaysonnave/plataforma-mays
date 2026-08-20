@@ -136,6 +136,18 @@ def converter_webp(origem, largura):
         return None
 
 
+def nome_estavel(prefixo, url):
+    """Nome local a partir do próprio arquivo no Storage, não da posição na
+    lista de fotos. `baixar_foto` só baixa quando o arquivo local ainda não
+    existe — com nome preso à posição (`codigo-0.jpg`), trocar a capa ou
+    reordenar deixava o nome certo apontando pro conteúdo antigo, porque a
+    posição 0 já tinha um arquivo ali de antes. Nome derivado da própria
+    foto muda sozinho quando a foto muda, e reordenar não baixa nada de
+    novo — só troca a ordem de exibição."""
+    base = (url or "").rsplit("/", 1)[-1].split("?")[0] or "foto.jpg"
+    return f"{prefixo}-{base}"
+
+
 def baixar_foto(url, destino):
     """Baixa uma vez. Se já existe, reaproveita: gerar de novo não rebaixa tudo.
 
@@ -2494,11 +2506,11 @@ def main():
         # a 4,4MB com LCP de 9,5s. É o mesmo erro do sistema antigo, onde a
         # miniatura era gerada e nenhuma tela apontava pra ela.
         locais, minis = [], []
-        for n, f in enumerate(minhas):
-            nome = f"{im['codigo']}-{n}.jpg"
+        for f in minhas:
+            nome = nome_estavel(im['codigo'], f["url"])
             if baixar_foto(f["url"], SAIDA / "fotos" / nome):
                 locais.append(f"fotos/{nome}"); baixadas += 1
-            tn = f"{im['codigo']}-{n}-p.jpg"
+            tn = nome_estavel(im['codigo'], f.get("url_thumb"))
             if f.get("url_thumb") and baixar_foto(f["url_thumb"], SAIDA / "fotos" / tn):
                 minis.append(f"fotos/{tn}")
             else:
@@ -2531,8 +2543,8 @@ def main():
         minhas = [f for f in fotos_emp if f["empreendimento_id"] == emp["id"]]
         minhas.sort(key=lambda f: (not f.get("capa"), f.get("ordem") or 0))
         locais = []
-        for n, f in enumerate(minhas):
-            nome = f"emp-{emp['id'][:8]}-{n}.jpg"
+        for f in minhas:
+            nome = nome_estavel(f"emp-{emp['id'][:8]}", f["url"])
             if baixar_foto(f["url"], SAIDA / "fotos" / nome):
                 locais.append(f"fotos/{nome}"); baixadas += 1
         emp["_fotos"] = locais
