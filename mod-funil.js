@@ -134,12 +134,18 @@
     });
   }
 
+  const listaContatos = () => contatos.map(c => `<option value="${esc(c.nome)}">`).join('');
+
   async function abrirNegocio(id) {
     const n = id === 'novo' ? {} :
       (await db(supabaseClient.from('negocio').select('*').eq('id', id).limit(1), 'abrir negócio'))[0];
     const motivos = await Crud.listaApoio('motivo_perda');
     const op = (lista, sel, vazio) => `<option value="">${vazio}</option>` + lista.map(o =>
       `<option value="${o.id}"${o.id === sel ? ' selected' : ''}>${esc(o.nome)}</option>`).join('');
+    // Nome do cliente já ligado, pra preencher o campo de busca — a lista de
+    // clientes cresce sem limite, então digitar o nome bate mais rápido do
+    // que rolar um <select> gigante procurando.
+    const nomeContatoAtual = n.contato_id ? nomeDe(contatos, n.contato_id) : '';
 
     alvoEl.innerHTML = `
       <div class="secao-topo">
@@ -154,8 +160,14 @@
         </div>
       </div>
       <div class="ficha-secao"><div class="ficha-grade">
-        <div class="campo campo-largo"><label for="negContato">Cliente</label>
-          <select id="negContato">${op(contatos, n.contato_id, 'Selecione')}</select></div>
+        <div class="campo campo-largo"><label for="negContatoBusca">Cliente</label>
+          <div class="linha-com-botao">
+            <input type="text" id="negContatoBusca" list="negContatoLista" autocomplete="off"
+                   placeholder="Digite o nome do cliente…" value="${esc(nomeContatoAtual)}">
+            <button class="btn" type="button" id="negContatoNovo">+ Novo</button>
+          </div>
+          <datalist id="negContatoLista">${listaContatos()}</datalist>
+          <p class="campo-dica">Não achou? Cadastre com "+ Novo" sem sair daqui.</p></div>
         <div class="campo campo-largo"><label for="negImovel">Imóvel</label>
           <select id="negImovel">${op(imoveis, n.imovel_id, 'Nenhum ainda')}</select></div>
         <div class="campo"><label for="negEtapa">Etapa</label>
@@ -171,11 +183,27 @@
       </div></div>`;
 
     document.getElementById('negVoltar').addEventListener('click', desenhar);
+    document.getElementById('negContatoNovo').addEventListener('click', async () => {
+      const nome = prompt('Nome do cliente:');
+      if (!nome || !nome.trim()) return;
+      const r = await db(supabaseClient.from('contato').insert({ nome: nome.trim() }).select('id'),
+                          'cadastrar cliente');
+      Crud.limparCache();
+      contatos = await Crud.listaApoio('contato');
+      document.getElementById('negContatoLista').innerHTML = listaContatos();
+      document.getElementById('negContatoBusca').value = nome.trim();
+      avisar('Cliente cadastrado.');
+    });
     document.getElementById('negSalvar').addEventListener('click', async () => {
       const v = i => document.getElementById(i).value;
-      if (!v('negContato')) { avisar('Escolha o cliente.'); return; }
+      const nomeDigitado = document.getElementById('negContatoBusca').value.trim();
+      const achado = contatos.find(c => c.nome.trim().toLowerCase() === nomeDigitado.toLowerCase());
+      // Reabrir sem mexer no nome mantém o cliente já ligado, mesmo que ele
+      // não apareça mais na lista (inativado, por exemplo).
+      const contatoId = achado ? achado.id : (nomeDigitado === nomeContatoAtual ? n.contato_id : null);
+      if (!contatoId) { avisar('Escolha um cliente da lista de sugestões, ou cadastre um novo com "+ Novo".'); return; }
       const dados = {
-        contato_id: v('negContato'), imovel_id: v('negImovel') || null,
+        contato_id: contatoId, imovel_id: v('negImovel') || null,
         etapa_id: v('negEtapa') || null, valor: v('negValor') === '' ? null : Number(v('negValor')),
         motivo_perda_id: v('negMotivo') || null, obs: v('negObs').trim() || null,
       };

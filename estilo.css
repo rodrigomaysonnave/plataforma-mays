@@ -494,7 +494,7 @@ select option { background: #1a1a1a; }
 
 /* Seletor com botão ao lado, e o formulário embutido de proprietário. */
 .linha-com-botao { display: flex; gap: 8px; align-items: center; }
-.linha-com-botao select { flex: 1; }
+.linha-com-botao select, .linha-com-botao input { flex: 1; }
 .linha-com-botao .btn { flex-shrink: 0; }
 .prop-form {
   display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
