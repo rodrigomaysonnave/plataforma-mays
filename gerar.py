@@ -345,7 +345,7 @@ a{color:var(--marca)}
 .semelhantes .cartao{background:var(--superficie);color:var(--tinta)}
 
 /* Condomínio */
-.cond-capa{position:relative;aspect-ratio:16/7;border-radius:4px;overflow:hidden;margin-top:18px}
+.cond-capa{position:relative;aspect-ratio:16/9;border-radius:4px;overflow:hidden;margin-top:18px}
 /* Mesmo tratamento da ficha de imóvel: foto que não tem a proporção da
    moldura ganha fundo borrado da própria imagem em vez de cortar. */
 .cond-capa::before{content:"";position:absolute;inset:-8%;background-image:var(--fundo);
@@ -1052,9 +1052,14 @@ document.querySelectorAll('.cartao-foto').forEach(moldura => {
   const fotos = [img.getAttribute('src')].concat(img.dataset.fotos.split('|'));
   const pontos = moldura.querySelectorAll('.cartao-pontos i');
   let i = 0;
+  // O fundo borrado que preenche a sobra precisa acompanhar a foto que está
+  // à mostra. Preso na primeira, virar o carrossel deixava a moldura com o
+  // borrão de uma foto e a foto de outra na frente.
+  const temFundo = getComputedStyle(moldura).getPropertyValue('--fundo').trim() !== '';
   const ir = passo => {
     i = (i + passo + fotos.length) % fotos.length;
     img.src = fotos[i];
+    if (temFundo) moldura.style.setProperty('--fundo', 'url("' + fotos[i] + '")');
     moldura.dataset.indiceAtual = i;
     pontos.forEach((p, k) => p.classList.toggle('on', k === i));
   };
