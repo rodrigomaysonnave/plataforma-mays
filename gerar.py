@@ -345,8 +345,13 @@ a{color:var(--marca)}
 .semelhantes .cartao{background:var(--superficie);color:var(--tinta)}
 
 /* Condomínio */
-.cond-capa{aspect-ratio:16/7;border-radius:4px;overflow:hidden;margin-top:18px}
-.cond-capa img{width:100%;height:100%;object-fit:cover;display:block}
+.cond-capa{position:relative;aspect-ratio:16/7;border-radius:4px;overflow:hidden;margin-top:18px}
+/* Mesmo tratamento da ficha de imóvel: foto que não tem a proporção da
+   moldura ganha fundo borrado da própria imagem em vez de cortar. */
+.cond-capa::before{content:"";position:absolute;inset:-8%;background-image:var(--fundo);
+  background-size:cover;background-position:center;filter:blur(26px) saturate(1.15);
+  transform:scale(1.08);opacity:.6}
+.cond-capa img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:1;display:block}
 
 /* Formulário de lead */
 .form-lead{background:var(--superficie-2);padding:48px 0}
@@ -2000,7 +2005,8 @@ def pagina_condominio(cfg, emp, unidades, base):
                           '<button type="button" class="cartao-seta cartao-prox" aria-label="Próxima foto">&#8250;</button>'
                           '<span class="cartao-pontos" aria-hidden="true">' +
                           "".join('<i></i>' for _ in range(len(outras) + 1)) + '</span>')
-        capa_html = (f'<div class="cond-capa cartao-foto"><img src="{cam(raiz, emp["_capa"])}"{dados_capa} '
+        capa_html = (f'<div class="cond-capa cartao-foto" style="--fundo:url(&quot;{e(cam(raiz, emp["_capa"]))}&quot;)">'
+                     f'<img src="{cam(raiz, emp["_capa"])}"{dados_capa} '
                      f'alt="{e(emp["nome"])}" loading="eager" width="1400" height="700">{setas_capa}</div>')
     desc_html = f'<div class="prose">{paragrafos_import(emp["descricao"])}</div>' if emp.get("descricao") else ""
 
