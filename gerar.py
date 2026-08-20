@@ -382,19 +382,14 @@ a{color:var(--marca)}
 .trilha-site i{font-style:normal;opacity:.5}
 .trilha-site span{color:var(--tinta);font-weight:600}
 
-/* Palco: foto grande + tira de miniaturas ao lado */
-.palco{display:grid;grid-template-columns:minmax(0,1fr) 96px;gap:10px}
+/* Palco: foto grande, carrossel de setas + pontos (mesma peça do cartão) */
 .palco .ficha-capa{margin-bottom:0;cursor:zoom-in}
-/* A coluna da tira estica até a altura da foto (comportamento padrão do grid),
-   e a tira, absoluta dentro dela, rola por dentro. Sem isso a lista de 19
-   miniaturas empurrava a página para baixo da foto. */
-.palco-tira{position:relative}
-.tira{position:absolute;inset:0;display:flex;flex-direction:column;gap:8px;
-  overflow-y:auto;scrollbar-width:thin}
-.tira-item{padding:0;border:1px solid var(--linha);background:none;cursor:pointer;
-  border-radius:4px;overflow:hidden;aspect-ratio:4/3;position:relative;flex-shrink:0}
-.tira-item img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.tira-item:hover,.tira-item:focus-visible{border-color:var(--marca);outline:none}
+.palco .cartao-seta{width:44px;height:100%;font-size:34px}
+/* Imóvel com muita foto (20+) gera ponto demais pra caber numa linha só —
+   rola por dentro em vez de estourar a moldura. */
+.palco .cartao-pontos{bottom:14px;gap:7px;max-width:80%;overflow-x:auto;scrollbar-width:none;padding:2px 0}
+.palco .cartao-pontos::-webkit-scrollbar{display:none}
+.palco .cartao-pontos i{width:7px;height:7px;flex-shrink:0}
 
 /* Lista de ícones da lateral */
 .lateral-local{font-family:Georgia,serif;font-size:21px;margin-bottom:14px}
@@ -408,13 +403,6 @@ a{color:var(--marca)}
 .ic-util::before{content:"◱"}
 .ic-total::before{content:"▦"}
 .ic-ano::before{content:"📅"}
-
-@media(max-width:820px){
-  .palco{grid-template-columns:minmax(0,1fr)}
-  .palco-tira{position:static;height:88px}
-  .tira{position:static;flex-direction:row;overflow-x:auto;overflow-y:hidden}
-  .tira-item{width:112px;flex-shrink:0}
-}
 
 /* Setas dentro da miniatura */
 .cartao-seta{position:absolute;top:50%;transform:translateY(-50%);z-index:3;
@@ -1049,7 +1037,40 @@ def rodape_html(cfg, raiz="."):
 </footer>
 {script_favoritos()}
 {script_video_embutido()}
+{script_carrossel_cartao()}
 </body></html>"""
+
+
+def script_carrossel_cartao():
+    """Carrossel de foto por seta + pontos — cartão de imóvel na grade e a
+    foto grande da ficha usam a mesma peça (a ficha ganha a classe
+    `cartao-foto` a mais, só isso). Site inteiro, não só a home: antes só
+    existia no script da home, e cartão de "imóveis semelhantes" ou da
+    página do condomínio ficava com seta que não fazia nada."""
+    return """
+<script>
+document.querySelectorAll('.cartao-foto').forEach(moldura => {
+  const img = moldura.querySelector('img');
+  if (!img || !img.dataset.fotos) return;
+  const fotos = [img.getAttribute('src')].concat(img.dataset.fotos.split('|'));
+  const pontos = moldura.querySelectorAll('.cartao-pontos i');
+  let i = 0;
+  const ir = passo => {
+    i = (i + passo + fotos.length) % fotos.length;
+    img.src = fotos[i];
+    moldura.dataset.indiceAtual = i;
+    pontos.forEach((p, k) => p.classList.toggle('on', k === i));
+  };
+  moldura.dataset.indiceAtual = 0;
+  pontos.forEach((p, k) => p.classList.toggle('on', k === 0));
+  const ant = moldura.querySelector('.cartao-ant'), prox = moldura.querySelector('.cartao-prox');
+  // A seta vive DENTRO do link do cartão (ou do clique-pra-abrir-visor da
+  // ficha) — sem parar a propagação, o clique navegava/abria em vez de só
+  // trocar a foto.
+  if (ant) ant.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); ir(-1); });
+  if (prox) prox.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); ir(1); });
+});
+</script>"""
 
 
 def script_video_embutido():
@@ -1572,27 +1593,6 @@ window.buscarTexto = function (q) {{
   document.getElementById('imoveis').scrollIntoView({{ behavior: 'smooth' }});
 }};
 
-// Carrossel da miniatura. A seta vive DENTRO do link do cartão, então sem
-// preventDefault o clique abriria o imóvel em vez de trocar a foto.
-document.querySelectorAll('.cartao-foto').forEach(moldura => {{
-  const img = moldura.querySelector('img');
-  if (!img || !img.dataset.fotos) return;
-  const fotos = [img.getAttribute('src')].concat(img.dataset.fotos.split('|'));
-  const pontos = moldura.querySelectorAll('.cartao-pontos i');
-  let i = 0;
-  const ir = passo => {{
-    i = (i + passo + fotos.length) % fotos.length;
-    img.src = fotos[i];
-    pontos.forEach((p, k) => p.classList.toggle('on', k === i));
-  }};
-  pontos.forEach((p, k) => p.classList.toggle('on', k === 0));
-  moldura.querySelector('.cartao-ant').addEventListener('click', ev => {{
-    ev.preventDefault(); ev.stopPropagation(); ir(-1);
-  }});
-  moldura.querySelector('.cartao-prox').addEventListener('click', ev => {{
-    ev.preventDefault(); ev.stopPropagation(); ir(1);
-  }});
-}});
 </script>"""
 
     return (cabeca_html(cfg, titulo, desc, base + "/", capa, jsonld, raiz=".")
@@ -1666,21 +1666,22 @@ def pagina_imovel(cfg, im, base, todos=None):
         # A mesma imagem, borrada e ampliada, preenche o vazio: a foto aparece
         # inteira (contain) sem buraco na composição.
         fundo = cset[0][0] if cset else principal
-        capa_html = ('<div class="ficha-capa" style="--fundo:url(&quot;' + e(fundo) + '&quot;)">'
-                     '<img src="' + e(principal) + '"' + atr +
+        # Carrossel igual ao do cartão (setas + pontos): passa as fotos sem
+        # sair da ficha nem depender da coluna de miniaturas. Clicar na foto
+        # continua abrindo o visualizador cheio, na foto que estiver mostrando.
+        outras_capa = (minis[1:] if len(minis) > 1 else fotos[1:])
+        dados_capa = (' data-fotos="' + e("|".join(outras_capa)) + '"') if outras_capa else ""
+        setas_capa = ""
+        if outras_capa:
+            setas_capa = ('<button type="button" class="cartao-seta cartao-ant" aria-label="Foto anterior">&#8249;</button>'
+                          '<button type="button" class="cartao-seta cartao-prox" aria-label="Próxima foto">&#8250;</button>'
+                          '<span class="cartao-pontos" aria-hidden="true">' +
+                          "".join('<i></i>' for _ in range(len(outras_capa) + 1)) + '</span>')
+        capa_html = ('<div class="ficha-capa cartao-foto" style="--fundo:url(&quot;' + e(fundo) + '&quot;)">'
+                     '<img src="' + e(principal) + '"' + atr + dados_capa +
                      ' alt="' + e(im.get("titulo") or "Imóvel") +
-                     '" width="1400" height="788" fetchpriority="high"></div>')
+                     '" width="1400" height="788" fetchpriority="high">' + setas_capa + '</div>')
     galeria_html = ""
-    # Miniaturas em coluna ao lado da foto grande, como na referência. Em grade
-    # embaixo, a pessoa precisa rolar para ver que existem mais fotos.
-    tiras = ""
-    if len(fotos) > 1:
-        tiras = ('<div class="palco-tira"><div class="tira">' + "".join(
-            '<button type="button" class="tira-item" data-i="' + str(i) + '"'
-            ' aria-label="Ver foto ' + str(i + 1) + '">'
-            '<img src="' + e(minis[i] if i < len(minis) else g) + '"'
-            ' alt="" loading="lazy" width="120" height="90"></button>'
-            for i, g in enumerate(fotos)) + '</div></div>')
     if False:
         # Miniatura na grade, foto grande no visualizador. Antes cada clique
         # abria uma aba nova do navegador, o que tirava a pessoa do site e
@@ -1790,7 +1791,6 @@ def pagina_imovel(cfg, im, base, todos=None):
     <div>
       <div class="palco">
         {capa_html}
-        {tiras}
       </div>
 
       <h1 style="margin-top:28px">{e(im.get('titulo') or titulo)}</h1>
@@ -1958,10 +1958,10 @@ def pagina_imovel(cfg, im, base, todos=None):
     document.body.style.overflow = '';
     if (ultimoFoco) ultimoFoco.focus();
   }}
-  document.querySelectorAll('.tira-item').forEach(b =>
-    b.addEventListener('click', () => abrir(Number(b.dataset.i))));
   const capa = document.querySelector('.ficha-capa');
-  if (capa) {{ capa.style.cursor = 'zoom-in'; capa.addEventListener('click', () => abrir(0)); }}
+  // Abre na foto que o carrossel da capa estiver mostrando, não sempre na
+  // primeira — script_carrossel_cartao() guarda o índice em data-indice-atual.
+  if (capa) {{ capa.style.cursor = 'zoom-in'; capa.addEventListener('click', () => abrir(Number(capa.dataset.indiceAtual) || 0)); }}
   document.getElementById('visorFechar').addEventListener('click', fechar);
   document.getElementById('visorAnt').addEventListener('click', () => mostrar(atual - 1));
   document.getElementById('visorProx').addEventListener('click', () => mostrar(atual + 1));
@@ -2011,12 +2011,18 @@ def pagina_condominio(cfg, emp, unidades, base):
         local += (" · " if local else "") + e(endereco_completo)
     local += (" · " if local else "") + e(f"{cidade_emp}/{estado_emp}")
 
+    outras = [cam(raiz, f) for f in (emp.get("_fotos") or [])[1:]]
     capa_html = ""
     if emp.get("_capa"):
-        capa_html = (f'<div class="cond-capa"><img src="{cam(raiz, emp["_capa"])}" '
-                     f'alt="{e(emp["nome"])}" loading="eager" width="1400" height="700"></div>')
-
-    outras = [cam(raiz, f) for f in (emp.get("_fotos") or [])[1:]]
+        dados_capa = (' data-fotos="' + e("|".join(outras)) + '"') if outras else ""
+        setas_capa = ""
+        if outras:
+            setas_capa = ('<button type="button" class="cartao-seta cartao-ant" aria-label="Foto anterior">&#8249;</button>'
+                          '<button type="button" class="cartao-seta cartao-prox" aria-label="Próxima foto">&#8250;</button>'
+                          '<span class="cartao-pontos" aria-hidden="true">' +
+                          "".join('<i></i>' for _ in range(len(outras) + 1)) + '</span>')
+        capa_html = (f'<div class="cond-capa cartao-foto"><img src="{cam(raiz, emp["_capa"])}"{dados_capa} '
+                     f'alt="{e(emp["nome"])}" loading="eager" width="1400" height="700">{setas_capa}</div>')
     galeria_html = ('<div class="cond-galeria">' +
                      "".join(f'<img src="{o}" alt="" loading="lazy" width="360" height="240">' for o in outras) +
                      "</div>") if outras else ""
