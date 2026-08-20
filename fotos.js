@@ -94,8 +94,8 @@ const Fotos = (() => {
   // Redimensiona no navegador antes de subir. Foto de celular tem 4 a 8MB e
   // 4000px de largura; nenhuma tela precisa disso, e subir o original custaria
   // tempo do usuário e espaço no Storage.
-  async function redimensionar(arquivo, larguraMax, qualidade) {
-    const [logoMask, logoAro] = await carregarMarcaDagua();
+  async function redimensionar(arquivo, larguraMax, qualidade, marcaDagua) {
+    const [logoMask, logoAro] = marcaDagua ? await carregarMarcaDagua() : [];
     return new Promise((ok, falhou) => {
       const img = new Image();
       const url = URL.createObjectURL(arquivo);
@@ -108,7 +108,7 @@ const Fotos = (() => {
         const ctx = tela.getContext('2d');
         ctx.drawImage(img, 0, 0, tela.width, tela.height);
 
-        aplicarMarcaDagua(ctx, tela.width, tela.height, logoMask, logoAro);
+        if (marcaDagua) aplicarMarcaDagua(ctx, tela.width, tela.height, logoMask, logoAro);
 
         tela.toBlob(b => b ? ok(b) : falhou(new Error('não consegui gerar o JPEG')),
                     'image/jpeg', qualidade);
@@ -128,9 +128,12 @@ const Fotos = (() => {
   // Sobe grande e miniatura, e devolve as duas URLs.
   async function enviarUma(arquivo, pasta) {
     const base = `${pasta}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // Só foto de imóvel carimba. Empreendimento e LP são material do
+    // condomínio/construtora ou peça de campanha — a marca ali não é dele.
+    const marcaDagua = pasta === 'imoveis';
     const [grande, thumb] = await Promise.all([
-      redimensionar(arquivo, LARGURA_GRANDE, 0.82),
-      redimensionar(arquivo, LARGURA_THUMB, 0.7),
+      redimensionar(arquivo, LARGURA_GRANDE, 0.82, marcaDagua),
+      redimensionar(arquivo, LARGURA_THUMB, 0.7, marcaDagua),
     ]);
     const [url, url_thumb] = await Promise.all([
       subir(`${base}.jpg`, grande),
