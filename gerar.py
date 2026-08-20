@@ -345,7 +345,14 @@ a{color:var(--marca)}
 .semelhantes .cartao{background:var(--superficie);color:var(--tinta)}
 
 /* Condomínio */
-.cond-capa{position:relative;aspect-ratio:16/9;border-radius:4px;overflow:hidden;margin-top:18px}
+/* Sem teto de altura, 16/9 na largura cheia da página passava de 700px em
+   tela larga — abria a ficha do condomínio com a foto cortada pela dobra,
+   obrigando a rolar só pra ver ela inteira. */
+/* Com o teto de altura, foto larga o bastante fica mais estreita que a
+   caixa (o navegador encolhe a largura pra manter a proporção 16/9 dentro
+   do max-height) — centraliza em vez de grudar na esquerda com vão à direita. */
+.cond-capa{position:relative;aspect-ratio:16/9;max-height:64vh;width:auto;max-width:100%;
+  margin:18px auto 0;border-radius:4px;overflow:hidden}
 /* Mesmo tratamento da ficha de imóvel: foto que não tem a proporção da
    moldura ganha fundo borrado da própria imagem em vez de cortar. */
 .cond-capa::before{content:"";position:absolute;inset:-8%;background-image:var(--fundo);
