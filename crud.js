@@ -161,7 +161,16 @@ const Crud = (() => {
       const v = reg[c.campo];
       const id = 'f_' + c.campo;
       let dentro;
-      if (c.tipo === 'ref')          dentro = `<select id="${id}">${ops(refs[c.ref], v, c.vazio)}</select>`;
+      if (c.tipo === 'ref') {
+        dentro = `<select id="${id}">${ops(refs[c.ref], v, c.vazio)}</select>`;
+        // Cadastro que depende de outro cadastro ganha um atalho pra criar
+        // o que falta sem sair da tela — chegou na hora de cadastrar o
+        // empreendimento e a construtora dele ainda não existe, por exemplo.
+        if (c.criarRapido) {
+          dentro = `<div class="linha-com-botao">${dentro}` +
+            `<button class="btn" type="button" data-criar-rapido="${c.campo}">+ Novo</button></div>`;
+        }
+      }
       else if (c.tipo === 'fixa' || c.tipo === 'selo')
                                      dentro = `<select id="${id}">${opsFixas(c.opcoes, v)}</select>`;
       else if (c.tipo === 'texto')   dentro = `<textarea id="${id}" rows="${c.linhas || 3}" placeholder="${esc(c.ph || '')}">${esc(v ?? '')}</textarea>`;
@@ -176,10 +185,24 @@ const Crud = (() => {
     }
 
     async function abrirFicha(id) {
-      editando = id;
       await carregarRefs();
+      // Cadastro com galeria nasce no banco na hora, igual ao imóvel: foto
+      // precisa de um dono existente pra se ligar, e obrigar a preencher o
+      // resto do formulário antes inverte a ordem que quem cadastra usa de
+      // verdade (chega com as fotos na mão, quer soltar tudo já).
+      const criandoAgora = id === 'novo' && !!d.galeria;
+      if (criandoAgora) {
+        const rotuloCampo = d.rotuloCampo || 'nome';
+        const rascunho = { ...(d.padrao || {}) };
+        if (!rascunho[rotuloCampo]) rascunho[rotuloCampo] = `Novo ${d.singular}`;
+        const r = await db(supabaseClient.from(d.tabela).insert(rascunho).select('id'),
+                            `iniciar o cadastro de ${d.singular}`);
+        id = r[0].id;
+      }
+      editando = id;
       const reg = id === 'novo' ? (d.padrao || {})
         : (await db(supabaseClient.from(d.tabela).select('*').eq('id', id).limit(1), 'abrir'))[0];
+      const novo = id === 'novo' || criandoAgora;
 
       const secoes = {};
       d.campos.forEach(c => { (secoes[c.secao || 'Dados'] ||= []).push(c); });
@@ -187,11 +210,11 @@ const Crud = (() => {
       alvoEl.innerHTML = `
         <div class="secao-topo">
           <div class="secao-titulo"><div class="ponto"></div>
-            <div><h2>${id === 'novo' ? 'Novo ' + esc(d.singular) : esc(reg[d.rotuloCampo || 'nome'] || d.singular)}</h2>
-            <div class="secao-meta">${id === 'novo' ? '' : esc(d.subtitulo ? d.subtitulo(reg, refs) : '')}</div></div>
+            <div><h2>${novo ? 'Novo ' + esc(d.singular) : esc(reg[d.rotuloCampo || 'nome'] || d.singular)}</h2>
+            <div class="secao-meta">${novo ? '' : esc(d.subtitulo ? d.subtitulo(reg, refs) : '')}</div></div>
           </div>
           <div class="secao-acoes">
-            ${id === 'novo' ? '' : '<button class="btn btn-remover" id="cExcluir">Excluir</button>'}
+            ${novo ? '' : '<button class="btn btn-remover" id="cExcluir">Excluir</button>'}
             <button class="btn" id="cVoltar">Voltar à lista</button>
             <button class="btn btn-primario" id="cSalvar">Salvar</button>
           </div>
@@ -201,11 +224,10 @@ const Crud = (() => {
             <div class="ficha-secao-topo"><h3>${esc(nome)}</h3></div>
             <div class="ficha-grade">${campos.map(c => htmlCampo(c, reg)).join('')}</div>
           </div>`).join('')}
-        ${d.galeria ? (id === 'novo'
+        ${d.galeria
           ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Fotos</h3></div>
-              <p class="campo-dica">Salve para poder enviar fotos.</p></div>`
-          : `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Fotos</h3></div>
-              <div id="cFotos"></div></div>`) : ''}
+              <div id="cFotos"></div></div>`
+          : ''}
         <div class="ficha-rodape">
           <button class="btn" id="cVoltar2">Voltar à lista</button>
           <button class="btn btn-primario" id="cSalvar2">Salvar</button>
@@ -213,10 +235,29 @@ const Crud = (() => {
 
       ['cVoltar', 'cVoltar2'].forEach(i => document.getElementById(i).addEventListener('click', montarLista));
       ['cSalvar', 'cSalvar2'].forEach(i => document.getElementById(i).addEventListener('click', salvar));
+      alvoEl.querySelectorAll('[data-criar-rapido]').forEach(b =>
+        b.addEventListener('click', () => criarRapido(b.dataset.criarRapido)));
       const ex = document.getElementById('cExcluir');
       if (ex) ex.addEventListener('click', excluir);
-      if (d.galeria && id !== 'novo')
+      if (d.galeria)
         Fotos.montar(document.getElementById('cFotos'), { tabela: d.galeria.tabela, coluna: d.galeria.coluna, id, pasta: d.galeria.pasta });
+    }
+
+    // Cria pelo nome só, na tabela referenciada, e já seleciona no campo —
+    // sem sair da ficha nem perder o resto do formulário já preenchido.
+    async function criarRapido(campo) {
+      const c = d.campos.find(x => x.campo === campo);
+      if (!c) return;
+      const nome = prompt(`Nome ${c.criarRapido.rotulo || ''}:`.replace('  ', ' '));
+      if (!nome || !nome.trim()) return;
+      const r = await db(supabaseClient.from(c.ref).insert({ nome: nome.trim() }).select('id'),
+                          `cadastrar ${c.criarRapido.rotulo || c.ref}`);
+      const novoId = r && r[0] && r[0].id;
+      limparCache();
+      refs[c.ref] = await listaApoio(c.ref);
+      const sel = document.getElementById('f_' + campo);
+      if (sel) sel.innerHTML = ops(refs[c.ref], novoId, c.vazio);
+      avisar(`${c.criarRapido.rotulo || 'Cadastro'} criado.`);
     }
 
     async function salvar() {

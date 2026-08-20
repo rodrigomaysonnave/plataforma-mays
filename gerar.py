@@ -1982,7 +1982,9 @@ def pagina_condominio(cfg, emp, unidades, base):
     grade de cartões), sem o aparato de negociação de uma unidade só — quem
     chega aqui está escolhendo entre várias."""
     raiz = "../.."
-    titulo = f"{emp['nome']} — Condomínio em {emp.get('_bairro') or 'Pelotas'}, Pelotas/RS · {cfg.get('nome_imobiliaria')}"
+    cidade_emp = emp.get("_cidade") or "Pelotas"
+    estado_emp = emp.get("estado") or "RS"
+    titulo = f"{emp['nome']} — Condomínio em {emp.get('_bairro') or cidade_emp}, {cidade_emp}/{estado_emp} · {cfg.get('nome_imobiliaria')}"
     desc = (emp.get("descricao") or titulo)[:158]
     url = f"{base}/condominio/{emp['slug']}/"
 
@@ -1992,8 +1994,10 @@ def pagina_condominio(cfg, emp, unidades, base):
         jsonld["image"] = base + "/" + emp["_capa"].lstrip("./")
 
     local = e(emp.get("_bairro") or "")
-    if emp.get("endereco"):
-        local += (" · " if local else "") + e(emp["endereco"])
+    endereco_completo = ", ".join(p for p in (emp.get("endereco"), emp.get("numero")) if p)
+    if endereco_completo:
+        local += (" · " if local else "") + e(endereco_completo)
+    local += (" · " if local else "") + e(f"{cidade_emp}/{estado_emp}")
 
     capa_html = ""
     if emp.get("_capa"):
@@ -2006,6 +2010,17 @@ def pagina_condominio(cfg, emp, unidades, base):
                      "</div>") if outras else ""
 
     desc_html = f'<div class="prose">{paragrafos_import(emp["descricao"])}</div>' if emp.get("descricao") else ""
+
+    video_html = ""
+    vid_emp = id_youtube(emp.get("link_video"))
+    if vid_emp:
+        capa_video = capa_youtube(vid_emp)
+        img_video = (f'<img src="{cam(raiz, capa_video)}" alt="" loading="lazy" width="640" height="360">'
+                     if capa_video else '<div class="video-sem-capa"></div>')
+        video_html = (
+            f'<div class="ficha-video"><h2>Vídeo</h2>'
+            f'<button type="button" class="video-capa" data-youtube="{e(vid_emp)}">'
+            f'{img_video}<span class="video-play" aria-hidden="true">&#9654;</span></button></div>')
 
     link_zap = zap(cfg, msg=f"Olá Rodrigo, tenho interesse no {emp['nome']} e gostaria de saber mais.")
     botao = (f'<a class="botao botao-cheio" href="{e(link_zap)}" target="_blank" rel="noopener">'
@@ -2027,9 +2042,10 @@ def pagina_condominio(cfg, emp, unidades, base):
     <a href="{raiz}/">Início</a> <i>›</i> <span>{e(emp['nome'])}</span></nav>
   {capa_html}
   <h1 style="margin-top:22px">{e(emp['nome'])}</h1>
-  <div class="ficha-local">{local}{(" · " + e(emp["construtora"])) if emp.get("construtora") else ""}</div>
+  <div class="ficha-local">{local}{(" · " + e(emp["_construtora"])) if emp.get("_construtora") else ""}</div>
   {galeria_html}
   {desc_html}
+  {video_html}
   {botao}
 </div>"""
 
@@ -2507,8 +2523,11 @@ def main():
     # larguras: a capa aqui não é LCP de página de venda de uma unidade só.
     if empreendimentos:
         print(f"Preparando fotos de {len(empreendimentos)} empreendimentos…")
+    construtoras = {c["id"]: c["nome"] for c in curl_json("construtora?select=id,nome")} if empreendimentos else {}
     for emp in empreendimentos:
         emp["_bairro"] = bairros.get(emp.get("bairro_id"))
+        emp["_cidade"] = cidades.get(emp.get("cidade_id"))
+        emp["_construtora"] = construtoras.get(emp.get("construtora_id"))
         minhas = [f for f in fotos_emp if f["empreendimento_id"] == emp["id"]]
         minhas.sort(key=lambda f: (not f.get("capa"), f.get("ordem") or 0))
         locais = []
