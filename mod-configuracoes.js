@@ -30,6 +30,8 @@
 
     { grupo: 'Imóvel', tabela: 'tipo_imovel', titulo: 'Tipos de imóvel', hierarquica: true,
       descricao: 'O que o imóvel é. Cada tipo pode ter subtipos: Casa tem Sobrado, Geminado, Casa em condomínio.' },
+    { grupo: 'Imóvel', tabela: 'tipo_empreendimento', titulo: 'Tipos de condomínio', comVertical: true,
+      descricao: 'O que o condomínio é. Marcado como vertical, o cadastro dele pede pavimentos e unidades por andar.' },
     { grupo: 'Imóvel', tabela: 'caracteristica', titulo: 'Características',
       descricao: 'Piscina, elevador, esquina. Marcadas no imóvel e usadas como filtro.' },
     { grupo: 'Imóvel', tabela: 'origem_captacao', titulo: 'Origem da captação',
@@ -170,6 +172,11 @@
       // definem o que conta como negócio ganho e perdido no relatório.
       const r = RESULTADOS.find(x => x[0] === item.resultado) || ['', item.resultado, ''];
       seg = `<span class="cfg-selo-seg ${r[2]}">${esc(r[1])}</span>`;
+    } else if (l.comVertical) {
+      // Vertical ou horizontal decide se o cadastro do condomínio pede
+      // pavimentos e unidades por andar — clicável, alterna na hora.
+      seg = `<button class="cfg-selo-seg${item.vertical ? '' : ' inativo'}" data-acao="alternar-vertical">
+        ${item.vertical ? 'Vertical' : 'Horizontal'}</button>`;
     }
     let html = `
       <li class="cfg-item${item.ativo ? '' : ' inativo'}" data-id="${item.id}">
@@ -229,6 +236,8 @@
         ${l.comResultado ? `<select id="cfgNovoResultado">
           ${RESULTADOS.map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}
         </select>` : ''}
+        ${l.comVertical ? `<label class="check" style="margin:0 4px">
+          <input type="checkbox" id="cfgNovoVertical"><span>Vertical (tem andar)</span></label>` : ''}
         <button class="btn btn-primario" id="cfgAdicionar">Adicionar</button>
       </div>
 
@@ -248,6 +257,7 @@
     const registro = { nome, ordem: 999 };
     if (l.hierarquica) registro.segmento = alvoEl.querySelector('#cfgNovoSegmento').value;
     if (l.comResultado) registro.resultado = alvoEl.querySelector('#cfgNovoResultado').value;
+    if (l.comVertical) registro.vertical = alvoEl.querySelector('#cfgNovoVertical').checked;
     try {
       await db(supabaseClient.from(l.tabela).insert(registro), `adicionar em ${l.titulo}`);
     } catch (e) {
@@ -269,6 +279,12 @@
     if (!limpo || limpo === original) return;
     await db(supabaseClient.from(tabela).update({ nome: limpo }).eq('id', id), 'renomear');
     avisar('Renomeado.');
+  }
+
+  async function alternarVertical(id, tabela, verticalAgora) {
+    await db(supabaseClient.from(tabela).update({ vertical: !verticalAgora }).eq('id', id), 'mudar o tipo');
+    avisar(verticalAgora ? 'Virou horizontal.' : 'Virou vertical.');
+    await desenharPainel();
   }
 
   async function alternarAtivo(id, tabela, ativoAgora) {
@@ -317,6 +333,10 @@
 
       li.querySelector('[data-acao="alternar"]').addEventListener('click', () =>
         alternarAtivo(id, l.tabela, !li.classList.contains('inativo')));
+
+      const btnVertical = li.querySelector('[data-acao="alternar-vertical"]');
+      if (btnVertical) btnVertical.addEventListener('click', () =>
+        alternarVertical(id, l.tabela, !btnVertical.classList.contains('inativo')));
     });
 
     // A ordem destas listas é a ordem em que elas aparecem nos seletores do

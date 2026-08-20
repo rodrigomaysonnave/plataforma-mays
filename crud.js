@@ -38,9 +38,12 @@ const Crud = (() => {
       return apoio[chave];
     }
 
-    let q = supabaseClient.from(tabela).select('id,nome');
+    // Campo condicional (mostrarSe) precisa de mais que id+nome pra decidir
+    // se mostra ou esconde — tipo de condomínio carrega a flag `vertical`.
+    const EXTRA = { tipo_empreendimento: ',vertical' };
+    let q = supabaseClient.from(tabela).select('id,nome' + (EXTRA[tabela] || ''));
     if (['cidade','bairro','zona','caracteristica','origem_captacao','origem_lead',
-         'motivo_perda','categoria_cliente','tipo_imovel','etapa_funil'].includes(tabela)) {
+         'motivo_perda','categoria_cliente','tipo_imovel','etapa_funil','tipo_empreendimento'].includes(tabela)) {
       q = q.eq('ativo', true).order('ordem');
     } else if (['contato','proprietario'].includes(tabela)) {
       q = q.eq('ativo', true);
@@ -157,6 +160,14 @@ const Crud = (() => {
     }
 
     // ── Ficha ─────────────────────────────────────────────────────────
+    // Campo condicional: só existe quando outro campo de referência aponta
+    // pra um item com uma flag marcada (tipo de condomínio vertical pede
+    // pavimentos, horizontal não). `mostrarSe: { campo, refFlag }` — o resto
+    // é resolvido em avaliarCondicionais, olhando o valor ao vivo do campo
+    // controlador, não o que estava no banco quando a ficha abriu.
+    const atribCondicional = c => c.mostrarSe
+      ? ` data-mostra-quando="${c.mostrarSe.campo}" data-mostra-flag="${c.mostrarSe.refFlag}"` : '';
+
     function htmlCampo(c, reg) {
       const v = reg[c.campo];
       const id = 'f_' + c.campo;
@@ -174,14 +185,25 @@ const Crud = (() => {
       else if (c.tipo === 'fixa' || c.tipo === 'selo')
                                      dentro = `<select id="${id}">${opsFixas(c.opcoes, v)}</select>`;
       else if (c.tipo === 'texto')   dentro = `<textarea id="${id}" rows="${c.linhas || 3}" placeholder="${esc(c.ph || '')}">${esc(v ?? '')}</textarea>`;
-      else if (c.tipo === 'bool')    return `<div class="campo"><label class="check"><input type="checkbox" id="${id}"${v ? ' checked' : ''}>
+      else if (c.tipo === 'bool')    return `<div class="campo"${atribCondicional(c)}><label class="check"><input type="checkbox" id="${id}"${v ? ' checked' : ''}>
                                               <span><strong>${esc(c.rotulo)}</strong>${c.dica ? `<em>${esc(c.dica)}</em>` : ''}</span></label></div>`;
       else if (c.tipo === 'moeda')   dentro = `<input type="number" id="${id}" value="${v ?? ''}" step="0.01" min="0" placeholder="${esc(c.ph || '')}">`;
       else if (c.tipo === 'numero')  dentro = `<input type="number" id="${id}" value="${v ?? ''}" step="${c.passo || 1}" min="0" placeholder="${esc(c.ph || '')}">`;
       else if (c.tipo === 'data')    dentro = `<input type="date" id="${id}" value="${v ?? ''}">`;
       else if (c.tipo === 'datahora') dentro = `<input type="datetime-local" id="${id}" value="${v ? String(v).slice(0, 16) : ''}">`;
       else                           dentro = `<input type="${c.tipo === 'email' ? 'email' : c.tipo === 'tel' ? 'tel' : 'text'}" id="${id}" value="${esc(v ?? '')}" placeholder="${esc(c.ph || '')}">`;
-      return `<div class="campo${c.largo ? ' campo-largo' : ''}"><label for="${id}">${esc(c.rotulo)}</label>${dentro}${c.dica ? `<p class="campo-dica">${esc(c.dica)}</p>` : ''}</div>`;
+      return `<div class="campo${c.largo ? ' campo-largo' : ''}"${atribCondicional(c)}><label for="${id}">${esc(c.rotulo)}</label>${dentro}${c.dica ? `<p class="campo-dica">${esc(c.dica)}</p>` : ''}</div>`;
+    }
+
+    function avaliarCondicionais() {
+      alvoEl.querySelectorAll('[data-mostra-quando]').forEach(div => {
+        const campoCtrl = div.dataset.mostraQuando;
+        const controlador = d.campos.find(x => x.campo === campoCtrl);
+        const el = document.getElementById('f_' + campoCtrl);
+        if (!controlador || !el) { div.hidden = false; return; }
+        const item = (refs[controlador.ref] || []).find(x => String(x.id) === String(el.value));
+        div.hidden = !(item && item[div.dataset.mostraFlag]);
+      });
     }
 
     async function abrirFicha(id) {
@@ -237,6 +259,13 @@ const Crud = (() => {
       ['cSalvar', 'cSalvar2'].forEach(i => document.getElementById(i).addEventListener('click', salvar));
       alvoEl.querySelectorAll('[data-criar-rapido]').forEach(b =>
         b.addEventListener('click', () => criarRapido(b.dataset.criarRapido)));
+      // Escuta só quem de fato controla algum campo condicional — evita
+      // plugar listener em todo select da ficha à toa.
+      new Set(d.campos.filter(c => c.mostrarSe).map(c => c.mostrarSe.campo)).forEach(campo => {
+        const el = document.getElementById('f_' + campo);
+        if (el) el.addEventListener('change', avaliarCondicionais);
+      });
+      avaliarCondicionais();
       const ex = document.getElementById('cExcluir');
       if (ex) ex.addEventListener('click', excluir);
       if (d.galeria)
@@ -265,6 +294,10 @@ const Crud = (() => {
       for (const c of d.campos) {
         const el = document.getElementById('f_' + c.campo);
         if (!el) continue;
+        // Campo condicional escondido não vale o que estava digitado antes de
+        // trocar o tipo — pavimentos de um condomínio que virou horizontal
+        // não pode sobreviver no banco só porque o campo ainda tinha valor.
+        if (el.closest('.campo')?.hidden) { dados[c.campo] = null; continue; }
         if (c.tipo === 'bool') dados[c.campo] = el.checked;
         else if (c.tipo === 'moeda' || c.tipo === 'numero')
           dados[c.campo] = el.value === '' ? null : Number(el.value);

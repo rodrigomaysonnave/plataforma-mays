@@ -2037,6 +2037,19 @@ def pagina_condominio(cfg, emp, unidades, base):
     botao = (f'<a class="botao botao-cheio" href="{e(link_zap)}" target="_blank" rel="noopener">'
               'Falar sobre este empreendimento</a>') if link_zap else ""
 
+    # Ficha técnica: tipo sempre que tiver, pavimentos/unidades só quando o
+    # tipo é vertical — condomínio de casas ou lote não tem andar.
+    tipo = emp.get("_tipo")
+    dados_tecnicos = []
+    if tipo and tipo.get("nome"):
+        dados_tecnicos.append(f"<div><dt>Tipo</dt><dd>{e(tipo['nome'])}</dd></div>")
+    if tipo and tipo.get("vertical"):
+        if emp.get("pavimentos"):
+            dados_tecnicos.append(f"<div><dt>Pavimentos</dt><dd>{e(emp['pavimentos'])}</dd></div>")
+        if emp.get("unidades_por_pavimento"):
+            dados_tecnicos.append(f"<div><dt>Unidades por pavimento</dt><dd>{e(emp['unidades_por_pavimento'])}</dd></div>")
+    dados_tecnicos_html = '<dl class="dados">' + "".join(dados_tecnicos) + '</dl>' if dados_tecnicos else ""
+
     unidades_html = ""
     if unidades:
         unidades_html = f"""
@@ -2054,6 +2067,7 @@ def pagina_condominio(cfg, emp, unidades, base):
   {capa_html}
   <h1 style="margin-top:22px">{e(emp['nome'])}</h1>
   <div class="ficha-local">{local}{(" · " + e(emp["_construtora"])) if emp.get("_construtora") else ""}</div>
+  {dados_tecnicos_html}
   {desc_html}
   {video_html}
   {botao}
@@ -2534,10 +2548,12 @@ def main():
     if empreendimentos:
         print(f"Preparando fotos de {len(empreendimentos)} empreendimentos…")
     construtoras = {c["id"]: c["nome"] for c in curl_json("construtora?select=id,nome")} if empreendimentos else {}
+    tipos_emp = {t["id"]: t for t in curl_json("tipo_empreendimento?select=id,nome,vertical")} if empreendimentos else {}
     for emp in empreendimentos:
         emp["_bairro"] = bairros.get(emp.get("bairro_id"))
         emp["_cidade"] = cidades.get(emp.get("cidade_id"))
         emp["_construtora"] = construtoras.get(emp.get("construtora_id"))
+        emp["_tipo"] = tipos_emp.get(emp.get("tipo_id"))
         minhas = [f for f in fotos_emp if f["empreendimento_id"] == emp["id"]]
         minhas.sort(key=lambda f: (not f.get("capa"), f.get("ordem") or 0))
         locais = []

@@ -40,6 +40,7 @@
     validar: validarFavorito,
     colunas: [
       { campo: 'nome', rotulo: 'Nome' },
+      { campo: 'tipo_id', rotulo: 'Tipo', tipo: 'ref', ref: 'tipo_empreendimento' },
       { campo: 'construtora_id', rotulo: 'Construtora', tipo: 'ref', ref: 'construtora' },
       { campo: 'bairro_id', rotulo: 'Bairro', tipo: 'ref', ref: 'bairro' },
       { campo: 'favorito', rotulo: 'No menu do site', tipo: 'bool' },
@@ -47,6 +48,16 @@
     ],
     campos: [
       { campo: 'nome', rotulo: 'Nome do empreendimento', largo: true },
+      // Decide se pede pavimentos/unidades por andar logo abaixo. Tipo novo
+      // (comercial, residencial, casas, lote) se cadastra em Configurações,
+      // não aqui — lá é onde se marca se ele é vertical ou não.
+      { campo: 'tipo_id', rotulo: 'Tipo de condomínio', tipo: 'ref', ref: 'tipo_empreendimento', vazio: 'Selecione' },
+      { campo: 'pavimentos', rotulo: 'Pavimentos', tipo: 'numero',
+        mostrarSe: { campo: 'tipo_id', refFlag: 'vertical' },
+        dica: 'Quantos andares a torre tem.' },
+      { campo: 'unidades_por_pavimento', rotulo: 'Unidades por pavimento', tipo: 'numero',
+        mostrarSe: { campo: 'tipo_id', refFlag: 'vertical' },
+        dica: 'Apartamentos ou salas em cada andar — o site usa isso pra escrever a ficha técnica.' },
       { campo: 'construtora_id', rotulo: 'Construtora', tipo: 'ref', ref: 'construtora', vazio: 'Nenhuma',
         criarRapido: { rotulo: 'construtora' } },
       { campo: 'endereco', rotulo: 'Endereço', secao: 'Localização' },
