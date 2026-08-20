@@ -156,6 +156,18 @@ def baixar_foto(url, destino):
     return r.returncode == 0 and destino.exists() and destino.stat().st_size > 0
 
 
+# ── Ícones de rede (SVG embutido — nada de fonte de ícone externa) ──────
+ICONE_INSTAGRAM = ('<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" '
+                   'stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/>'
+                   '<circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg>')
+ICONE_YOUTUBE = ('<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" '
+                 'stroke-width="1.8"><rect x="2.5" y="5.5" width="19" height="13" rx="4"/>'
+                 '<path d="M10.5 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/></svg>')
+ICONE_FACEBOOK = ('<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" '
+                  'stroke-width="1.8"><circle cx="12" cy="12" r="9.5"/>'
+                  '<path d="M14 8.5h-1.5c-.9 0-1.5.6-1.5 1.5v2h3l-.4 3h-2.6v6.3" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+
+
 # ── Estilo ─────────────────────────────────────────────────────────────
 # Paleta do design guide dele. O caramelo #9B7B5A reprova contraste como texto
 # (3,44:1 sobre o off-white), então texto, link e botão usam o par fechado
@@ -182,19 +194,11 @@ a{color:var(--marca)}
    min() dá o mesmo efeito sem depender de ponto de quebra. */
 .env{width:min(92%,1620px);margin:0 auto}
 
-/* Barra superior */
-.topo-fino{background:var(--escuro);color:#E8E0D6;font-size:12.5px}
-.topo-fino .env{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
-.topo-fino a{color:#E8E0D6;text-decoration:none}
-.topo-fino a:hover{color:var(--marca-clara)}
-.topo-espaco{flex:1}
-
 /* Cabeçalho */
 .cabeca{background:var(--superficie);border-bottom:1px solid var(--linha);position:sticky;top:0;z-index:50}
 .cabeca .env{display:flex;align-items:center;gap:24px;padding-top:16px;padding-bottom:16px}
-.marca{text-decoration:none;color:var(--tinta);flex-shrink:0}
-.marca strong{display:block;font-family:Georgia,serif;font-size:21px;font-weight:400;letter-spacing:.06em}
-.marca span{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--tinta-3);margin-top:2px}
+.marca{text-decoration:none;color:var(--tinta);flex-shrink:0;display:flex;align-items:center}
+.marca-logo{display:block;height:52px;width:auto}
 .nav{display:flex;align-items:center;gap:30px;margin-left:auto;flex-wrap:wrap}
 .nav-item{color:var(--tinta-2);text-decoration:none;font-size:15px;font-weight:600;
   letter-spacing:.09em;text-transform:uppercase}
@@ -272,7 +276,9 @@ a{color:var(--marca)}
 .ficha{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:32px;align-items:start;margin:32px 0 56px}
 .ficha h1{font-family:Georgia,serif;font-weight:400;font-size:clamp(24px,3.6vw,34px);line-height:1.2;margin-bottom:8px}
 .ficha-local{font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--marca);margin-bottom:20px}
-.ficha-desc{margin:24px 0;white-space:pre-line;color:var(--tinta-2)}
+.ficha-desc{margin:24px 0;color:var(--tinta-2);line-height:1.7}
+.ficha-desc p,.prose p{margin-bottom:1.1em}
+.ficha-desc p:last-child,.prose p:last-child{margin-bottom:0}
 .dados{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;
   background:var(--linha);border:1px solid var(--linha);border-radius:5px;overflow:hidden;margin:24px 0}
 .dados div{background:var(--superficie);padding:13px 15px}
@@ -286,10 +292,11 @@ a{color:var(--marca)}
 .cond-resumo{margin-top:36px;padding-top:28px;border-top:1px solid var(--linha)}
 .cond-resumo h2{font-family:Georgia,serif;font-weight:400;font-size:19px;margin-bottom:12px}
 .cond-fotos-link{display:inline-block;margin-top:10px;font-size:13.5px;font-weight:600;color:var(--marca)}
-.lateral-agenciador{display:flex;gap:12px;align-items:flex-start;margin-top:20px;padding-top:18px;border-top:1px solid var(--linha)}
-.ag-foto img,.ag-iniciais{width:52px;height:52px;border-radius:50%;object-fit:cover;flex-shrink:0}
+.lateral-agenciador{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;
+  margin-top:20px;padding-top:18px;border-top:1px solid var(--linha)}
+.ag-foto img,.ag-iniciais{width:130px;height:130px;border-radius:50%;object-fit:cover;flex-shrink:0}
 .ag-iniciais{display:flex;align-items:center;justify-content:center;background:var(--superficie-2);
-  color:var(--marca);font-family:Georgia,serif;font-size:19px}
+  color:var(--marca);font-family:Georgia,serif;font-size:44px}
 .ag-corpo{min-width:0}
 .ag-rot{display:block;font-size:11px;color:var(--tinta-3);text-transform:uppercase;letter-spacing:.04em}
 .ag-corpo strong{display:block;font-size:14.5px;margin-top:2px}
@@ -311,6 +318,10 @@ a{color:var(--marca)}
 .rodape a:hover{color:var(--marca-clara)}
 .rodape-fim{border-top:1px solid rgba(255,255,255,.12);margin-top:30px;padding-top:18px;
   font-size:12px;color:var(--sobre-escuro);text-align:center}
+.rodape-redes{display:flex;gap:10px;margin-top:2px}
+.rodape-rede{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+  border:1px solid rgba(255,255,255,.22);border-radius:50%;transition:background .15s,border-color .15s}
+.rodape-rede:hover{background:rgba(255,255,255,.14);border-color:transparent;color:var(--marca-clara)}
 .vazio-site{text-align:center;padding:70px 20px;color:var(--tinta-3)}
 
 .cartao-preco small{font-size:12.5px;font-weight:400;color:var(--tinta-3)}
@@ -412,8 +423,11 @@ a{color:var(--marca)}
 .secao-botao{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);
   color:#fff;text-decoration:none;font-size:12.5px;font-weight:600;padding:6px 14px;border-radius:4px}
 .secao-botao:hover{background:rgba(255,255,255,.24)}
-.video-grade{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:20px}
-.video-cartao{text-decoration:none;color:inherit}
+/* Carrossel: fila única, rola na horizontal só quando passa da largura —
+   três vídeos cabem sem barra, o quarto em diante vira scroll. */
+.video-grade{display:flex;gap:18px;margin-top:20px;overflow-x:auto;padding-bottom:6px;
+  scroll-snap-type:x proximity}
+.video-cartao{text-decoration:none;color:inherit;flex:0 0 300px;scroll-snap-align:start}
 .video-capa{position:relative;aspect-ratio:16/9;background:var(--superficie-2);
   border-radius:5px;overflow:hidden;border:1px solid var(--linha)}
 .video-capa img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -423,24 +437,18 @@ a{color:var(--marca)}
   display:flex;align-items:center;justify-content:center;font-size:19px;padding-left:4px}
 .video-cartao:hover .video-play,.reel-cartao:hover .video-play{background:var(--marca)}
 .video-tit{margin-top:10px;font-size:14px;font-weight:600;line-height:1.4}
-/* Cinco por linha. Quatro (390px) era grande demais e seis (234px) ficou
-   apertado; cinco dá ~310px, que é a redução de um terço pedida sem espremer. */
-.reel-fita{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:20px}
+/* Mesmo carrossel dos vídeos: fila única, só rola quando não cabe. */
+.reel-fita{display:flex;gap:14px;margin-top:20px;overflow-x:auto;padding-bottom:6px;
+  scroll-snap-type:x proximity}
 
-/* ── Topo: número à vista, favoritos e redes ─────────────────────── */
-.topo-zap{display:inline-flex;align-items:center;gap:6px;font-weight:600;letter-spacing:.01em}
-.topo-zap-ico{font-size:13px;opacity:.85}
-.topo-fav{display:inline-flex;align-items:center;gap:5px}
+/* ── Favoritos, dentro do menu horizontal ────────────────────────── */
+.nav-favoritos{display:inline-flex;align-items:center;gap:5px}
 /* O contador só ganha cor quando há o que contar. Estrela acesa com zero
    dentro é promessa vazia. */
-.topo-fav b{background:rgba(255,255,255,.12);border-radius:9px;padding:0 6px;font-size:11px}
-.topo-fav.tem{color:var(--marca-clara)}
-.topo-fav.tem b{background:var(--marca);color:#fff}
-.topo-rede{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;
-  border:1px solid rgba(255,255,255,.22);border-radius:50%;font-size:12px;line-height:1;
-  margin-left:2px;transition:background .15s,border-color .15s}
-.topo-rede:hover{background:rgba(255,255,255,.14);border-color:transparent}
-@media(max-width:760px){.topo-some{display:none}}
+.nav-favoritos b{background:var(--superficie-2);border-radius:9px;padding:0 6px;font-size:11px;
+  color:var(--tinta-2);font-weight:700}
+.nav-favoritos.tem{color:var(--marca)}
+.nav-favoritos.tem b{background:var(--marca);color:#fff}
 
 /* ── Menu grande ─────────────────────────────────────────────────── */
 .nav-mm{position:relative}
@@ -542,7 +550,7 @@ a{color:var(--marca)}
 
 .btn-site-vazado:hover{filter:none;border-color:var(--tinta-3);color:var(--tinta)}
 
-.reel-cartao{text-decoration:none;color:inherit}
+.reel-cartao{text-decoration:none;color:inherit;flex:0 0 200px;scroll-snap-align:start}
 .reel-capa{position:relative;aspect-ratio:9/16;background:var(--escuro);border-radius:6px;
   overflow:hidden;display:flex;align-items:center;justify-content:center}
 .reel-capa img,.reel-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -554,11 +562,7 @@ a{color:var(--marca)}
 .reel-link:hover{color:var(--marca)}
 .reel-marca{color:var(--marca-clara);font-family:Georgia,serif;font-size:19px;letter-spacing:.1em}
 .reel-tit{margin-top:9px;font-size:13.5px;font-weight:600;line-height:1.4}
-@media(max-width:1180px){.reel-fita{grid-template-columns:repeat(4,1fr);gap:14px}}
-@media(max-width:980px){.video-grade{grid-template-columns:repeat(2,1fr)}
-  .reel-fita{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:640px){.video-grade{grid-template-columns:1fr}
-  .reel-fita{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.video-cartao{flex-basis:240px}.reel-cartao{flex-basis:160px}}
 
 /* Visualizador de fotos */
 .galeria-item{padding:0;border:none;background:none;cursor:zoom-in;display:block;width:100%}
@@ -809,6 +813,12 @@ def menus_html(cfg, raiz):
         col = '<div class="mm-col mm-col-larga"><h4>Fale com o corretor</h4>' + "".join(contato) + '</div>'
         itens.append(_queda("Contato", raiz + "/#contato", [col], raiz, direita=True, largura=330))
 
+    # Favoritos morava na tarja escura de cima, que saiu — o menu horizontal
+    # branco é o único lugar de navegação que sobrou.
+    favoritos = (f'<a class="nav-item nav-favoritos" href="{raiz}/favoritos.html">'
+                 f'<span aria-hidden="true">★</span> Favoritos <b id="favConta">0</b></a>')
+    itens.append(favoritos)
+
     # A lupa abre uma caixa de busca por texto. É o jeito de quem chega
     # sabendo o que quer, por código ou por rua, em vez de filtrar por partes.
     busca = ('<button type="button" class="nav-lupa" id="btnBusca" '
@@ -915,40 +925,12 @@ def copiar_lps(cfg, base):
 
 # ── Blocos de HTML ─────────────────────────────────────────────────────
 def cabeca_html(cfg, titulo, descricao, canonica, imagem=None, jsonld=None, raiz="."):
-    # Montado fora da f-string: aspas escapadas dentro de expressão de f-string
-    # não compilam no Python 3.9, que é o que está instalado aqui.
-    link_zap = zap(cfg)
-    email = cfg.get("email_contato")
     og_img = f'<meta property="og:image" content="{e(imagem)}">' if imagem else ""
     ld = f'<script type="application/ld+json">{json.dumps(jsonld, ensure_ascii=False)}</script>' if jsonld else ""
 
     # Ferramentas de medição. Cada uma é uma requisição a domínio externo e só
     # sai se ele preencheu o campo: o padrão é o site não pedir nada pra fora.
     medicao = bloco_medicao(cfg)
-    # O número aparece escrito, não escondido atrás da palavra "WhatsApp".
-    # Número à vista é o que faz a pessoa ligar do fixo, anotar num papel, ou
-    # simplesmente confiar que existe gente do outro lado.
-    numero = (cfg.get("whatsapp") or "").strip()
-    if numero:
-        d = "".join(ch for ch in numero if ch.isdigit())
-        if d.startswith("55"):
-            d = d[2:]
-        bonito = f"({d[:2]}) {d[2:3]} {d[3:7]}-{d[7:]}" if len(d) == 11 else numero
-        zap_topo = ('<a class="topo-zap" href="' + e(link_zap) + '" target="_blank" rel="noopener">'
-                    '<span class="topo-zap-ico" aria-hidden="true">✆</span>' + e(bonito) + '</a>')
-    else:
-        zap_topo = ""
-    email_topo = f'<a href="mailto:{e(email)}">{e(email)}</a>' if email else ""
-
-    # Redes no canto direito do topo, como ele pediu. Só entra a que estiver
-    # preenchida; ícone de rede que não existe leva a pessoa para o vazio.
-    redes = []
-    for chave, rot, ico in (("instagram", "Instagram", "◙"), ("youtube", "YouTube", "▷"),
-                            ("facebook", "Facebook", "f")):
-        if cfg.get(chave):
-            redes.append('<a class="topo-rede" href="' + e(cfg[chave]) + '" target="_blank" '
-                         'rel="noopener" title="' + rot + '" aria-label="' + rot + '">' + ico + '</a>')
-    redes_topo = "".join(redes)
 
     menu_grande = menus_html(cfg, raiz)
     # A caixa da lupa fica fora da f-string: chave de JavaScript dentro de
@@ -999,19 +981,9 @@ def cabeca_html(cfg, titulo, descricao, canonica, imagem=None, jsonld=None, raiz
 {medicao}
 </head>
 <body>
-<div class="topo-fino"><div class="env">
-  <span>{e(cfg.get('creci') or '')}</span>
-  <span class="topo-some">Pelotas · RS</span>
-  {zap_topo}
-  <span class="topo-espaco"></span>
-  <a class="topo-fav" href="{raiz}/favoritos.html">
-    <span aria-hidden="true">★</span> favoritos <b id="favConta">0</b></a>
-  {redes_topo}
-</div></div>
 <header class="cabeca"><div class="env">
   <a class="marca" href="{raiz}/">
-    <strong>{e(cfg.get('nome_imobiliaria') or 'Maysonnave Imóveis')}</strong>
-    <span>Corretor e perito avaliador</span>
+    <img src="{raiz}/logo.png" alt="{e(cfg.get('nome_imobiliaria') or 'Maysonnave Imóveis')}" class="marca-logo" width="140" height="74">
   </a>
   {menu_grande}
 </div></header>
@@ -1025,10 +997,12 @@ def rodape_html(cfg, raiz="."):
     email = cfg.get("email_contato")
     zap_pe = f'<a href="{e(link_zap)}" target="_blank" rel="noopener">Falar no WhatsApp</a><br>' if link_zap else ""
     itens_rede = "".join(
-        f'<a href="{e(cfg[k])}" target="_blank" rel="noopener">{r}</a><br>'
-        for k, r in (("instagram", "Instagram"), ("youtube", "YouTube"), ("facebook", "Facebook"))
+        f'<a class="rodape-rede" href="{e(cfg[k])}" target="_blank" rel="noopener" title="{r}" aria-label="{r}">{ico}</a>'
+        for k, r, ico in (("instagram", "Instagram", ICONE_INSTAGRAM),
+                          ("youtube", "YouTube", ICONE_YOUTUBE),
+                          ("facebook", "Facebook", ICONE_FACEBOOK))
         if cfg.get(k))
-    redes_pe = f'<div><strong>Redes</strong>{itens_rede}</div>' if itens_rede else ""
+    redes_pe = f'<div><strong>Redes</strong><div class="rodape-redes">{itens_rede}</div></div>' if itens_rede else ""
     email_pe = f'<a href="mailto:{e(email)}">{e(email)}</a>' if email else ""
     # Endereço físico no rodapé: além de o cliente precisar dele, é o sinal que
     # o Google usa para entender que existe um negócio de verdade num lugar de
@@ -1082,7 +1056,7 @@ def script_favoritos():
     var favs = ler();
     var conta = document.getElementById('favConta');
     if (conta) conta.textContent = favs.length;
-    var topo = document.querySelector('.topo-fav');
+    var topo = document.querySelector('.nav-favoritos');
     if (topo) topo.classList.toggle('tem', favs.length > 0);
     document.querySelectorAll('[data-fav]').forEach(function (b) {
       var on = favs.indexOf(b.dataset.fav) >= 0;
@@ -1700,7 +1674,7 @@ def pagina_imovel(cfg, im, base, todos=None):
             for i, g in enumerate(fotos))
         galeria_html = '<div class="galeria">' + itens_g + '</div>'
     dados_html = '<dl class="dados">' + "".join(dados) + '</dl>' if dados else ""
-    desc_html = ('<div class="ficha-desc">' + e(im["descricao_publica"]) + '</div>'
+    desc_html = ('<div class="ficha-desc">' + paragrafos_import(im["descricao_publica"]) + '</div>'
                  if im.get("descricao_publica") else "")
     extras_html = ""
     if extras:
@@ -1733,7 +1707,7 @@ def pagina_imovel(cfg, im, base, todos=None):
         if emp.get("descricao"):
             emp_resumo_html = (
                 f'<div class="cond-resumo"><h2>Sobre o {e(emp["nome"])}</h2>'
-                f'<div class="ficha-desc">{e(emp["descricao"])}</div>'
+                f'<div class="ficha-desc">{paragrafos_import(emp["descricao"])}</div>'
                 f'<a class="cond-fotos-link" href="{raiz}/condominio/{e(emp["slug"])}/">'
                 f'Ver a ficha completa de {e(emp["nome"])} →</a></div>')
 
@@ -2010,7 +1984,7 @@ def pagina_condominio(cfg, emp, unidades, base):
                      "".join(f'<img src="{o}" alt="" loading="lazy" width="360" height="240">' for o in outras) +
                      "</div>") if outras else ""
 
-    desc_html = f'<div class="prose">{paragrafos(emp["descricao"])}</div>' if emp.get("descricao") else ""
+    desc_html = f'<div class="prose">{paragrafos_import(emp["descricao"])}</div>' if emp.get("descricao") else ""
 
     link_zap = zap(cfg, msg=f"Olá Rodrigo, tenho interesse no {emp['nome']} e gostaria de saber mais.")
     botao = (f'<a class="botao botao-cheio" href="{e(link_zap)}" target="_blank" rel="noopener">'
@@ -2051,6 +2025,21 @@ def paragrafos(texto):
         return ""
     blocos = [b.strip() for b in texto.replace("\r\n", "\n").split("\n\n") if b.strip()]
     return "".join("<p>" + e(b).replace("\n", "<br>") + "</p>" for b in blocos)
+
+
+def paragrafos_import(texto):
+    """Descrição vinda do backup da Tecimob: sem quebra de parágrafo
+    nenhuma, frase grudada na frase seguinte — às vezes nem sobrou o ponto
+    final, era um subtítulo que virou parede de texto ("sofisticadosAo
+    entrar"). Recoloca a quebra onde uma frase gruda na próxima (ponto
+    seguido de maiúscula sem espaço, ou minúscula seguida direto de
+    maiúscula) antes de passar pro `paragrafos()` de sempre. Texto que já
+    tem `\\n\\n` de verdade passa direto, sem mexer."""
+    if not texto or "\n\n" in texto:
+        return paragrafos(texto)
+    junto = re.sub(r"([.!?])(?=[A-ZÀ-Ý])", r"\1\n\n", texto)
+    junto = re.sub(r"(?<=[a-zà-ý])(?=[A-ZÀ-Ý][a-zà-ý])", "\n\n", junto)
+    return paragrafos(junto)
 
 
 def data_br(iso):
@@ -2443,6 +2432,9 @@ def main():
             shutil.rmtree(alvo)
 
     (SAIDA / "estilo.css").write_text(CSS.strip(), encoding="utf-8")
+    logo_origem = AQUI.parent.parent / "marca" / "logo.png"
+    if logo_origem.exists():
+        shutil.copyfile(logo_origem, SAIDA / "logo.png")
 
     # Baixa as fotos uma vez e aponta o HTML para o arquivo local.
     print(f"Preparando fotos de {len(imoveis)} imóveis…")
