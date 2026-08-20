@@ -367,7 +367,7 @@
         campo('Link do anúncio', txt('fLinkAnuncio', im.link_anuncio, 'https://'))
       )}
 
-      ${secao('Onde este imóvel aparece', 'São quatro marcações independentes e fáceis de confundir. Por isso ficam juntas.',
+      ${secao('Onde este imóvel aparece', 'Publicação e vitrines da home são marcações independentes e fáceis de confundir. Por isso ficam juntas.',
         `<div class="onde">
           <label class="check"><input type="checkbox" id="fMural"${im.no_mural?' checked':''}>
             <span><strong>No mural</strong><em>Aparece no teu radar de trabalho. Não tem nada a ver com o site.</em></span></label>
@@ -377,11 +377,24 @@
             <span><strong>Publicar no site</strong><em>Vai para a vitrine pública. Exige autorização de venda.</em></span></label>
           <label class="check"><input type="checkbox" id="fRestrita"${im.divulgacao_restrita?' checked':''}>
             <span><strong>Divulgação restrita</strong><em>O proprietário não autoriza rede social nem WhatsApp. Mostrar ao vivo. Impede a publicação no site.</em></span></label>
+        </div>
+        <p class="campo-dica" style="grid-column:1/-1;margin:14px 0 6px">
+          <strong>Vitrines da home</strong> — a home é seleção, não catálogo. Só entra na página
+          inicial quem for marcado aqui; o resto continua achável pela busca.</p>
+        <div class="onde">
           <label class="check"><input type="checkbox" id="fDestaque"${im.destaque?' checked':''}>
-            <span><strong>Destaque</strong><em>Aparece nas seções de destaque do site.</em></span></label>
+            <span><strong>Novidade</strong><em>Vitrine "Novidade" da home.</em></span></label>
           <label class="check"><input type="checkbox" id="fAltoPadrao"${im.alto_padrao?' checked':''}>
-            <span><strong>Alto padrão</strong><em>Monta a vitrine de alto padrão do site.
+            <span><strong>Alto padrão</strong><em>Vitrine "Alto padrão" da home.
               É curadoria sua, não faixa de preço: quem decide o padrão é quem conhece o imóvel.</em></span></label>
+          <label class="check"><input type="checkbox" id="fVitrineCondominio"${im.vitrine_condominio?' checked':''}>
+            <span><strong>Casas em condomínio</strong><em>Vitrine "Casas em condomínio" da home.</em></span></label>
+          <label class="check"><input type="checkbox" id="fVitrineApartamento"${im.vitrine_apartamento?' checked':''}>
+            <span><strong>Apartamentos selecionados</strong><em>Vitrine "Apartamentos selecionados" da home.</em></span></label>
+          <label class="check"><input type="checkbox" id="fVitrineLancamento"${im.vitrine_lancamento?' checked':''}>
+            <span><strong>Lançamento</strong><em>Vitrine "Lançamentos" da home.</em></span></label>
+          <label class="check"><input type="checkbox" id="fVitrineSc"${im.vitrine_sc?' checked':''}>
+            <span><strong>Imóvel em SC</strong><em>Vitrine "Imóveis em SC" da home.</em></span></label>
         </div>`
       )}
 
@@ -570,6 +583,8 @@
       no_mural: c('fMural'), publicar_no_site: site,
       divulgacao_restrita: restrita, autorizacao_venda: autoriz, destaque: c('fDestaque'),
       alto_padrao: c('fAltoPadrao'),
+      vitrine_condominio: c('fVitrineCondominio'), vitrine_apartamento: c('fVitrineApartamento'),
+      vitrine_lancamento: c('fVitrineLancamento'), vitrine_sc: c('fVitrineSc'),
       status: v('fStatus'), origem_captacao_id: v('fOrigem') || null,
       captado_em: v('fCaptadoEm') || null,
       slug: v('fSlug').trim() || null,

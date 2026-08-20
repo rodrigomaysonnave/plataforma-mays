@@ -427,10 +427,17 @@ a{color:var(--marca)}
    três vídeos cabem sem barra, o quarto em diante vira scroll. */
 .video-grade{display:flex;gap:18px;margin-top:20px;overflow-x:auto;padding-bottom:6px;
   scroll-snap-type:x proximity}
-.video-cartao{text-decoration:none;color:inherit;flex:0 0 300px;scroll-snap-align:start}
+.video-cartao{text-decoration:none;color:inherit;flex:0 0 300px;scroll-snap-align:start;
+  background:none;border:none;padding:0;font:inherit;text-align:left;cursor:pointer;display:block}
 .video-capa{position:relative;aspect-ratio:16/9;background:var(--superficie-2);
   border-radius:5px;overflow:hidden;border:1px solid var(--linha)}
+button.video-capa{display:block;width:100%;padding:0;font:inherit;cursor:pointer}
 .video-capa img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.video-capa iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.ficha-video{margin:28px 0}
+.ficha-video h2{font-family:Georgia,serif;font-weight:400;font-size:19px;margin-bottom:12px}
+.ficha-video .video-capa{aspect-ratio:16/9;border-radius:5px;overflow:hidden;border:1px solid var(--linha);
+  max-width:640px;cursor:pointer}
 .video-sem-capa{position:absolute;inset:0;background:var(--escuro)}
 .video-play{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
   width:52px;height:52px;border-radius:50%;background:rgba(36,28,20,.72);color:#fff;
@@ -1029,7 +1036,28 @@ def rodape_html(cfg, raiz="."):
 <div class="rodape-fim env">© {ano} {e(cfg.get('nome_imobiliaria') or 'Maysonnave Imóveis')} · {e(cfg.get('creci') or '')}</div>
 </footer>
 {script_favoritos()}
+{script_video_embutido()}
 </body></html>"""
+
+
+def script_video_embutido():
+    """Clique no vídeo — do YouTube ou da home — troca a capa por um
+    iframe e toca ali mesmo, sem sair do site. `youtube-nocookie` não
+    planta cookie de rastreio antes do play."""
+    return """
+<script>
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-youtube]');
+  if (!b) return;
+  var id = b.dataset.youtube;
+  if (!id) return;
+  var capa = b.querySelector('.video-capa') || b.closest('.video-capa');
+  if (!capa) return;
+  capa.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + id +
+    '?autoplay=1&rel=0" title="Vídeo" allow="autoplay; encrypted-media; picture-in-picture" ' +
+    'allowfullscreen></iframe>';
+});
+</script>"""
 
 
 def script_favoritos():
@@ -1306,55 +1334,35 @@ def pagina_home(cfg, imoveis, bairros, tipos, base, videos=None, reels=None):
         </section>"""
 
     # ── As vitrines da home ────────────────────────────────────────────
-    # Ordem pensada: primeiro o que ele escolheu a dedo, depois o que
-    # sustenta o posicionamento, depois os nichos, e por último o volume.
+    # Home é vitrine, não catálogo — cada seção só leva quem foi marcado
+    # pra ela ("Onde este imóvel aparece" na ficha). Antes eram calculadas
+    # (tipo, subtipo, região) e um imóvel só aparecia em até 5 seções
+    # diferentes, sem controle nenhum. A lista completa continua existindo:
+    # é a busca, que já ficava escondida até alguém filtrar.
     #
-    # Vitrine vazia não é desenhada. É o que permite "Litoral SC" existir hoje
-    # sem aparecer, e passar a aparecer sozinha no dia em que ele cadastrar o
-    # primeiro imóvel de lá.
-    venda = [i for i in imoveis if (i.get("finalidade") or "venda") != "aluguel"]
-
-    def por(f, base=None):
-        return [i for i in (base if base is not None else venda) if f(i)]
-
-    def regioes_com_imovel():
-        vistas, saida = set(), []
-        for i in imoveis:
-            r = i.get("_regiao")
-            if r and r not in vistas:
-                vistas.add(r)
-                saida.append((r, por(lambda x, r=r: x.get("_regiao") == r, imoveis)))
-        return saida
-
+    # Vitrine vazia não é desenhada — é o que deixa "Lançamentos" existir
+    # hoje sem aparecer, e passar a aparecer sozinha no dia em que ele
+    # marcar o primeiro imóvel assim.
     def plural(n, um, muitos):
         return f"{n} {um if n == 1 else muitos}"
 
-    blocos = []
-    blocos.append(secao("Destaques", plural(len(destaques), "selecionado", "selecionados"), destaques))
-    alto = por(lambda i: i.get("alto_padrao"))
-    blocos.append(secao("Alto padrão", plural(len(alto), "imóvel", "imóveis"), alto))
-
-    # Região vem antes dos tipos: quem procura litoral procura o lugar, e
-    # depois decide se quer casa ou apartamento.
-    for nome_reg, itens in regioes_com_imovel():
-        blocos.append(secao(nome_reg, plural(len(itens), "imóvel", "imóveis"), itens))
-
-    condo = por(lambda i: i.get("_tipo") == "Casa" and (i.get("_subtipo") or "").lower().find("condom") >= 0)
-    blocos.append(secao("Casas em condomínio", plural(len(condo), "imóvel", "imóveis"), condo))
-
-    aptos = por(lambda i: i.get("_tipo") == "Apartamento")
-    blocos.append(secao("Apartamentos", plural(len(aptos), "imóvel", "imóveis"), aptos))
-
-    comercial = por(lambda i: i.get("_segmento") == "comercial")
-    blocos.append(secao("Imóveis comerciais", plural(len(comercial), "imóvel", "imóveis"), comercial))
-
-    casas = por(lambda i: i.get("_tipo") == "Casa")
-    blocos.append(secao("Casas", plural(len(casas), "imóvel", "imóveis"), casas))
-
-    terrenos = por(lambda i: i.get("_tipo") == "Terreno")
-    blocos.append(secao("Terrenos", plural(len(terrenos), "imóvel", "imóveis"), terrenos))
-
+    blocos = [
+        secao("Novidade", plural(len(destaques), "selecionado", "selecionados"), destaques),
+        secao("Alto padrão", plural(sum(1 for i in imoveis if i.get("alto_padrao")), "imóvel", "imóveis"),
+              [i for i in imoveis if i.get("alto_padrao")]),
+        secao("Casas em condomínio", plural(sum(1 for i in imoveis if i.get("vitrine_condominio")), "imóvel", "imóveis"),
+              [i for i in imoveis if i.get("vitrine_condominio")]),
+        secao("Apartamentos selecionados", plural(sum(1 for i in imoveis if i.get("vitrine_apartamento")), "imóvel", "imóveis"),
+              [i for i in imoveis if i.get("vitrine_apartamento")]),
+        secao("Lançamentos", plural(sum(1 for i in imoveis if i.get("vitrine_lancamento")), "imóvel", "imóveis"),
+              [i for i in imoveis if i.get("vitrine_lancamento")]),
+        secao("Imóveis em SC", plural(sum(1 for i in imoveis if i.get("vitrine_sc")), "imóvel", "imóveis"),
+              [i for i in imoveis if i.get("vitrine_sc")]),
+    ]
     vitrines = "".join(b for b in blocos if b)
+
+    # Usada só pelas buscas populares logo abaixo.
+    venda = [i for i in imoveis if (i.get("finalidade") or "venda") != "aluguel"]
 
     # ── Buscas populares ────────────────────────────────────────────────
     # A mesma ideia dos portais grandes: link com âncora que já casa com o
@@ -1686,11 +1694,23 @@ def pagina_imovel(cfg, im, base, todos=None):
     if link_zap:
         botoes += ('<a class="botao botao-cheio" href="' + e(link_zap) +
                    '" target="_blank" rel="noopener">Falar sobre este imóvel</a>')
-    for campo, rot in [("link_tour360", "Tour 360°"), ("link_video", "Ver o vídeo"),
-                       ("link_lp", "Página do empreendimento")]:
+    for campo, rot in [("link_tour360", "Tour 360°"), ("link_lp", "Página do empreendimento")]:
         if im.get(campo):
             botoes += ('<a class="botao" href="' + e(im[campo]) +
                        '" target="_blank" rel="noopener">' + rot + '</a>')
+
+    # Vídeo toca dentro da ficha, abaixo da descrição — sair pro YouTube
+    # pra ver um vídeo de 40s tira a pessoa bem no meio da visita.
+    video_html = ""
+    vid_imovel = id_youtube(im.get("link_video"))
+    if vid_imovel:
+        capa_video = capa_youtube(vid_imovel)
+        img_video = (f'<img src="{cam(raiz, capa_video)}" alt="" loading="lazy" width="640" height="360">'
+                     if capa_video else '<div class="video-sem-capa"></div>')
+        video_html = (
+            f'<div class="ficha-video"><h2>Vídeo</h2>'
+            f'<button type="button" class="video-capa" data-youtube="{e(vid_imovel)}">'
+            f'{img_video}<span class="video-play" aria-hidden="true">&#9654;</span></button></div>')
     local_html = e(im.get("_bairro") or "")
     if im.get("_cidade"):
         local_html += " · " + e(im["_cidade"])
@@ -1766,6 +1786,7 @@ def pagina_imovel(cfg, im, base, todos=None):
 
       {dados_html}
       {desc_html}
+      {video_html}
       {extras_html}
       {emp_resumo_html}
     </div>
@@ -2291,10 +2312,12 @@ def secao_videos(cfg, videos):
         capa = v.get("_capa")
         img = (f'<img src="{e(capa)}" alt="" loading="lazy" width="640" height="360">'
                if capa else '<div class="video-sem-capa"></div>')
+        # Toca dentro do site — sair pro YouTube pra ver um vídeo de 40s é
+        # exatamente o tipo de saída que perde a pessoa no meio da visita.
         cartoes.append(
-            f'<a class="video-cartao" href="{e(v["url"])}" target="_blank" rel="noopener">'
+            f'<button type="button" class="video-cartao" data-youtube="{e(vid or "")}">'
             f'<div class="video-capa">{img}<span class="video-play" aria-hidden="true">&#9654;</span></div>'
-            f'<div class="video-tit">{e(v.get("titulo") or "Ver no YouTube")}</div></a>')
+            f'<div class="video-tit">{e(v.get("titulo") or "Ver vídeo")}</div></button>')
     canal = cfg.get("youtube_url")
     botao = (f'<a class="secao-botao" href="{e(canal)}" target="_blank" rel="noopener">Ver o canal</a>'
              if canal else "")
