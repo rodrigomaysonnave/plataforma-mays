@@ -36,6 +36,7 @@
     obrigatorios: ['nome'],
     padrao: { ativo: true, favorito: false },
     galeria: { tabela: 'empreendimento_foto', coluna: 'empreendimento_id', pasta: 'empreendimentos' },
+    publicaNoSite: true,
     validar: validarFavorito,
     colunas: [
       { campo: 'nome', rotulo: 'Nome' },

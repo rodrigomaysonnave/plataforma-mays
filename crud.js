@@ -216,7 +216,7 @@ const Crud = (() => {
           <div class="secao-acoes">
             ${novo ? '' : '<button class="btn btn-remover" id="cExcluir">Excluir</button>'}
             <button class="btn" id="cVoltar">Voltar à lista</button>
-            <button class="btn btn-primario" id="cSalvar">Salvar</button>
+            <button class="btn btn-primario" id="cSalvar">${d.publicaNoSite ? 'Salvar e publicar' : 'Salvar'}</button>
           </div>
         </div>
         ${Object.entries(secoes).map(([nome, campos]) => `
@@ -230,7 +230,7 @@ const Crud = (() => {
           : ''}
         <div class="ficha-rodape">
           <button class="btn" id="cVoltar2">Voltar à lista</button>
-          <button class="btn btn-primario" id="cSalvar2">Salvar</button>
+          <button class="btn btn-primario" id="cSalvar2">${d.publicaNoSite ? 'Salvar e publicar' : 'Salvar'}</button>
         </div>`;
 
       ['cVoltar', 'cVoltar2'].forEach(i => document.getElementById(i).addEventListener('click', montarLista));
@@ -281,13 +281,15 @@ const Crud = (() => {
         const erro = await d.validar(dados, editando);
         if (erro) { avisar(erro); return; }
       }
+      const aviso = d.publicaNoSite ? ' Publicando no site…' : '';
       if (editando === 'novo') {
         await db(supabaseClient.from(d.tabela).insert(dados), `salvar o ${d.singular}`);
-        avisar(`${d.singular[0].toUpperCase() + d.singular.slice(1)} cadastrado.`);
+        avisar(`${d.singular[0].toUpperCase() + d.singular.slice(1)} cadastrado.${aviso}`);
       } else {
         await db(supabaseClient.from(d.tabela).update(dados).eq('id', editando), `salvar o ${d.singular}`);
-        avisar('Salvo.');
+        avisar('Salvo.' + aviso);
       }
+      if (d.publicaNoSite) Publicacao.pedir();
       limparCache();
       await montarLista();
     }
@@ -295,7 +297,8 @@ const Crud = (() => {
     async function excluir() {
       if (!confirm(`Excluir este ${d.singular}? A ação não pode ser desfeita.`)) return;
       await db(supabaseClient.from(d.tabela).delete().eq('id', editando), 'excluir');
-      avisar('Excluído.');
+      avisar('Excluído.' + (d.publicaNoSite ? ' Publicando no site…' : ''));
+      if (d.publicaNoSite) Publicacao.pedir();
       limparCache();
       await montarLista();
     }

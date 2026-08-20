@@ -186,7 +186,8 @@
         avisar('Artigo criado.');
       } else {
         await db(supabaseClient.from('post').update(dados).eq('id', id), 'salvar o artigo');
-        avisar('Artigo salvo.');
+        avisar('Artigo salvo. Publicando no site…');
+        Publicacao.pedir();
       }
       await montarLista();
     }

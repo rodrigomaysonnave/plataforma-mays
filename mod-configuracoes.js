@@ -106,7 +106,8 @@
       // Reflete na hora na barra lateral, sem exigir recarregar.
       document.getElementById('nomeSistema').textContent = v('cfgNomeSistema') || 'Plataforma Mays';
       document.getElementById('nomeImobiliaria').textContent = v('cfgNomeImob') || '';
-      avisar('Ajustes salvos.');
+      avisar('Ajustes salvos. Publicando no site…');
+      Publicacao.pedir();
     });
   }
 

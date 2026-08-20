@@ -119,7 +119,8 @@
         const por = b.dataset.acao === 'por';
         await db(supabaseClient.from('imovel').update({ publicar_no_site: por }).eq('id', id),
                  por ? 'publicar' : 'tirar do site');
-        avisar(por ? 'Publicado no site.' : 'Tirado do site.');
+        avisar((por ? 'Publicado no site.' : 'Tirado do site.') + ' Publicando…');
+        Publicacao.pedir();
         await montar(alvoEl);
       });
     });
@@ -473,7 +474,8 @@
       aoSoltar: async ids => {
         await Promise.all(ids.map((x, i) =>
           db(supabaseClient.from('midia_site').update({ ordem: i }).eq('id', x), 'reordenar')));
-        avisar('Ordem salva.');
+        avisar('Ordem salva. Publicando no site…');
+        Publicacao.pedir();
         await montar(alvoEl);
       },
     }));

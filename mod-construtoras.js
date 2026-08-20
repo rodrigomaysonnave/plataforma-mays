@@ -13,6 +13,7 @@
   Crud.criar({
     nome: 'construtoras', titulo: 'Construtoras',
     tabela: 'construtora', singular: 'construtora', plural: 'construtoras',
+    publicaNoSite: true,   // o nome dela aparece na ficha do condomínio
     rotuloNovo: 'Cadastrar construtora',
     placeholderBusca: 'Nome, e-mail, telefone…',
     busca: ['nome', 'email', 'telefone'],

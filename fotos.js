@@ -249,7 +249,8 @@ const Fotos = (() => {
           }
         }
         e.target.value = '';
-        avisar(`${feitas} foto${feitas===1?'':'s'} enviada${feitas===1?'':'s'}.`);
+        avisar(`${feitas} foto${feitas===1?'':'s'} enviada${feitas===1?'':'s'}. Publicando no site…`);
+        Publicacao.pedir();
         await carregar();
       });
 
@@ -276,6 +277,7 @@ const Fotos = (() => {
                 db(supabaseClient.from(dono.tabela).update({ ordem: i }).eq('id', fotos[j].id), 'reordenar'),
               ]);
             }
+            Publicacao.pedir();
             await carregar();
           });
         });
@@ -306,6 +308,7 @@ const Fotos = (() => {
           nova.splice(j, 0, fotos.find(f => f.id === arrastandoId));
           await Promise.all(nova.map((f, i) =>
             db(supabaseClient.from(dono.tabela).update({ ordem: i }).eq('id', f.id), 'reordenar')));
+          Publicacao.pedir();
           await carregar();
         });
       });

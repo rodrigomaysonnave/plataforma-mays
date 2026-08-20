@@ -543,7 +543,9 @@
   async function excluir(ehRascunho) {
     if (!confirm(ehRascunho ? 'Descartar este rascunho?' : 'Excluir este imóvel? A ação não pode ser desfeita.')) return;
     await db(supabaseClient.from('imovel').delete().eq('id', editando), 'excluir o imóvel');
-    avisar(ehRascunho ? 'Rascunho descartado.' : 'Imóvel excluído.');
+    avisar(ehRascunho ? 'Rascunho descartado.' : 'Imóvel excluído. Publicando no site…');
+    // Rascunho nunca esteve no site, então apagar não muda nada lá.
+    if (!ehRascunho) Publicacao.pedir();
     await montarLista();
   }
 
@@ -595,7 +597,8 @@
 
     const idSalvo = editando;
     await db(supabaseClient.from('imovel').update(dados).eq('id', editando), 'salvar o imóvel');
-    avisar('Imóvel salvo.');
+    avisar('Imóvel salvo. Publicando no site…');
+    Publicacao.pedir();
 
     const marcadas = [...document.querySelectorAll('#fCaracteristicas input:checked')].map(i => i.value);
     await supabaseClient.from('imovel_caracteristica').delete().eq('imovel_id', idSalvo);

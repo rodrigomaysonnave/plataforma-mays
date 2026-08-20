@@ -699,7 +699,8 @@
         obs: v('crObs'), bio: v('crBio'),
       };
       await db(supabaseClient.from('perfil').update(dados).eq('id', id), 'salvar a ficha');
-      avisar('Ficha salva.');
+      avisar('Ficha salva. Publicando no site…');
+      Publicacao.pedir();
       await montarFicha(alvoEl, id);
     }
   }
