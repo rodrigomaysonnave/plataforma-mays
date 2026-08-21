@@ -36,6 +36,10 @@
     obrigatorios: ['nome'],
     padrao: { ativo: true, favorito: false },
     galeria: { tabela: 'empreendimento_foto', coluna: 'empreendimento_id', pasta: 'empreendimentos' },
+    // Mesma lista de características do imóvel (piscina, portaria 24h...),
+    // não uma paralela só pra condomínio — unidade que pertence a ele
+    // herda essas na ficha pública (gerar.py).
+    caracteristicas: { tabela: 'empreendimento_caracteristica', coluna: 'empreendimento_id' },
     publicaNoSite: true,
     validar: validarFavorito,
     colunas: [

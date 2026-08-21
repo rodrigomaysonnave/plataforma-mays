@@ -316,6 +316,7 @@ a{color:var(--marca)}
   margin-top:12px;border:1px solid var(--marca);color:var(--marca);background:transparent}
 .botao-cheio{background:var(--marca);color:#fff}
 .botao:hover{filter:brightness(1.08)}
+.botao-emp{width:auto;max-width:320px;margin:24px auto 0}
 .extras{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
 .extra{font-size:12.5px;padding:5px 11px;border:1px solid var(--linha);border-radius:20px;color:var(--tinta-2)}
 
@@ -2034,7 +2035,7 @@ def pagina_condominio(cfg, emp, unidades, base):
             f'{img_video}<span class="video-play" aria-hidden="true">&#9654;</span></button></div>')
 
     link_zap = zap(cfg, msg=f"Olá Rodrigo, tenho interesse no {emp['nome']} e gostaria de saber mais.")
-    botao = (f'<a class="botao botao-cheio" href="{e(link_zap)}" target="_blank" rel="noopener">'
+    botao = (f'<a class="botao botao-cheio botao-emp" href="{e(link_zap)}" target="_blank" rel="noopener">'
               'Falar sobre este empreendimento</a>') if link_zap else ""
 
     # Ficha técnica: tipo sempre que tiver, pavimentos/unidades só quando o
@@ -2049,6 +2050,12 @@ def pagina_condominio(cfg, emp, unidades, base):
         if emp.get("unidades_por_pavimento"):
             dados_tecnicos.append(f"<div><dt>Unidades por pavimento</dt><dd>{e(emp['unidades_por_pavimento'])}</dd></div>")
     dados_tecnicos_html = '<dl class="dados">' + "".join(dados_tecnicos) + '</dl>' if dados_tecnicos else ""
+
+    caracteristicas_html = ""
+    if emp.get("_caracteristicas"):
+        caracteristicas_html = ('<div class="extras">' +
+            "".join('<span class="extra">' + e(x) + '</span>' for x in emp["_caracteristicas"]) +
+            '</div>')
 
     unidades_html = ""
     if unidades:
@@ -2068,6 +2075,7 @@ def pagina_condominio(cfg, emp, unidades, base):
   <h1 style="margin-top:22px">{e(emp['nome'])}</h1>
   <div class="ficha-local">{local}{(" · " + e(emp["_construtora"])) if emp.get("_construtora") else ""}</div>
   {dados_tecnicos_html}
+  {caracteristicas_html}
   {desc_html}
   {video_html}
   {botao}
@@ -2470,6 +2478,12 @@ def main():
     subtipos = {t["id"]: t["nome"] for t in curl_json("subtipo_imovel?select=id,nome")}
     caracts = {c["id"]: c["nome"] for c in curl_json("caracteristica?select=id,nome")}
     vinculos = curl_json("imovel_caracteristica?select=imovel_id,caracteristica_id")
+    vinculos_emp = curl_json("empreendimento_caracteristica?select=empreendimento_id,caracteristica_id")
+    # nome -> lista de nomes, uma vez só por empreendimento (não por unidade).
+    caracts_por_emp = {}
+    for v in vinculos_emp:
+        if v["caracteristica_id"] in caracts:
+            caracts_por_emp.setdefault(v["empreendimento_id"], []).append(caracts[v["caracteristica_id"]])
 
     empreendimentos = curl_json("empreendimento?select=*&ativo=eq.true&order=nome")
     if not isinstance(empreendimentos, list):
@@ -2509,8 +2523,13 @@ def main():
         im["_regiao"] = regioes.get(im.get("cidade_id"))
         im["_subtipo"] = subtipos.get(im.get("subtipo_imovel_id"))
         im["_segmento"] = segmentos.get(im.get("tipo_imovel_id"))
-        im["_caracteristicas"] = [caracts[v["caracteristica_id"]] for v in vinculos
-                                  if v["imovel_id"] == im["id"] and v["caracteristica_id"] in caracts]
+        proprias = [caracts[v["caracteristica_id"]] for v in vinculos
+                   if v["imovel_id"] == im["id"] and v["caracteristica_id"] in caracts]
+        # A unidade herda as características do prédio (portaria 24h, salão
+        # de festas) além das próprias — quem procura apartamento quer ver
+        # as duas. Própria primeiro, sem repetir o que já apareceu.
+        do_predio = caracts_por_emp.get(im.get("empreendimento_id"), [])
+        im["_caracteristicas"] = proprias + [c for c in do_predio if c not in proprias]
         minhas = [f for f in fotos if f["imovel_id"] == im["id"]]
         minhas.sort(key=lambda f: (not f.get("capa"), f.get("ordem") or 0))
         # Baixa as DUAS versões de cada foto. A galeria da ficha usa a
@@ -2554,6 +2573,7 @@ def main():
         emp["_cidade"] = cidades.get(emp.get("cidade_id"))
         emp["_construtora"] = construtoras.get(emp.get("construtora_id"))
         emp["_tipo"] = tipos_emp.get(emp.get("tipo_id"))
+        emp["_caracteristicas"] = caracts_por_emp.get(emp["id"], [])
         minhas = [f for f in fotos_emp if f["empreendimento_id"] == emp["id"]]
         minhas.sort(key=lambda f: (not f.get("capa"), f.get("ordem") or 0))
         locais = []

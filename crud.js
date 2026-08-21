@@ -65,6 +65,15 @@ const Crud = (() => {
         vistos[c.ref] = true;
         refs[c.ref] = await listaApoio(c.ref);
       }
+      // Checklist de características não é campo de referência único (é
+      // join table, tabela à parte) — carrega a lista de opções à mão.
+      if (d.caracteristicas) refs.caracteristica = await listaApoio('caracteristica');
+    }
+
+    async function carregarMarcadas(id) {
+      if (!d.caracteristicas || id === 'novo') return [];
+      return (await db(supabaseClient.from(d.caracteristicas.tabela).select('caracteristica_id')
+        .eq(d.caracteristicas.coluna, id), 'carregar características')).map(x => x.caracteristica_id);
     }
 
     const ops = (lista, sel, vazio) =>
@@ -225,6 +234,7 @@ const Crud = (() => {
       const reg = id === 'novo' ? (d.padrao || {})
         : (await db(supabaseClient.from(d.tabela).select('*').eq('id', id).limit(1), 'abrir'))[0];
       const novo = id === 'novo' || criandoAgora;
+      const marcadas = await carregarMarcadas(id);
 
       const secoes = {};
       d.campos.forEach(c => { (secoes[c.secao || 'Dados'] ||= []).push(c); });
@@ -246,6 +256,12 @@ const Crud = (() => {
             <div class="ficha-secao-topo"><h3>${esc(nome)}</h3></div>
             <div class="ficha-grade">${campos.map(c => htmlCampo(c, reg)).join('')}</div>
           </div>`).join('')}
+        ${d.caracteristicas
+          ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Características</h3>
+              <p>A lista sai das Configurações — mesma usada no imóvel.</p></div>
+              <div class="ficha-grade"><div class="chips" id="cCaracteristicas">${(refs.caracteristica || []).map(c => `
+                <label class="chip"><input type="checkbox" value="${c.id}"${marcadas.includes(c.id) ? ' checked' : ''}> ${esc(c.nome)}</label>`).join('')}</div></div></div>`
+          : ''}
         ${d.galeria
           ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Fotos</h3></div>
               <div id="cFotos"></div></div>`
@@ -321,6 +337,15 @@ const Crud = (() => {
       } else {
         await db(supabaseClient.from(d.tabela).update(dados).eq('id', editando), `salvar o ${d.singular}`);
         avisar('Salvo.' + aviso);
+      }
+      if (d.caracteristicas && editando !== 'novo') {
+        const marcadas = [...alvoEl.querySelectorAll('#cCaracteristicas input:checked')].map(i => i.value);
+        await supabaseClient.from(d.caracteristicas.tabela).delete().eq(d.caracteristicas.coluna, editando);
+        if (marcadas.length) {
+          await db(supabaseClient.from(d.caracteristicas.tabela)
+            .insert(marcadas.map(cid => ({ [d.caracteristicas.coluna]: editando, caracteristica_id: cid }))),
+            'salvar características');
+        }
       }
       if (d.publicaNoSite) Publicacao.pedir();
       limparCache();
