@@ -130,7 +130,11 @@ def converter_webp(origem, largura):
             img = img.convert("RGB")
         if img.width > largura:
             img = img.resize((largura, round(img.height * largura / img.width)), Image.LANCZOS)
-        img.save(destino, "WEBP", quality=80, method=4)
+        # method 6 é o esforço máximo de compressão do WebP — mesmo resultado
+        # visual, só demora mais pra gerar (roda uma vez, não a cada visita).
+        # Qualidade 75 é o ponto que o PageSpeed cobrava ("aumentar o fator
+        # de compressão"): imperceptível em foto, mas visivelmente mais leve.
+        img.save(destino, "WEBP", quality=75, method=6)
         return destino
     except Exception:
         return None
@@ -2518,7 +2522,18 @@ def main():
     (SAIDA / "estilo.css").write_text(CSS.strip(), encoding="utf-8")
     logo_origem = AQUI.parent.parent / "marca" / "logo.png"
     if logo_origem.exists():
-        shutil.copyfile(logo_origem, SAIDA / "logo.png")
+        # O original (1024×544, pra uso em peça gráfica) ia inteiro pro site,
+        # onde aparece a 98×52px — 52 KiB de logo pra caber num espaço de
+        # rodapé. 420px cobre até tela de 3x sem esticar.
+        LARGURA_LOGO_SITE = 420
+        try:
+            from PIL import Image
+            img = Image.open(logo_origem)
+            if img.width > LARGURA_LOGO_SITE:
+                img = img.resize((LARGURA_LOGO_SITE, round(img.height * LARGURA_LOGO_SITE / img.width)), Image.LANCZOS)
+            img.save(SAIDA / "logo.png", "PNG", optimize=True)
+        except Exception:
+            shutil.copyfile(logo_origem, SAIDA / "logo.png")
 
     # Baixa as fotos uma vez e aponta o HTML para o arquivo local.
     print(f"Preparando fotos de {len(imoveis)} imóveis…")
