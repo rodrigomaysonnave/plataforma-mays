@@ -464,6 +464,16 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   .ficha-grade { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* ── Linha do tempo (interação + agenda + negócio, por cliente) ─────── */
+#cTimeline { padding: 6px 20px 18px; }
+#cTimeline > p.campo-dica { padding: 10px 0; }
+.linha-tempo-dia { padding: 12px 0; border-top: 1px solid var(--borda); }
+.linha-tempo-dia:first-child { border-top: none; }
+.linha-tempo-data { font-size: 12.5px; font-weight: 700; letter-spacing: .02em; margin-bottom: 8px; }
+.linha-tempo-data span { font-weight: 400; color: var(--texto-fraco); text-transform: none; letter-spacing: 0; }
+.linha-tempo-item { display: flex; gap: 10px; font-size: 13px; padding: 5px 0; color: var(--texto); }
+.linha-tempo-hora { color: var(--texto-fraco); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
 /* ── Galeria de fotos ─────────────────────────────────────────────── */
 .fotos-barra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
 .fotos-barra .btn { cursor: pointer; }

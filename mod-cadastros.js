@@ -12,6 +12,7 @@
 
 (() => {
   'use strict';
+  const { db } = Plataforma;
 
   const SIT_COMPROMISSO = [['marcado','Marcado','autorizado'],['realizado','Realizado','vitrine'],
                            ['cancelado','Cancelado','restrito'],['nao_compareceu','Não compareceu','restrito']];
@@ -54,6 +55,43 @@
   });
 
   // ── Clientes ────────────────────────────────────────────────────────
+  const CANAIS_INTERACAO = { whatsapp: 'WhatsApp', ligacao: 'Ligação', email: 'E-mail',
+                             presencial: 'Presencial', visita: 'Visita', outro: 'Outro' };
+
+  // Junta interação, agenda e negócio numa timeline só — a conversa mora em
+  // três tabelas separadas, mas quem abre a ficha do cliente quer ver tudo
+  // junto, na ordem em que aconteceu, não caçar em três telas.
+  async function carregarAtividadeContato(contatoId) {
+    const [interacoes, compromissos, negocios, etapas] = await Promise.all([
+      db(supabaseClient.from('interacao').select('*').eq('contato_id', contatoId), 'carregar interações'),
+      db(supabaseClient.from('compromisso').select('*').eq('contato_id', contatoId), 'carregar agenda'),
+      db(supabaseClient.from('negocio').select('*').eq('contato_id', contatoId), 'carregar negócios'),
+      Crud.listaApoio('etapa_funil'),
+    ]);
+    const etapaPorId = {};
+    etapas.forEach(e => { etapaPorId[e.id] = e; });
+
+    const eventos = [];
+    interacoes.forEach(i => eventos.push({
+      quando: i.quando,
+      texto: `${CANAIS_INTERACAO[i.canal] || i.canal || 'Interação'}`
+           + `${i.quem ? ' com ' + i.quem : ''}${i.resumo ? ': ' + i.resumo : ''}`,
+    }));
+    compromissos.forEach(c => {
+      const sit = SIT_COMPROMISSO.find(s => s[0] === c.situacao);
+      eventos.push({ quando: c.inicio, texto: `Agenda: ${c.titulo}${sit ? ' — ' + sit[1] : ''}` });
+    });
+    negocios.forEach(n => {
+      eventos.push({ quando: n.created_at, texto: 'Negócio aberto' + (n.imovel_id ? ', com imóvel vinculado' : '') });
+      const etapa = etapaPorId[n.etapa_id];
+      // Sem histórico de etapa no banco, só dá pra contar o resultado final
+      // (ganho/perda) — o meio do caminho não fica registrado ainda.
+      if (etapa && n.updated_at !== n.created_at && (etapa.resultado === 'ganho' || etapa.resultado === 'perda'))
+        eventos.push({ quando: n.updated_at, texto: `Negócio marcado como ${etapa.resultado === 'ganho' ? 'ganho' : 'perdido'}` });
+    });
+    return eventos;
+  }
+
   Crud.criar({
     nome: 'clientes', titulo: 'Clientes',
     tabela: 'contato', singular: 'cliente', plural: 'clientes',
@@ -63,11 +101,13 @@
     ordem: { campo: 'nome', asc: true },
     obrigatorios: ['nome'],
     padrao: { ativo: true, favorito: false },
+    whatsapp: 'telefone',
+    timeline: { carregar: carregarAtividadeContato },
     colunas: [
       { campo: 'nome', rotulo: 'Nome' },
       { campo: 'telefone', rotulo: 'Telefone' },
       { campo: 'categoria_id', rotulo: 'Categoria', tipo: 'ref', ref: 'categoria_cliente' },
-      { campo: 'origem_id', rotulo: 'Origem', tipo: 'ref', ref: 'origem_lead' },
+      { campo: 'corretor_id', rotulo: 'Responsável', tipo: 'ref', ref: 'perfil' },
       { campo: 'favorito', rotulo: 'Favorito', tipo: 'bool' },
       { campo: 'created_at', rotulo: 'Cadastrado', tipo: 'data' },
     ],
@@ -75,6 +115,8 @@
       { campo: 'nome', rotulo: 'Nome', largo: true },
       { campo: 'telefone', rotulo: 'Telefone', tipo: 'tel' },
       { campo: 'email', rotulo: 'E-mail', tipo: 'email' },
+      { campo: 'corretor_id', rotulo: 'Corretor responsável', tipo: 'ref', ref: 'perfil', vazio: 'Sem responsável',
+        dica: 'Quem toca esse cliente — reatribui sem perder o histórico.' },
       { campo: 'categoria_id', rotulo: 'Categoria', tipo: 'ref', ref: 'categoria_cliente' },
       { campo: 'origem_id', rotulo: 'Origem do contato', tipo: 'ref', ref: 'origem_lead',
         dica: 'É o que mostra qual canal traz cliente de verdade.' },

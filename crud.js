@@ -40,12 +40,12 @@ const Crud = (() => {
 
     // Campo condicional (mostrarSe) precisa de mais que id+nome pra decidir
     // se mostra ou esconde — tipo de condomínio carrega a flag `vertical`.
-    const EXTRA = { tipo_empreendimento: ',vertical' };
+    const EXTRA = { tipo_empreendimento: ',vertical', etapa_funil: ',resultado' };
     let q = supabaseClient.from(tabela).select('id,nome' + (EXTRA[tabela] || ''));
     if (['cidade','bairro','zona','caracteristica','origem_captacao','origem_lead',
          'motivo_perda','categoria_cliente','tipo_imovel','etapa_funil','tipo_empreendimento'].includes(tabela)) {
       q = q.eq('ativo', true).order('ordem');
-    } else if (['contato','proprietario'].includes(tabela)) {
+    } else if (['contato','proprietario','perfil'].includes(tabela)) {
       q = q.eq('ativo', true);
     }
     apoio[chave] = await db(q.order('nome'), `carregar ${tabela}`);
@@ -246,6 +246,8 @@ const Crud = (() => {
             <div class="secao-meta">${novo ? '' : esc(d.subtitulo ? d.subtitulo(reg, refs) : '')}</div></div>
           </div>
           <div class="secao-acoes">
+            ${!novo && d.whatsapp && reg[d.whatsapp]
+              ? `<a class="btn" href="https://wa.me/${waNumero(reg[d.whatsapp])}" target="_blank" rel="noopener">Falar no WhatsApp</a>` : ''}
             ${novo ? '' : '<button class="btn btn-remover" id="cExcluir">Excluir</button>'}
             <button class="btn" id="cVoltar">Voltar à lista</button>
             <button class="btn btn-primario" id="cSalvar">${d.publicaNoSite ? 'Salvar e publicar' : 'Salvar'}</button>
@@ -265,6 +267,11 @@ const Crud = (() => {
         ${d.galeria
           ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Fotos</h3></div>
               <div id="cFotos"></div></div>`
+          : ''}
+        ${d.timeline && !novo
+          ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Atividade</h3>
+              <p>Interações, agenda e negócios, juntos numa linha do tempo.</p></div>
+              <div id="cTimeline">Carregando…</div></div>`
           : ''}
         <div class="ficha-rodape">
           <button class="btn" id="cVoltar2">Voltar à lista</button>
@@ -286,6 +293,42 @@ const Crud = (() => {
       if (ex) ex.addEventListener('click', excluir);
       if (d.galeria)
         Fotos.montar(document.getElementById('cFotos'), { tabela: d.galeria.tabela, coluna: d.galeria.coluna, id, pasta: d.galeria.pasta });
+      if (d.timeline && !novo) desenharTimeline(id);
+    }
+
+    // Todo link é wa.me/55 + DDD + número, sem símbolo. Telefone vindo de
+    // fora às vezes já traz o 55 na frente — tira, senão vira 5555…
+    function waNumero(tel) {
+      let n = String(tel || '').replace(/\D/g, '');
+      if (n.length > 11 && n.startsWith('55')) n = n.slice(2);
+      return '55' + n;
+    }
+
+    // Linha do tempo: junta interação, agenda e negócio numa lista só,
+    // agrupada por dia — quem abre a ficha do cliente quer ver tudo que
+    // aconteceu com ele num lugar, não caçar em três telas.
+    async function desenharTimeline(id) {
+      const alvo = document.getElementById('cTimeline');
+      if (!alvo) return;
+      const eventos = await d.timeline.carregar(id);
+      if (!eventos.length) { alvo.innerHTML = '<p class="campo-dica">Nada registrado ainda.</p>'; return; }
+
+      const dias = {};
+      eventos.forEach(ev => (dias[ev.quando.slice(0, 10)] ||= []).push(ev));
+      const diasAtras = iso => Math.floor((Date.now() - new Date(iso + 'T12:00:00')) / 86400000);
+
+      alvo.innerHTML = Object.keys(dias).sort().reverse().map(dia => {
+        const n = diasAtras(dia);
+        const rotulo = n === 0 ? 'hoje' : n === 1 ? 'ontem' : `${n} dias atrás`;
+        const linhas = dias[dia].sort((a, b) => new Date(b.quando) - new Date(a.quando));
+        return `<div class="linha-tempo-dia">
+          <div class="linha-tempo-data">${new Date(dia + 'T12:00:00').toLocaleDateString('pt-BR')}
+            <span>(${rotulo})</span></div>
+          ${linhas.map(ev => `<div class="linha-tempo-item">
+            <span class="linha-tempo-hora">${new Date(ev.quando).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+            <span>${esc(ev.texto)}</span></div>`).join('')}
+        </div>`;
+      }).join('');
     }
 
     // Cria pelo nome só, na tabela referenciada, e já seleciona no campo —
