@@ -999,6 +999,7 @@ def cabeca_html(cfg, titulo, descricao, canonica, imagem=None, jsonld=None, raiz
   </a>
   {menu_grande}
 </div></header>
+<main>
 {busca_bloco}
 """
 
@@ -1021,6 +1022,7 @@ def rodape_html(cfg, raiz="."):
     # verdade. Sai da configuração, não do código.
     endereco_pe = (e(cfg["endereco"]) + "<br>") if cfg.get("endereco") else ""
     return f"""
+</main>
 <footer class="rodape"><div class="env">
   <div>
     <strong>{e(cfg.get('nome_imobiliaria') or 'Maysonnave Imóveis')}</strong>
@@ -2380,7 +2382,7 @@ def secao_reels(cfg, reels):
     if not reels:
         return ""
     cartoes = []
-    for r in reels:
+    for n, r in enumerate(reels, start=1):
         capa = r.get("_capa")
         video = r.get("_video")
         if video:
@@ -2402,9 +2404,14 @@ def secao_reels(cfg, reels):
                 if not video else '<div class="reel-cartao">')
         fim = "</a>" if not video else "</div>"
         play = "" if video else '<span class="video-play" aria-hidden="true">&#9654;</span>'
+        # "Ver no Instagram" sozinho é idêntico em todo cartão da fita — quem
+        # navega por leitor de tela não teria como distinguir qual reel abre
+        # cada link. O título entra quando existe; sem ele, a posição na
+        # fita ("reel 2") ainda diferencia um do outro.
+        rotulo_link = f"Ver {r['titulo']} no Instagram" if r.get("titulo") else f"Ver reel {n} no Instagram"
         link = ("" if not video else
                 '<a class="reel-link" href="' + e(r["url"]) + '" target="_blank" rel="noopener">'
-                'Ver no Instagram</a>')
+                + e(rotulo_link) + '</a>')
         cartoes.append(alvo + '<div class="reel-capa">' + interno + play + '</div>' +
                        tit + link + fim)
     perfil = cfg.get("instagram_url")
