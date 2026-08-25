@@ -340,5 +340,16 @@ const Plataforma = (() => {
 
   document.addEventListener('DOMContentLoaded', iniciar);
 
-  return { registrar, irPara, db, esc, avisar, $, atualizarSino, get perfil() { return perfil; } };
+  // ── Validação de contato ────────────────────────────────────────────
+  // Usadas pelo cadastro de cliente (ficha completa) e pelo "+ Novo" do funil,
+  // pra os dois caminhos cobrarem exatamente a mesma coisa.
+  const emailValido = v => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(String(v || '').trim());
+  // Fixo com DDD tem 10 dígitos, celular 11. Aceita até 13 pra não barrar quem
+  // digita com o 55 na frente.
+  const telefoneValido = v => {
+    const n = String(v || '').replace(/\D/g, '');
+    return n.length >= 10 && n.length <= 13;
+  };
+
+  return { registrar, irPara, db, esc, avisar, $, atualizarSino, emailValido, telefoneValido, get perfil() { return perfil; } };
 })();

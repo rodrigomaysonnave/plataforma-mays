@@ -167,7 +167,23 @@
             <button class="btn" type="button" id="negContatoNovo">+ Novo</button>
           </div>
           <datalist id="negContatoLista">${listaContatos()}</datalist>
-          <p class="campo-dica">Não achou? Cadastre com "+ Novo" sem sair daqui.</p></div>
+          <p class="campo-dica">Não achou? Cadastre com "+ Novo" sem sair daqui.</p>
+          <div class="cliente-novo" id="negNovoPainel" hidden>
+            <div class="cliente-novo-titulo">Cadastrar cliente</div>
+            <p class="cliente-novo-erro" id="negNovoErro" hidden></p>
+            <div class="cliente-novo-grade">
+              <div class="campo campo-largo"><label for="negNovoNome">Nome <span class="obrigatorio">*</span></label>
+                <input type="text" id="negNovoNome" autocomplete="off" placeholder="Nome completo"></div>
+              <div class="campo"><label for="negNovoTelefone">Telefone / WhatsApp <span class="obrigatorio">*</span></label>
+                <input type="tel" id="negNovoTelefone" autocomplete="off" placeholder="(53) 99999-9999"></div>
+              <div class="campo"><label for="negNovoEmail">E-mail <span class="obrigatorio">*</span></label>
+                <input type="email" id="negNovoEmail" autocomplete="off" placeholder="nome@dominio.com"></div>
+            </div>
+            <div class="cliente-novo-acoes">
+              <button class="btn btn-mini" type="button" id="negNovoCancelar">Cancelar</button>
+              <button class="btn btn-primario btn-mini" type="button" id="negNovoSalvar">Cadastrar cliente</button>
+            </div>
+          </div></div>
         <div class="campo campo-largo"><label for="negImovel">Imóvel</label>
           <select id="negImovel">${op(imoveis, n.imovel_id, 'Nenhum ainda')}</select></div>
         <div class="campo"><label for="negEtapa">Etapa</label>
@@ -183,15 +199,61 @@
       </div></div>`;
 
     document.getElementById('negVoltar').addEventListener('click', desenhar);
-    document.getElementById('negContatoNovo').addEventListener('click', async () => {
-      const nome = prompt('Nome do cliente:');
-      if (!nome || !nome.trim()) return;
-      const r = await db(supabaseClient.from('contato').insert({ nome: nome.trim() }).select('id'),
-                          'cadastrar cliente');
+    // Cadastro rápido de cliente. Era um prompt() pedindo só o nome, o que
+    // enchia a base de contato sem telefone nem e-mail — cliente que ninguém
+    // consegue chamar de volta. Agora é um formulário com o mesmo mínimo
+    // cobrado na ficha completa em Cadastros › Clientes.
+    const painelNovo = document.getElementById('negNovoPainel');
+    const erroNovo   = document.getElementById('negNovoErro');
+    const campoNovo  = i => document.getElementById('negNovo' + i);
+
+    function limparErrosNovo() {
+      erroNovo.hidden = true; erroNovo.textContent = '';
+      ['Nome','Telefone','Email'].forEach(i => campoNovo(i).classList.remove('campo-invalido'));
+    }
+    function recusar(msg, qual) {
+      erroNovo.textContent = msg; erroNovo.hidden = false;
+      const el = campoNovo(qual);
+      el.classList.add('campo-invalido');
+      el.focus();
+    }
+
+    document.getElementById('negContatoNovo').addEventListener('click', () => {
+      if (!painelNovo.hidden) { painelNovo.hidden = true; return; }
+      limparErrosNovo();
+      // Aproveita o que já foi digitado na busca em vez de fazer redigitar.
+      campoNovo('Nome').value = document.getElementById('negContatoBusca').value.trim();
+      campoNovo('Telefone').value = '';
+      campoNovo('Email').value = '';
+      painelNovo.hidden = false;
+      campoNovo(campoNovo('Nome').value ? 'Telefone' : 'Nome').focus();
+    });
+
+    document.getElementById('negNovoCancelar').addEventListener('click', () => {
+      painelNovo.hidden = true;
+      limparErrosNovo();
+    });
+
+    document.getElementById('negNovoSalvar').addEventListener('click', async () => {
+      limparErrosNovo();
+      const nome     = campoNovo('Nome').value.trim();
+      const telefone = campoNovo('Telefone').value.trim();
+      const email    = campoNovo('Email').value.trim();
+
+      if (nome.length < 3) return recusar('Escreva o nome completo do cliente.', 'Nome');
+      if (!Plataforma.telefoneValido(telefone)) return recusar('Telefone precisa do DDD. Ex.: (53) 99999-9999', 'Telefone');
+      if (!Plataforma.emailValido(email)) return recusar('E-mail inválido. Ex.: nome@dominio.com', 'Email');
+
+      const repetido = contatos.find(c => (c.nome || '').trim().toLowerCase() === nome.toLowerCase());
+      if (repetido) return recusar('Já existe um cliente com esse nome. Escolha ele na lista de sugestões.', 'Nome');
+
+      await db(supabaseClient.from('contato').insert({ nome, telefone, email }).select('id'),
+               'cadastrar cliente');
       Crud.limparCache();
       contatos = await Crud.listaApoio('contato');
       document.getElementById('negContatoLista').innerHTML = listaContatos();
-      document.getElementById('negContatoBusca').value = nome.trim();
+      document.getElementById('negContatoBusca').value = nome;
+      painelNovo.hidden = true;
       avisar('Cliente cadastrado.');
     });
     document.getElementById('negSalvar').addEventListener('click', async () => {

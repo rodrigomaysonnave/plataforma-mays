@@ -201,7 +201,8 @@ const Crud = (() => {
       else if (c.tipo === 'data')    dentro = `<input type="date" id="${id}" value="${v ?? ''}">`;
       else if (c.tipo === 'datahora') dentro = `<input type="datetime-local" id="${id}" value="${v ? String(v).slice(0, 16) : ''}">`;
       else                           dentro = `<input type="${c.tipo === 'email' ? 'email' : c.tipo === 'tel' ? 'tel' : 'text'}" id="${id}" value="${esc(v ?? '')}" placeholder="${esc(c.ph || '')}">`;
-      return `<div class="campo${c.largo ? ' campo-largo' : ''}"${atribCondicional(c)}><label for="${id}">${esc(c.rotulo)}</label>${dentro}${c.dica ? `<p class="campo-dica">${esc(c.dica)}</p>` : ''}</div>`;
+      const marca = (d.obrigatorios || []).includes(c.campo) ? ' <span class="obrigatorio">*</span>' : '';
+      return `<div class="campo${c.largo ? ' campo-largo' : ''}"${atribCondicional(c)}><label for="${id}">${esc(c.rotulo)}${marca}</label>${dentro}${c.dica ? `<p class="campo-dica">${esc(c.dica)}</p>` : ''}</div>`;
     }
 
     function avaliarCondicionais() {
@@ -362,16 +363,29 @@ const Crud = (() => {
           dados[c.campo] = el.value === '' ? null : Number(el.value);
         else dados[c.campo] = el.value.trim() === '' ? null : el.value;
       }
+      alvoEl.querySelectorAll('.campo-invalido').forEach(el => el.classList.remove('campo-invalido'));
       const falta = (d.obrigatorios || []).find(campo => !dados[campo]);
       if (falta) {
         const c = d.campos.find(x => x.campo === falta);
         avisar(`${c ? c.rotulo : falta} é obrigatório.`);
-        document.getElementById('f_' + falta)?.focus();
+        const el = document.getElementById('f_' + falta);
+        if (el) { el.classList.add('campo-invalido'); el.focus(); }
         return;
       }
       if (d.validar) {
+        // validar pode devolver só a mensagem, ou [mensagem, campo] pra marcar
+        // qual input está errado — sem isso o corretor lê o aviso e fica
+        // procurando qual dos campos da ficha é o culpado.
         const erro = await d.validar(dados, editando);
-        if (erro) { avisar(erro); return; }
+        if (erro) {
+          const [msg, campo] = Array.isArray(erro) ? erro : [erro, null];
+          avisar(msg);
+          if (campo) {
+            const el = document.getElementById('f_' + campo);
+            if (el) { el.classList.add('campo-invalido'); el.focus(); }
+          }
+          return;
+        }
       }
       const aviso = d.publicaNoSite ? ' Publicando no site…' : '';
       if (editando === 'novo') {

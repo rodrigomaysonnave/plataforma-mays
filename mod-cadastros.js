@@ -99,7 +99,15 @@
     placeholderBusca: 'Nome, telefone, e-mail…',
     busca: ['nome','telefone','email'],
     ordem: { campo: 'nome', asc: true },
-    obrigatorios: ['nome'],
+    // Cliente sem contato não serve pra nada: não dá pra ligar, não entra em
+    // campanha e trava o negócio no funil. Nome, telefone e e-mail são o mínimo.
+    obrigatorios: ['nome', 'telefone', 'email'],
+    validar: dados => {
+      if (String(dados.nome).trim().length < 3) return ['Escreva o nome completo do cliente.', 'nome'];
+      if (!Plataforma.telefoneValido(dados.telefone)) return ['Telefone precisa do DDD. Ex.: (53) 99999-9999', 'telefone'];
+      if (!Plataforma.emailValido(dados.email)) return ['E-mail inválido. Ex.: nome@dominio.com', 'email'];
+      return null;
+    },
     padrao: { ativo: true, favorito: false },
     whatsapp: 'telefone',
     timeline: { carregar: carregarAtividadeContato },
