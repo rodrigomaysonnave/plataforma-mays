@@ -328,6 +328,25 @@
       </div>
 
       <div class="ficha-secao">
+        <div class="ficha-secao-topo"><h3>E-mail e WhatsApp do escritório</h3>
+          <p>O assunto e o corpo abaixo alimentam o botão E-mail no detalhe do lead: ele abre
+             o cliente de e-mail já preenchido. O link do WhatsApp vira o marcador {whatsapp},
+             que vale aqui e em qualquer modelo de mensagem.</p></div>
+        <div class="ficha-grade">
+          <div class="campo campo-largo"><label for="cpWhats">Link do WhatsApp</label>
+            <input type="url" id="cpWhats" value="${esc(c.whatsapp_link ?? '')}" placeholder="https://wa.me/5553981041499">
+            <p class="campo-dica">O número que a pessoa deve chamar de volta. Use {whatsapp} nos textos.</p>
+          </div>
+          <div class="campo campo-largo"><label for="cpEmailAssunto">Assunto do e-mail</label>
+            <input type="text" id="cpEmailAssunto" value="${esc(c.email_assunto ?? '')}" placeholder="Ex: Laudo de avaliação de imóvel para inventário em Pelotas">
+          </div>
+          <div class="campo campo-largo"><label for="cpEmailCorpo">Corpo do e-mail</label>
+            <textarea id="cpEmailCorpo" rows="10" placeholder="{saudacao},&#10;&#10;Escreva aqui o corpo do e-mail.&#10;&#10;Prefere falar por WhatsApp? {whatsapp}&#10;&#10;{corretor}">${esc(c.email_template ?? '')}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>Landing page e imagem</h3></div>
         <div class="ficha-grade">
           <div class="campo campo-largo"><label for="cpLp">Endereço da LP</label>
@@ -526,6 +545,8 @@
       msg_template_1: v('cpMsg1') || null, msg_template_2: v('cpMsg2') || null, msg_template_3: v('cpMsg3') || null,
       msg2_template_1: v('cpB1') || null, msg2_template_2: v('cpB2') || null, msg2_template_3: v('cpB3') || null,
       imagem_primeira_msg: imagemUrl, contexto_agente: v('cpBriefing') || null,
+      whatsapp_link: v('cpWhats') || null,
+      email_assunto: v('cpEmailAssunto') || null, email_template: v('cpEmailCorpo') || null,
     };
 
     let campanhaId = id;
@@ -760,7 +781,8 @@
       .replaceAll('{origem}', origemDo(lead))
       .replaceAll('{corretor}', nomeDoCorretor())
       .replaceAll('{saudacao}', saudacao())
-      .replaceAll('{link}', linkRastreado(lead.id));
+      .replaceAll('{link}', linkRastreado(lead.id))
+      .replaceAll('{whatsapp}', aberta.whatsapp_link || '');
   }
 
   // Todo link é wa.me/55 + número, então o telefone guardado precisa ser DDD +
@@ -842,7 +864,8 @@
         ${aberta.lp_url ? '<button class="btn btn-mini" data-enviar-lp>Enviar LP</button>' : ''}
         ${aberta.contexto_agente && !SEM_AGENTE.includes(lead.classificacao)
           ? '<button class="btn btn-mini" id="cpSugerir">Sugerir mensagem</button>' : ''}
-        ${lead.email ? `<a class="btn btn-mini" href="mailto:${esc(lead.email)}">E-mail</a>` : ''}
+        ${lead.email ? '<button class="btn btn-mini" data-email>E-mail</button>' : ''}
+        <button class="btn btn-mini btn-remover" data-excluir-lead title="Apaga este lead da campanha, com anotações e histórico">Excluir</button>
       </div>
       <div id="cpSugestao"></div>
 
@@ -863,6 +886,10 @@
       b.addEventListener('click', () => classificar(lead.id, b.dataset.etapa)));
     painel.querySelectorAll('[data-whats]').forEach(b =>
       b.addEventListener('click', () => enviarWhats(lead.id, b.dataset.whats)));
+    const em = painel.querySelector('[data-email]');
+    if (em) em.addEventListener('click', () => enviarEmail(lead.id));
+    const exc = painel.querySelector('[data-excluir-lead]');
+    if (exc) exc.addEventListener('click', () => excluirLead(lead.id));
     const lp = painel.querySelector('[data-enviar-lp]');
     if (lp) lp.addEventListener('click', () => enviarLp(lead.id));
     const ci = painel.querySelector('[data-copiar-img]');
@@ -942,6 +969,44 @@
       return classificar(leadId, 'contatado', true);
     }
     renderDetalhe();
+  }
+
+  // Abre o cliente de e-mail com assunto e corpo prontos e marca Contatado,
+  // pelo mesmo caminho do WhatsApp 1. Sem modelo gravado na campanha, abre em
+  // branco, como era antes da migração 34.
+  async function enviarEmail(leadId) {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || !lead.email) return;
+    const assunto = aberta.email_assunto ? preencher(aberta.email_assunto, lead) : '';
+    const corpo   = aberta.email_template ? preencher(aberta.email_template, lead) : '';
+    const partes = [];
+    if (assunto) partes.push('subject=' + encodeURIComponent(assunto));
+    if (corpo)   partes.push('body=' + encodeURIComponent(corpo));
+    window.location.href = 'mailto:' + lead.email + (partes.length ? '?' + partes.join('&') : '');
+    await registrarEnvio(lead, corpo
+      ? `E-mail aberto: "${assunto || '(sem assunto)'}"`
+      : 'E-mail aberto (nenhum modelo configurado)');
+    if (!lead.classificacao) return classificar(leadId, 'contatado', true);
+    renderDetalhe();
+  }
+
+  // Apaga o lead de vez. Anotações, envios e visitas de LP caem junto por
+  // cascade. Quem pode apagar já está na policy da tabela: se o banco recusar,
+  // volta zero linha e o aviso diz isso em vez de fingir que apagou.
+  async function excluirLead(leadId) {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return;
+    if (!confirm(`Excluir o lead "${lead.nome}" desta campanha?\n\nAs anotações e o histórico de envios vão junto. Não dá para desfazer.`)) return;
+    const apagados = await db(supabaseClient.from('campanha_lead')
+      .delete().eq('id', leadId).select('id'), 'excluir lead');
+    if (!apagados || !apagados.length) {
+      avisar('Não foi possível excluir. Só o admin ou quem criou a campanha pode apagar leads.');
+      return;
+    }
+    leads = leads.filter(l => l.id !== leadId);
+    if (visitasLp && typeof visitasLp.delete === 'function') visitasLp.delete(leadId);
+    leadAtivoId = null;
+    renderPagina();
   }
 
   async function enviarLp(leadId) {
