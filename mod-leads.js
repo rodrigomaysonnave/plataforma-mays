@@ -148,6 +148,8 @@
         <div class="cp-anot-btns" style="margin-top:18px">
           <button class="btn btn-primario" id="leadAtenderBtn">${l.atendido ? 'Reabrir' : 'Marcar atendido'}</button>
           <a class="btn btn-mini" href="https://wa.me/${esc(waNumero(l.telefone))}" target="_blank" rel="noopener">Abrir WhatsApp</a>
+          <button class="btn btn-mini btn-remover" id="leadExcluirBtn"
+                  title="Apaga o lead de vez. Serve para teste e para engano.">Excluir</button>
           <button class="btn btn-mini" id="leadFecharBtn">Fechar</button>
         </div>
       </div>`;
@@ -170,6 +172,18 @@
       avisar(corretorId ? `Enviado para ${nomeCorretor(corretorId)}.` : 'Voltou pro balcão comum.');
       fecharFicha();
       await montar(alvoEl);
+    });
+
+    // Lead de teste e lead duplicado sujam a fila de quem está esperando
+    // resposta, e a fila é a razão de a tela existir. Some de vez: não há
+    // arquivo morto de lead, e nada mais no banco aponta pra esta linha.
+    document.getElementById('leadExcluirBtn').addEventListener('click', async () => {
+      if (!confirm(`Excluir o lead de ${l.nome}? A ação não pode ser desfeita.`)) return;
+      await db(supabaseClient.from('lead_site').delete().eq('id', id), 'excluir lead');
+      avisar('Lead excluído.');
+      fecharFicha();
+      await montar(alvoEl);
+      if (Plataforma.atualizarSino) Plataforma.atualizarSino();
     });
 
     document.getElementById('leadAtenderBtn').addEventListener('click', async () => {
