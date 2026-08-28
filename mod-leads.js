@@ -13,6 +13,13 @@
 // A linha é só um resumo: mensagem cortada, sem espaço pra decidir nada.
 // Clicar abre a ficha completa, e é lá que mora a ação de verdade —
 // atender e enviar pra um corretor.
+//
+// Exclusão fica na tela principal também, individual e em lote: teste de
+// formulário e robô de spam chegam em rajada, e abrir ficha por ficha pra
+// limpar quinze linhas não é limpeza, é castigo. O marcador não abre a
+// ficha (o clique na coluna do marcador e na de ação não conta como
+// clique na linha), e cada seção tem o próprio marcador de "todos":
+// marcar tudo em "Aguardando resposta" nunca alcança os já atendidos.
 // ══════════════════════════════════════════════════════════════════════
 
 (() => {
@@ -58,6 +65,9 @@
 
     const linha = l => `
       <tr class="cad-linha" data-id="${l.id}">
+        <td class="lead-marca">
+          <input type="checkbox" class="lead-check" value="${l.id}"
+                 aria-label="Selecionar o lead de ${esc(l.nome)}"></td>
         <td class="cad-num">${esc(dataHora(l.created_at))}</td>
         <td><div class="cad-end-rua">${esc(l.nome)}</div>
             <div class="cad-end-sub">${esc(l.telefone)}${l.email ? ' · ' + esc(l.email) : ''}</div></td>
@@ -66,13 +76,26 @@
         <td>${l.corretor_id
           ? `<span class="cad-selo cad-selo-vitrine">${esc(nomeCorretor(l.corretor_id) || '—')}</span>`
           : '<span class="cad-vazio">no balcão</span>'}</td>
+        <td class="lead-acao">
+          <button class="btn btn-mini btn-remover" data-excluir="${l.id}"
+                  title="Excluir este lead">Excluir</button></td>
       </tr>`;
 
     const tabela = (titulo, itens, vazio) => `
-      <section class="ficha-secao">
-        <div class="ficha-secao-topo"><h3>${esc(titulo)}<span class="ini-conta">${itens.length}</span></h3></div>
+      <section class="ficha-secao lead-secao">
+        <div class="ficha-secao-topo lead-secao-topo">
+          <h3>${esc(titulo)}<span class="ini-conta">${itens.length}</span></h3>
+          ${itens.length ? `<div class="lead-lote" hidden>
+            <span class="lead-lote-conta"></span>
+            <button class="btn btn-mini btn-remover lead-lote-btn">Excluir selecionados</button>
+          </div>` : ''}
+        </div>
         ${itens.length ? `<div class="cad-tabela-scroll"><table class="cad-tabela">
-          <thead><tr><th>Quando</th><th>Contato</th><th>Origem</th><th>Mensagem</th><th>Atribuído</th></tr></thead>
+          <thead><tr>
+            <th class="lead-marca"><input type="checkbox" class="lead-check-tudo"
+                  aria-label="Selecionar todos desta lista"></th>
+            <th>Quando</th><th>Contato</th><th>Origem</th><th>Mensagem</th><th>Atribuído</th><th></th>
+          </tr></thead>
           <tbody>${itens.map(linha).join('')}</tbody></table></div>`
           : `<p class="ini-vazio" style="padding:18px 20px">${esc(vazio)}</p>`}
       </section>`;
@@ -94,8 +117,68 @@
       ${tabela('Aguardando resposta', pendentes, 'Nenhum lead pendente. Tudo respondido.')}
       ${tabela('Já atendidos', atendidos, 'Nenhum lead atendido ainda.')}`;
 
+    // Marcador e botão de excluir moram dentro da linha, e a linha inteira
+    // abre a ficha. Clicar num deles não pode abrir ficha nenhuma.
     alvo.querySelectorAll('.cad-linha').forEach(tr =>
-      tr.addEventListener('click', () => abrirFicha(tr.dataset.id)));
+      tr.addEventListener('click', e => {
+        if (e.target.closest('.lead-marca, .lead-acao')) return;
+        abrirFicha(tr.dataset.id);
+      }));
+
+    alvo.querySelectorAll('[data-excluir]').forEach(btn =>
+      btn.addEventListener('click', () => {
+        const l = leads.find(x => x.id === btn.dataset.excluir);
+        excluirLeads([btn.dataset.excluir],
+          `Excluir o lead de ${l ? l.nome : 'este contato'}? A ação não pode ser desfeita.`);
+      }));
+
+    alvo.querySelectorAll('.lead-secao').forEach(ligarSelecao);
+  }
+
+  // Cada seção conta a própria seleção. O marcador do cabeçalho fica
+  // indeterminado quando só parte da lista está marcada, senão ele mente
+  // sobre o que vai levar o próximo clique.
+  function ligarSelecao(secao) {
+    const tudo   = secao.querySelector('.lead-check-tudo');
+    const checks = [...secao.querySelectorAll('.lead-check')];
+    if (!tudo || !checks.length) return;
+    const lote  = secao.querySelector('.lead-lote');
+    const conta = secao.querySelector('.lead-lote-conta');
+
+    const marcados = () => checks.filter(c => c.checked).map(c => c.value);
+    const atualizar = () => {
+      const n = marcados().length;
+      lote.hidden = n === 0;
+      conta.textContent = n === 1 ? '1 selecionado' : `${n} selecionados`;
+      tudo.checked = n === checks.length;
+      tudo.indeterminate = n > 0 && n < checks.length;
+    };
+
+    tudo.addEventListener('change', () => {
+      checks.forEach(c => { c.checked = tudo.checked; });
+      atualizar();
+    });
+    checks.forEach(c => c.addEventListener('change', atualizar));
+    secao.querySelector('.lead-lote-btn').addEventListener('click', () => {
+      const ids = marcados();
+      excluirLeads(ids, ids.length === 1
+        ? 'Excluir o lead selecionado? A ação não pode ser desfeita.'
+        : `Excluir os ${ids.length} leads selecionados? A ação não pode ser desfeita.`);
+    });
+    atualizar();
+  }
+
+  // Lead de teste, lead duplicado e rajada de robô sujam a fila de quem
+  // está esperando resposta, e a fila é a razão de a tela existir. Some de
+  // vez: não há arquivo morto de lead, e nada mais no banco aponta pra
+  // estas linhas. Mesmo caminho pra um lead ou pra quinze.
+  async function excluirLeads(ids, pergunta) {
+    if (!ids.length || !confirm(pergunta)) return;
+    await db(supabaseClient.from('lead_site').delete().in('id', ids), 'excluir leads');
+    avisar(ids.length === 1 ? 'Lead excluído.' : `${ids.length} leads excluídos.`);
+    fecharFicha();
+    await montar(alvoEl);
+    if (Plataforma.atualizarSino) Plataforma.atualizarSino();
   }
 
   // ── Ficha completa, em janela ──────────────────────────────────────
@@ -174,17 +257,8 @@
       await montar(alvoEl);
     });
 
-    // Lead de teste e lead duplicado sujam a fila de quem está esperando
-    // resposta, e a fila é a razão de a tela existir. Some de vez: não há
-    // arquivo morto de lead, e nada mais no banco aponta pra esta linha.
-    document.getElementById('leadExcluirBtn').addEventListener('click', async () => {
-      if (!confirm(`Excluir o lead de ${l.nome}? A ação não pode ser desfeita.`)) return;
-      await db(supabaseClient.from('lead_site').delete().eq('id', id), 'excluir lead');
-      avisar('Lead excluído.');
-      fecharFicha();
-      await montar(alvoEl);
-      if (Plataforma.atualizarSino) Plataforma.atualizarSino();
-    });
+    document.getElementById('leadExcluirBtn').addEventListener('click', () =>
+      excluirLeads([id], `Excluir o lead de ${l.nome}? A ação não pode ser desfeita.`));
 
     document.getElementById('leadAtenderBtn').addEventListener('click', async () => {
       const atender = !l.atendido;
