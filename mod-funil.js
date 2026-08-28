@@ -174,10 +174,12 @@
             <div class="cliente-novo-grade">
               <div class="campo campo-largo"><label for="negNovoNome">Nome <span class="obrigatorio">*</span></label>
                 <input type="text" id="negNovoNome" autocomplete="off" placeholder="Nome completo"></div>
-              <div class="campo"><label for="negNovoTelefone">Telefone / WhatsApp <span class="obrigatorio">*</span></label>
-                <input type="tel" id="negNovoTelefone" autocomplete="off" placeholder="(53) 99999-9999"></div>
-              <div class="campo"><label for="negNovoEmail">E-mail <span class="obrigatorio">*</span></label>
-                <input type="email" id="negNovoEmail" autocomplete="off" placeholder="nome@dominio.com"></div>
+              <div class="campo"><label for="negNovoTelefone">Telefone / WhatsApp</label>
+                <input type="tel" id="negNovoTelefone" autocomplete="off" placeholder="(53) 99999-9999">
+                <p class="campo-dica">Opcional. Pode entrar depois.</p></div>
+              <div class="campo"><label for="negNovoEmail">E-mail</label>
+                <input type="email" id="negNovoEmail" autocomplete="off" placeholder="nome@dominio.com">
+                <p class="campo-dica">Opcional. Pode entrar depois.</p></div>
             </div>
             <div class="cliente-novo-acoes">
               <button class="btn btn-mini" type="button" id="negNovoCancelar">Cancelar</button>
@@ -199,10 +201,11 @@
       </div></div>`;
 
     document.getElementById('negVoltar').addEventListener('click', desenhar);
-    // Cadastro rápido de cliente. Era um prompt() pedindo só o nome, o que
-    // enchia a base de contato sem telefone nem e-mail — cliente que ninguém
-    // consegue chamar de volta. Agora é um formulário com o mesmo mínimo
-    // cobrado na ficha completa em Cadastros › Clientes.
+    // Cadastro rápido de cliente. Só o nome é obrigatório: no meio de um
+    // atendimento nem sempre se tem o telefone à mão, e barrar o cadastro
+    // fazia o negócio ficar sem cliente nenhum, que é pior que um cliente
+    // com contato incompleto. Telefone e e-mail, quando vierem, continuam
+    // sendo conferidos: o que não se aceita é dado errado, não dado vazio.
     const painelNovo = document.getElementById('negNovoPainel');
     const erroNovo   = document.getElementById('negNovoErro');
     const campoNovo  = i => document.getElementById('negNovo' + i);
@@ -241,13 +244,13 @@
       const email    = campoNovo('Email').value.trim();
 
       if (nome.length < 3) return recusar('Escreva o nome completo do cliente.', 'Nome');
-      if (!Plataforma.telefoneValido(telefone)) return recusar('Telefone precisa do DDD. Ex.: (53) 99999-9999', 'Telefone');
-      if (!Plataforma.emailValido(email)) return recusar('E-mail inválido. Ex.: nome@dominio.com', 'Email');
+      if (telefone && !Plataforma.telefoneValido(telefone)) return recusar('Telefone precisa do DDD. Ex.: (53) 99999-9999', 'Telefone');
+      if (email && !Plataforma.emailValido(email)) return recusar('E-mail inválido. Ex.: nome@dominio.com', 'Email');
 
       const repetido = contatos.find(c => (c.nome || '').trim().toLowerCase() === nome.toLowerCase());
       if (repetido) return recusar('Já existe um cliente com esse nome. Escolha ele na lista de sugestões.', 'Nome');
 
-      await db(supabaseClient.from('contato').insert({ nome, telefone, email }).select('id'),
+      await db(supabaseClient.from('contato').insert({ nome, telefone: telefone || null, email: email || null }).select('id'),
                'cadastrar cliente');
       Crud.limparCache();
       contatos = await Crud.listaApoio('contato');
