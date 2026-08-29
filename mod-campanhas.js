@@ -40,6 +40,7 @@
 
   const ETAPAS = {
     contatado:       'Contatado',
+    contatado_2:     'Contatado 2',
     atendendo:       'Atendendo',
     nao_atendeu:     'Não atendeu',
     numero_invalido: 'Número inválido',
@@ -50,7 +51,7 @@
   };
 
   const COR_ETAPA = {
-    contatado: '#42a5f5', atendendo: '#5c6bc0', nao_atendeu: '#ff9100',
+    contatado: '#42a5f5', contatado_2: '#1e88e5', atendendo: '#5c6bc0', nao_atendeu: '#ff9100',
     numero_invalido: '#795548', sem_perfil: '#ba68c8', sem_interesse: '#e05252',
     interesse: '#7cb342', outro_negocio: '#26c6da',
   };
@@ -61,9 +62,14 @@
 
   // Mandar a LP promove o lead para "Atendendo", mas só se ele ainda não
   // estiver adiante disso. Reenviar não pode fazer ninguém voltar no funil.
-  const PROMOVIVEIS = [null, 'contatado', 'nao_atendeu'];
+  const PROMOVIVEIS = [null, 'contatado', 'contatado_2', 'nao_atendeu'];
+
+  // Mandar o vídeo promove para "Contatado 2", que fica antes de "Atendendo".
+  // Por isso a lista é mais curta: quem já está atendendo não volta para cá.
+  const PROMOVIVEIS_YT = [null, 'contatado', 'nao_atendeu'];
 
   const TEXTO_LP_PADRAO = 'Nesse site tem as informações e as imagens do imóvel\n{link}';
+  const TEXTO_YT_PADRAO = 'Gravei um vídeo do imóvel, {nome}. Dá uma olhada\n{video}';
 
   const hoje = () => new Date().toISOString().slice(0, 10);
   const dataBr = v => v ? new Date(v.length <= 10 ? v + 'T12:00:00' : v).toLocaleDateString('pt-BR') : '—';
@@ -366,6 +372,21 @@
       </div>
 
       <div class="ficha-secao">
+        <div class="ficha-secao-topo"><h3>Vídeo do YouTube</h3>
+          <p>Alimenta o botão YouTube no detalhe do lead, que manda o texto com o link do
+             vídeo e marca a pessoa como Contatado 2. Sem endereço aqui, o botão não aparece.</p></div>
+        <div class="ficha-grade">
+          <div class="campo campo-largo"><label for="cpYoutube">Endereço do vídeo</label>
+            <input type="url" id="cpYoutube" value="${esc(c.youtube_url ?? '')}" placeholder="https://youtu.be/…">
+          </div>
+          <div class="campo campo-largo"><label for="cpTextoYoutube">Texto que acompanha o vídeo</label>
+            <textarea id="cpTextoYoutube" rows="2" placeholder="${esc(TEXTO_YT_PADRAO)}">${esc(c.texto_youtube ?? '')}</textarea>
+            <p class="campo-dica">Marcador {video} é o link do vídeo. Se você não usar,
+               o link vai numa linha no fim mesmo assim.</p></div>
+        </div>
+      </div>
+
+      <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>Briefing do agente</h3>
           <p>Com isto preenchido aparece o botão de sugerir mensagem, que redige um texto
              para o corretor revisar antes de enviar. Em branco, o botão não existe.</p></div>
@@ -542,6 +563,7 @@
     const dados = {
       nome, imovel_id: v('cpImovel') || null, meta_atendimento: v('cpMeta') || null,
       lp_url: v('cpLp') || null, texto_link_lp: v('cpTextoLp') || null,
+      youtube_url: v('cpYoutube') || null, texto_youtube: v('cpTextoYoutube') || null,
       msg_template_1: v('cpMsg1') || null, msg_template_2: v('cpMsg2') || null, msg_template_3: v('cpMsg3') || null,
       msg2_template_1: v('cpB1') || null, msg2_template_2: v('cpB2') || null, msg2_template_3: v('cpB3') || null,
       imagem_primeira_msg: imagemUrl, contexto_agente: v('cpBriefing') || null,
@@ -862,6 +884,7 @@
         ${aberta.templates2.length ? '<button class="btn btn-mini" data-whats="2">WhatsApp 2</button>' : ''}
         <button class="btn btn-mini" data-whats="3" title="Abre a conversa em branco. Não marca etapa nem registra envio">WhatsApp 3</button>
         ${aberta.lp_url ? '<button class="btn btn-mini" data-enviar-lp>Enviar LP</button>' : ''}
+        ${aberta.youtube_url ? '<button class="btn btn-mini" data-enviar-yt title="Manda o vídeo do imóvel e marca Contatado 2">YouTube</button>' : ''}
         ${aberta.contexto_agente && !SEM_AGENTE.includes(lead.classificacao)
           ? '<button class="btn btn-mini" id="cpSugerir">Sugerir mensagem</button>' : ''}
         ${lead.email ? '<button class="btn btn-mini" data-email>E-mail</button>' : ''}
@@ -892,6 +915,8 @@
     if (exc) exc.addEventListener('click', () => excluirLead(lead.id));
     const lp = painel.querySelector('[data-enviar-lp]');
     if (lp) lp.addEventListener('click', () => enviarLp(lead.id));
+    const yt = painel.querySelector('[data-enviar-yt]');
+    if (yt) yt.addEventListener('click', () => enviarYoutube(lead.id));
     const ci = painel.querySelector('[data-copiar-img]');
     if (ci) ci.addEventListener('click', copiarImagem);
     const sug = document.getElementById('cpSugerir');
@@ -1020,6 +1045,25 @@
     if (!abrirWhats(`https://wa.me/${waNumero(lead.telefone)}?text=${encodeURIComponent(texto)}`)) return;
     await registrarEnvio(lead, `Link da LP enviado: "${texto}"`);
     if (PROMOVIVEIS.includes(lead.classificacao || null)) return classificar(leadId, 'atendendo', true);
+    renderDetalhe();
+  }
+
+  // Terceiro caminho de envio: o vídeo do imóvel no YouTube. Marca "Contatado
+  // 2", a etapa que existe justamente para separar quem já viu o vídeo de quem
+  // só recebeu a primeira mensagem.
+  async function enviarYoutube(leadId) {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead || !aberta.youtube_url) return;
+    // Mesma garantia do envio da LP: o link vai junto mesmo que o texto não
+    // use o marcador, para ninguém mandar um convite sem o vídeo.
+    const base = preencher(aberta.texto_youtube || TEXTO_YT_PADRAO, lead)
+      .replaceAll('{video}', aberta.youtube_url);
+    const texto = base.includes(aberta.youtube_url)
+      ? base
+      : (base.trim() ? `${base}\n${aberta.youtube_url}` : aberta.youtube_url);
+    if (!abrirWhats(`https://wa.me/${waNumero(lead.telefone)}?text=${encodeURIComponent(texto)}`)) return;
+    await registrarEnvio(lead, `Vídeo do YouTube enviado: "${texto}"`);
+    if (PROMOVIVEIS_YT.includes(lead.classificacao || null)) return classificar(leadId, 'contatado_2', true);
     renderDetalhe();
   }
 
