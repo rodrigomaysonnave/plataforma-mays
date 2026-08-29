@@ -14,7 +14,10 @@
    sobre superfície 1,28:1, ou seja, cartão, tabela e coluna do kanban
    não se separavam de nada. Agora são 1,5:1 e 1,85:1. */
 :root {
-  --bg: #171412;
+  /* Mesmo valor da superfície, e é de propósito: o fundo da área de
+     trabalho é a mesma cor da coluna, do cartão de ficha e da lateral.
+     Segue sendo ficha própria pra poder divergir depois sem caçar. */
+  --bg: #2e2e2e;
   --superficie: #2e2e2e;
   --superficie-2: #3c3c3c;
   --borda: #565656;
@@ -67,10 +70,14 @@
 
 body {
   background: var(--bg); color: var(--texto);
-  /* Fixo, senão o degradê desliza junto com a rolagem e a fonte de luz
-     "anda", o que denuncia o truque. */
-  background-image: linear-gradient(180deg, #1a1613 0%, #0c0a08 46%, #060504 100%);
-  background-attachment: fixed;
+  /* Sem degradê e sem vazio escuro atrás do conteúdo. O primeiro desenho
+     descia até #060504, e a área vazia do meio da tela virava quase preto
+     puro ao lado de superfícies #2e2e2e: um quase-preto morno encostado em
+     cinza neutro é lido como esverdeado, mesmo sem ter um pixel verde. Não
+     é cor, é contraste simultâneo, e clarear o degradê só amenizava.
+     A área de trabalho passou a ser a mesma cor da coluna. Coluna e cartão
+     seguem se destacando pela borda, pelo bisel e por serem mais claros
+     que ela (o cartão é #3c3c3c), não por contraste com um buraco preto. */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 14px; line-height: 1.5; min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -650,10 +657,15 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 
 /* ── Kanban ───────────────────────────────────────────────────────── */
 .kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
+/* A coluna cresce com o conteúdo e quem rola é a página inteira. Antes
+   cada coluna tinha altura travada e barra de rolagem própria: com nove
+   etapas viravam nove caixinhas, o primeiro cartão aparecia cortado pela
+   metade e etapa vazia ocupava a mesma altura de etapa cheia. Rolagem
+   dentro de rolagem só se paga quando a coluna é longa de verdade, o que
+   não é o caso aqui. */
 .kan-coluna {
   flex: 1 0 210px; background: var(--superficie); border: 1px solid var(--borda);
   border-radius: var(--raio-p); display: flex; flex-direction: column;
-  max-height: calc(100vh - 300px);
 }
 .kan-coluna.kan-alvo { border-color: var(--dourado); background: rgba(var(--dourado-rgb),.05); }
 .kan-topo {
@@ -663,7 +675,9 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 .kan-nome { font-size: 12.5px; font-weight: 700; flex: 1; }
 .kan-conta { font-size: 11px; color: var(--texto-fraco); background: var(--superficie-2); border-radius: 10px; padding: 1px 8px; }
 .kan-vgv { font-size: 11px; color: var(--dourado); width: 100%; font-variant-numeric: tabular-nums; }
-.kan-corpo { padding: 9px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; min-height: 52px; }
+/* O mínimo existe porque a coluna inteira é o alvo do arrasto: etapa
+   vazia precisa continuar sendo um lugar onde dá pra soltar o cartão. */
+.kan-corpo { padding: 9px; display: flex; flex-direction: column; gap: 7px; min-height: 96px; }
 .kan-cartao {
   background: var(--superficie-2); border: 1px solid var(--borda);
   border-radius: 8px; padding: 10px 11px; cursor: grab;
