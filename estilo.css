@@ -1424,14 +1424,19 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 .lead-linha-etapa { background: var(--superficie); }
 .lead-linha-etapa:hover { background: var(--superficie-2); }
 
-/* A primeira célula carrega a tarja da etapa, então acumula: tarja primeiro,
-   relevo depois. Sem repetir o bisel aqui a linha da etapa perderia o relevo,
-   porque `box-shadow` não soma entre regras, substitui. */
+/* A etapa ocupa a coluna do marcador inteira: um bloco de cor com começo e
+   fim, em vez de um fio. Dá presença sem voltar a pintar a linha, porque a
+   área é a mesma em toda linha e não cresce com o conteúdo.
+   `background-color`, e não o atalho `background`, para não apagar o verniz
+   que a regra das células aplica por cima. */
 .lead-linha-etapa > td:first-child {
-  box-shadow:
-    inset 11px 0 0 var(--c),                /* a tira */
-    inset 12px 0 0 rgba(0,0,0,.55),         /* vinco que fecha a tira e a define */
-    var(--bisel), inset -1px 0 0 rgba(0,0,0,.4);
+  background-color: var(--c);
+  box-shadow: var(--bisel), inset -1px 0 0 rgba(0,0,0,.55);
+}
+/* O marcador fica sobre cor cheia, então ganha contorno escuro próprio para
+   não sumir no amarelo nem no verde. */
+.lead-linha-etapa > td:first-child .lead-check {
+  outline: 1px solid rgba(0,0,0,.45); outline-offset: 1px;
 }
 
 /* Texto em cima de cor forte precisa de mais peso e de uma sombra curta, que
