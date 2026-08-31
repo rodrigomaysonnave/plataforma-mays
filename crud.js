@@ -269,6 +269,11 @@ const Crud = (() => {
           ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Fotos</h3></div>
               <div id="cFotos"></div></div>`
           : ''}
+        ${d.vinculos && !novo
+          ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>${d.vinculos.titulo}</h3>
+              ${d.vinculos.descricao ? `<p>${d.vinculos.descricao}</p>` : ''}</div>
+              <div id="cVinculos">Carregando…</div></div>`
+          : ''}
         ${d.timeline && !novo
           ? `<div class="ficha-secao"><div class="ficha-secao-topo"><h3>Atividade</h3>
               <p>Interações, agenda e negócios, juntos numa linha do tempo.</p></div>
@@ -294,7 +299,41 @@ const Crud = (() => {
       if (ex) ex.addEventListener('click', excluir);
       if (d.galeria)
         Fotos.montar(document.getElementById('cFotos'), { tabela: d.galeria.tabela, coluna: d.galeria.coluna, id, pasta: d.galeria.pasta });
+      if (d.vinculos && !novo) desenharVinculos(id);
       if (d.timeline && !novo) desenharTimeline(id);
+    }
+
+    // Registros de outra tabela que apontam para este: os imóveis de um
+    // proprietário, por exemplo. A ficha existia sem isso e quem abria um
+    // proprietário não fazia ideia de quantos imóveis dele estavam no
+    // sistema, nem tinha como chegar em nenhum deles sem voltar à lista de
+    // imóveis e caçar pelo nome.
+    //
+    // O descritor entrega só os dados; ir para o registro é sempre
+    // `irPara(modulo, id)`, que é como o resto do sistema navega.
+    async function desenharVinculos(id) {
+      const alvo = document.getElementById('cVinculos');
+      if (!alvo) return;
+      let itens = [];
+      try { itens = await d.vinculos.carregar(id); }
+      catch (e) { alvo.innerHTML = '<p class="campo-dica">Não foi possível carregar.</p>'; return; }
+
+      if (!itens.length) {
+        alvo.innerHTML = `<p class="campo-dica">${d.vinculos.vazio || 'Nada vinculado ainda.'}</p>`;
+        return;
+      }
+      alvo.innerHTML = `<div class="vinc-lista">${itens.map(i => `
+        <button type="button" class="vinc-item" data-ir="${i.id}">
+          <span class="vinc-txt">
+            ${i.rotulo ? `<span class="vinc-rotulo">${esc(i.rotulo)}</span>` : ''}
+            <span class="vinc-titulo">${esc(i.titulo)}</span>
+            ${i.sub ? `<span class="vinc-sub">${esc(i.sub)}</span>` : ''}
+          </span>
+          ${i.selo ? `<span class="cad-selo cad-selo-${esc(i.seloTipo || 'vitrine')}">${esc(i.selo)}</span>` : ''}
+        </button>`).join('')}</div>`;
+
+      alvo.querySelectorAll('[data-ir]').forEach(b => b.addEventListener('click', () =>
+        Plataforma.irPara(d.vinculos.modulo, b.dataset.ir)));
     }
 
     // Todo link é wa.me/55 + DDD + número, sem símbolo. Telefone vindo de

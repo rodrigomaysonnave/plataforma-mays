@@ -20,14 +20,44 @@
 // ficha (o clique na coluna do marcador e na de ação não conta como
 // clique na linha), e cada seção tem o próprio marcador de "todos":
 // marcar tudo em "Aguardando resposta" nunca alcança os já atendidos.
+//
+// A exclusão MARCA `excluido_em`, não apaga a linha (migração 39). O
+// texto acima dizia "some de vez", e era justamente isso que quebrava:
+// apagada a linha, o índice único de `meta_lead_id` perdia o id, a
+// varredura do Meta reencontrava o lead cinco minutos depois, inseria de
+// novo e o gatilho mandava outro e-mail. Da tela some igual; do banco,
+// não.
+//
+// A ficha ganhou etapa e histórico, no mesmo formato da campanha, porque
+// "atendido sim/não" não distingue quem não tem perfil de quem está em
+// negociação. Marcar Interessado abre o negócio no funil sozinho, com o
+// histórico junto; tirar dessa etapa desfaz, mas só enquanto ninguém
+// tiver mexido no negócio.
 // ══════════════════════════════════════════════════════════════════════
 
 (() => {
   'use strict';
   const { db, esc, avisar } = Plataforma;
 
+  // Menos etapas que a campanha de propósito: quem preencheu o formulário
+  // do site já se contatou sozinho, então "Contatado" e "Não atendeu" não
+  // querem dizer nada aqui.
+  const ETAPAS = {
+    atendendo:     'Atendendo',
+    interesse:     'Interessado',
+    sem_perfil:    'Sem perfil',
+    sem_interesse: 'Sem interesse',
+  };
+  const COR_ETAPA = {
+    atendendo:     'var(--ouro, #c9a84c)',
+    interesse:     'var(--verde, #4caf7d)',
+    sem_perfil:    'var(--texto-fraco, #8b8b8b)',
+    sem_interesse: 'var(--vermelho, #d15b5b)',
+  };
+
   let alvoEl = null;
   let leads = [], imoveisPorId = new Map(), corretores = [];
+  let editandoAnotacao = null;
 
   const dataHora = iso => new Date(iso).toLocaleString('pt-BR',
     { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -51,7 +81,7 @@
   async function montar(alvo) {
     alvoEl = alvo;
     const [dadosLeads, imoveis, equipe] = await Promise.all([
-      db(supabaseClient.from('lead_site').select('*')
+      db(supabaseClient.from('lead_site').select('*').is('excluido_em', null)
         .order('created_at', { ascending: false }), 'carregar leads do site'),
       db(supabaseClient.from('imovel').select('id,titulo,codigo'), 'carregar imóveis'),
       db(supabaseClient.from('perfil').select('id,nome').eq('ativo', true).order('nome'), 'carregar equipe'),
@@ -72,6 +102,9 @@
         <td><div class="cad-end-rua">${esc(l.nome)}</div>
             <div class="cad-end-sub">${esc(l.telefone)}${l.email ? ' · ' + esc(l.email) : ''}</div></td>
         <td>${esc(origemDe(l))}</td>
+        <td>${l.classificacao
+          ? `<span class="lead-etapa-selo" style="--c:${COR_ETAPA[l.classificacao]}">${esc(ETAPAS[l.classificacao])}</span>`
+          : '<span class="cad-vazio">sem etapa</span>'}</td>
         <td class="cad-msg">${esc(l.mensagem || '—')}</td>
         <td>${l.corretor_id
           ? `<span class="cad-selo cad-selo-vitrine">${esc(nomeCorretor(l.corretor_id) || '—')}</span>`
@@ -94,7 +127,7 @@
           <thead><tr>
             <th class="lead-marca"><input type="checkbox" class="lead-check-tudo"
                   aria-label="Selecionar todos desta lista"></th>
-            <th>Quando</th><th>Contato</th><th>Origem</th><th>Mensagem</th><th>Atribuído</th><th></th>
+            <th>Quando</th><th>Contato</th><th>Origem</th><th>Etapa</th><th>Mensagem</th><th>Atribuído</th><th></th>
           </tr></thead>
           <tbody>${itens.map(linha).join('')}</tbody></table></div>`
           : `<p class="ini-vazio" style="padding:18px 20px">${esc(vazio)}</p>`}
@@ -129,7 +162,7 @@
       btn.addEventListener('click', () => {
         const l = leads.find(x => x.id === btn.dataset.excluir);
         excluirLeads([btn.dataset.excluir],
-          `Excluir o lead de ${l ? l.nome : 'este contato'}? A ação não pode ser desfeita.`);
+          `Excluir o lead de ${l ? l.nome : 'este contato'}? Ele some da lista.`);
       }));
 
     alvo.querySelectorAll('.lead-secao').forEach(ligarSelecao);
@@ -162,19 +195,21 @@
     secao.querySelector('.lead-lote-btn').addEventListener('click', () => {
       const ids = marcados();
       excluirLeads(ids, ids.length === 1
-        ? 'Excluir o lead selecionado? A ação não pode ser desfeita.'
-        : `Excluir os ${ids.length} leads selecionados? A ação não pode ser desfeita.`);
+        ? 'Excluir o lead selecionado? Ele some da lista.'
+        : `Excluir os ${ids.length} leads selecionados? Eles somem da lista.`);
     });
     atualizar();
   }
 
   // Lead de teste, lead duplicado e rajada de robô sujam a fila de quem
-  // está esperando resposta, e a fila é a razão de a tela existir. Some de
-  // vez: não há arquivo morto de lead, e nada mais no banco aponta pra
-  // estas linhas. Mesmo caminho pra um lead ou pra quinze.
+  // está esperando resposta, e a fila é a razão de a tela existir. Some da
+  // tela, mas a LINHA FICA, com `excluido_em` marcado: apagar de verdade
+  // devolvia o id ao Meta e a varredura reinseria o lead cinco minutos
+  // depois, com e-mail novo. Mesmo caminho pra um lead ou pra quinze.
   async function excluirLeads(ids, pergunta) {
     if (!ids.length || !confirm(pergunta)) return;
-    await db(supabaseClient.from('lead_site').delete().in('id', ids), 'excluir leads');
+    await db(supabaseClient.from('lead_site')
+      .update({ excluido_em: new Date().toISOString() }).in('id', ids), 'excluir leads');
     avisar(ids.length === 1 ? 'Lead excluído.' : `${ids.length} leads excluídos.`);
     fecharFicha();
     await montar(alvoEl);
@@ -228,6 +263,26 @@
           ${l.corretor_id ? `<p class="campo-dica">Atualmente com ${esc(nomeCorretor(l.corretor_id) || '—')}${l.enviado_em ? ', desde ' + esc(dataHora(l.enviado_em)) : ''}.</p>` : ''}
         </div>
 
+        <div class="lead-modal-etapas">
+          <b>Etapa</b>
+          <div class="cp-etapas">${Object.entries(ETAPAS).map(([k, r]) =>
+            `<button class="cp-etapa${l.classificacao === k ? ' ativo' : ''}"
+               style="${l.classificacao === k ? `--c:${COR_ETAPA[k]}` : ''}"
+               data-etapa="${k}">${r}</button>`).join('')}</div>
+          <p class="campo-dica">Interessado abre o negócio no funil sozinho. Clicar na
+            etapa em que já está desmarca.</p>
+        </div>
+
+        <div id="leadHistorico"></div>
+
+        <div class="lead-modal-nova-anot">
+          <b>Nova anotação</b>
+          <div class="cp-nova-anot">
+            <textarea id="leadNovaAnot" rows="2" placeholder="Registre o que aconteceu neste contato"></textarea>
+            <button class="btn btn-primario" id="leadSalvarAnot">Salvar</button>
+          </div>
+        </div>
+
         <div class="cp-anot-btns" style="margin-top:18px">
           <button class="btn btn-primario" id="leadAtenderBtn">${l.atendido ? 'Reabrir' : 'Marcar atendido'}</button>
           <a class="btn btn-mini" href="https://wa.me/${esc(waNumero(l.telefone))}" target="_blank" rel="noopener">Abrir WhatsApp</a>
@@ -257,8 +312,21 @@
       await montar(alvoEl);
     });
 
+    desenharHistorico(l);
+
+    overlay.querySelectorAll('[data-etapa]').forEach(b =>
+      b.addEventListener('click', () => classificar(id, b.dataset.etapa)));
+
+    document.getElementById('leadSalvarAnot').addEventListener('click', async () => {
+      const t = document.getElementById('leadNovaAnot').value.trim();
+      if (!t) return;
+      await gravarAnotacao(l, { em: new Date().toISOString(), etapa: l.classificacao || null, texto: t });
+      document.getElementById('leadNovaAnot').value = '';
+      desenharHistorico(l);
+    });
+
     document.getElementById('leadExcluirBtn').addEventListener('click', () =>
-      excluirLeads([id], `Excluir o lead de ${l.nome}? A ação não pode ser desfeita.`));
+      excluirLeads([id], `Excluir o lead de ${l.nome}? Ele some da lista.`));
 
     document.getElementById('leadAtenderBtn').addEventListener('click', async () => {
       const atender = !l.atendido;
@@ -269,6 +337,186 @@
       await montar(alvoEl);
       if (Plataforma.atualizarSino) Plataforma.atualizarSino();
     });
+  }
+
+
+  // ── Etapa, anotações e ponte para o funil ───────────────────────────
+  // Mesmo formato de anotação da campanha: array JSON em texto. Ler com
+  // try/catch porque a coluna é texto livre, e um dia alguém edita na mão.
+  function anotacoesDe(l) {
+    try { const a = JSON.parse(l.anotacoes || '[]'); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+
+  async function salvarAnotacoes(l, arr) {
+    const json = JSON.stringify(arr);
+    await db(supabaseClient.from('lead_site').update({ anotacoes: json }).eq('id', l.id), 'salvar anotação');
+    l.anotacoes = json;
+  }
+
+  const gravarAnotacao = (l, entrada) => salvarAnotacoes(l, [...anotacoesDe(l), entrada]);
+
+  function desenharHistorico(l) {
+    const alvo = document.getElementById('leadHistorico');
+    if (!alvo) return;
+    const anot = anotacoesDe(l);
+    if (!anot.length) {
+      alvo.innerHTML = '<div class="lead-modal-hist"><b>Histórico</b>'
+                     + '<p class="campo-dica">Nada registrado ainda.</p></div>';
+      return;
+    }
+    alvo.innerHTML = `<div class="lead-modal-hist"><b>Histórico</b>
+      <div class="cp-tempo">${anot.map((a, i) => {
+        const selo = a.etapa ? `<span class="cp-selo-etapa">${esc(ETAPAS[a.etapa] || a.etapa)}</span>` : '';
+        if (editandoAnotacao === i) return `
+          <div class="cp-anot">
+            <div class="cp-anot-topo"><span class="cp-anot-data">${esc(dataHora(a.em))}</span>${selo}</div>
+            <textarea class="cp-anot-edit" id="leadAnotEdit" rows="3">${esc(a.texto)}</textarea>
+            <div class="cp-anot-btns">
+              <button class="btn btn-mini btn-primario" data-salvar-anot="${i}">Salvar</button>
+              <button class="btn btn-mini" data-cancelar-anot>Cancelar</button>
+            </div>
+          </div>`;
+        return `
+          <div class="cp-anot">
+            <div class="cp-anot-topo"><span class="cp-anot-data">${esc(dataHora(a.em))}</span>${selo}
+              ${a.automatico ? '' : `<span class="cp-anot-acoes">
+                <button class="btn btn-mini" data-editar-anot="${i}">Editar</button>
+                <button class="btn btn-mini" data-apagar-anot="${i}">Apagar</button>
+              </span>`}</div>
+            <div class="cp-anot-txt">${esc(a.texto)}</div>
+          </div>`;
+      }).join('')}</div></div>`;
+
+    alvo.querySelectorAll('[data-editar-anot]').forEach(b => b.addEventListener('click', () => {
+      editandoAnotacao = Number(b.dataset.editarAnot); desenharHistorico(l);
+    }));
+    const canc = alvo.querySelector('[data-cancelar-anot]');
+    if (canc) canc.addEventListener('click', () => { editandoAnotacao = null; desenharHistorico(l); });
+    alvo.querySelectorAll('[data-salvar-anot]').forEach(b => b.addEventListener('click', async () => {
+      const t = document.getElementById('leadAnotEdit').value.trim();
+      if (!t) return;
+      const arr = anotacoesDe(l);
+      arr[Number(b.dataset.salvarAnot)].texto = t;
+      await salvarAnotacoes(l, arr);
+      editandoAnotacao = null;
+      desenharHistorico(l);
+    }));
+    alvo.querySelectorAll('[data-apagar-anot]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Apagar esta anotação?')) return;
+      const arr = anotacoesDe(l);
+      arr.splice(Number(b.dataset.apagarAnot), 1);
+      await salvarAnotacoes(l, arr);
+      desenharHistorico(l);
+    }));
+  }
+
+  // Classificar é dizer que o lead foi trabalhado, então ele sai da fila de
+  // quem espera resposta. Sem isso a fila mentiria: um lead marcado "sem
+  // perfil" seguiria contando no sino como se ninguém tivesse olhado.
+  // Desmarcar não reabre sozinho — pra isso existe o botão Reabrir, que é
+  // uma decisão diferente de "errei a etapa".
+  async function classificar(id, etapa) {
+    const l = leads.find(x => x.id === id);
+    if (!l) return;
+    const nova = l.classificacao === etapa ? null : etapa;
+    const agora = nova ? new Date().toISOString() : null;
+
+    await db(supabaseClient.from('lead_site').update({
+      classificacao: nova, classificado_em: agora,
+      ...(nova ? { atendido: true } : {}),
+    }).eq('id', id), 'salvar etapa');
+    l.classificacao = nova;
+    l.classificado_em = agora;
+    if (nova) l.atendido = true;
+
+    await gravarAnotacao(l, {
+      em: agora || new Date().toISOString(), etapa: nova,
+      texto: nova ? `Etapa: ${ETAPAS[nova]}` : 'Etapa removida', automatico: true,
+    });
+
+    if (nova === 'interesse') await mandarProFunil(l);
+    else await tirarDoFunil(l);
+
+    fecharFicha();
+    await montar(alvoEl);
+    if (Plataforma.atualizarSino) Plataforma.atualizarSino();
+    abrirFicha(id);
+  }
+
+  const soDigitos = t => String(t || '').replace(/\D/g, '');
+  const meuId = () => (Plataforma.perfil && Plataforma.perfil.id) || null;
+
+  function historicoTexto(l) {
+    return anotacoesDe(l).map(a => {
+      const et = a.etapa ? ` [${ETAPAS[a.etapa] || a.etapa}]` : '';
+      return `${dataHora(a.em)}${et} — ${a.texto}`;
+    }).join('\n');
+  }
+
+  // A marca no `obs` é o que amarra o negócio a este lead. Não há coluna de
+  // origem no negócio, e inventar uma só pra isto seria mudança grande pra
+  // um vínculo que só esta tela lê. Mesma solução da campanha.
+  const marcaDe = l => `Lead do site: ${l.nome} (${dataHora(l.created_at)})`;
+
+  async function mandarProFunil(l) {
+    let contatoId = l.contato_id;
+    if (!contatoId) {
+      // Antes de criar registro novo, procura na carteira quem já tem este
+      // telefone: o mesmo interessado costuma preencher o formulário de dois
+      // imóveis diferentes, e cada vez viraria um cliente novo.
+      const tel = soDigitos(l.telefone);
+      let achado = null;
+      if (tel) {
+        const candidatos = await db(supabaseClient.from('contato').select('id,telefone')
+          .not('telefone', 'is', null), 'procurar na carteira');
+        achado = (candidatos || []).find(c => soDigitos(c.telefone).endsWith(tel.slice(-8)));
+      }
+      if (achado) contatoId = achado.id;
+      else {
+        const novo = await db(supabaseClient.from('contato').insert({
+          nome: l.nome, telefone: l.telefone, email: l.email || null,
+          corretor_id: l.corretor_id, created_by: meuId(),
+          obs: `Veio do formulário do site (${origemDe(l)})`,
+        }).select('id').single(), 'criar contato');
+        contatoId = novo.id;
+      }
+      await db(supabaseClient.from('lead_site').update({ contato_id: contatoId }).eq('id', l.id), 'vincular contato');
+      l.contato_id = contatoId;
+    }
+
+    const marca = marcaDe(l);
+    const jaTem = await db(supabaseClient.from('negocio').select('id,obs')
+      .eq('contato_id', contatoId), 'conferir o funil');
+    if ((jaTem || []).some(n => (n.obs || '').startsWith(marca))) return;
+
+    const etapas = await Crud.listaApoio('etapa_funil');
+    const primeira = etapas[0];
+    if (!primeira) { avisar('Nenhuma etapa de funil cadastrada.'); return; }
+
+    const hist = historicoTexto(l);
+    await db(supabaseClient.from('negocio').insert({
+      contato_id: contatoId, imovel_id: l.imovel_id || null, etapa_id: primeira.id,
+      corretor_id: l.corretor_id, created_by: meuId(),
+      obs: marca + (l.mensagem ? `\n${l.mensagem}` : '')
+                 + (hist ? `\n— atendimento do lead —\n${hist}` : ''),
+    }), 'criar negócio');
+    avisar(`${l.nome} entrou no funil.`);
+  }
+
+  // Tirar de Interessado desfaz o negócio, mas só enquanto ele estiver
+  // intocado na primeira etapa. Se alguém já trabalhou nele, clique errado
+  // aqui não pode apagar trabalho real.
+  async function tirarDoFunil(l) {
+    if (!l.contato_id) return;
+    const marca = marcaDe(l);
+    const negocios = await db(supabaseClient.from('negocio').select('id,etapa_id,obs')
+      .eq('contato_id', l.contato_id), 'conferir o funil');
+    const meu = (negocios || []).find(n => (n.obs || '').startsWith(marca));
+    if (!meu) return;
+    const etapas = await Crud.listaApoio('etapa_funil');
+    if (!etapas.length || meu.etapa_id !== etapas[0].id) return;
+    await db(supabaseClient.from('negocio').delete().eq('id', meu.id), 'desfazer negócio');
   }
 
   // Todo link de WhatsApp é wa.me/55 + DDD + número, sem símbolo. Lista

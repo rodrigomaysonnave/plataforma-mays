@@ -265,8 +265,11 @@ const Plataforma = (() => {
     const botao = $('topoSino');
     if (!botao || !perfil) return;
     try {
+      // `excluido_em` é a lixeira da migração 39: o lead excluído continua
+      // no banco pra o Meta não reinserir, mas não pode voltar a contar aqui.
       const { count } = await supabaseClient.from('lead_site')
-        .select('id', { count: 'exact', head: true }).eq('atendido', false);
+        .select('id', { count: 'exact', head: true })
+        .eq('atendido', false).is('excluido_em', null);
       const n = count || 0;
       const rot = $('topoSinoN');
       rot.hidden = n === 0;

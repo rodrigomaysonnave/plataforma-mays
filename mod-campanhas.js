@@ -10,7 +10,7 @@
 // campanha aberta tem duas vistas, lista de leads e quadro por etapa.
 //
 // Diferenças em relação ao Dashboard, todas por causa deste banco:
-//   · não existe empreendimento, então a campanha vincula a um imóvel
+//   · a campanha vincula a um empreendimento OU a um imóvel (migração 38)
 //   · `clientes` é `contato`, `ofertas` é `negocio` com `etapa_funil`
 //   · o formulário é tela cheia, não modal, como o resto da plataforma
 //
@@ -238,9 +238,10 @@
     const editando = id !== 'novo';
     const fonte = editando ? id : duplicarDe;
 
-    const [equipe, imoveis] = await Promise.all([
+    const [equipe, imoveis, empreendimentos] = await Promise.all([
       db(supabaseClient.from('perfil').select('id,nome,papel').eq('ativo', true).order('nome'), 'equipe'),
       Crud.listaApoio('imovel'),
+      Crud.listaApoio('empreendimento'),
     ]);
 
     let c = { status: 'ativa' }, marcados = [];
@@ -271,6 +272,10 @@
         <div class="ficha-grade">
           <div class="campo campo-largo"><label for="cpNome">Nome da campanha</label>
             <input type="text" id="cpNome" value="${esc(c.nome ?? '')}" placeholder="Reativação base 2024"></div>
+          <div class="campo campo-largo"><label for="cpEmpreendimento">Empreendimento divulgado</label>
+            <select id="cpEmpreendimento"><option value="">Nenhum</option>${empreendimentos.map(e =>
+              `<option value="${e.id}"${e.id === c.empreendimento_id ? ' selected' : ''}>${esc(e.nome)}</option>`).join('')}</select>
+            <p class="campo-dica">Campanha de lançamento vende o prédio, não a unidade.</p></div>
           <div class="campo campo-largo"><label for="cpImovel">Imóvel divulgado</label>
             <select id="cpImovel"><option value="">Nenhum</option>${imoveis.map(i =>
               `<option value="${i.id}"${i.id === c.imovel_id ? ' selected' : ''}>${esc(i.nome)}</option>`).join('')}</select>
@@ -561,7 +566,8 @@
     if (!id && !leadsImportados.length) { avisar('Importe a lista de leads antes de salvar.'); return; }
 
     const dados = {
-      nome, imovel_id: v('cpImovel') || null, meta_atendimento: v('cpMeta') || null,
+      nome, imovel_id: v('cpImovel') || null, empreendimento_id: v('cpEmpreendimento') || null,
+      meta_atendimento: v('cpMeta') || null,
       lp_url: v('cpLp') || null, texto_link_lp: v('cpTextoLp') || null,
       youtube_url: v('cpYoutube') || null, texto_youtube: v('cpTextoYoutube') || null,
       msg_template_1: v('cpMsg1') || null, msg_template_2: v('cpMsg2') || null, msg_template_3: v('cpMsg3') || null,
@@ -640,8 +646,15 @@
       return q;
     })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
+    // Empreendimento tem preferência: quando os dois estão preenchidos, é o
+    // prédio que a mensagem nomeia, não a unidade.
     let vinculoNome = '';
-    if (c.imovel_id) {
+    if (c.empreendimento_id) {
+      const emp = (await db(supabaseClient.from('empreendimento').select('nome')
+        .eq('id', c.empreendimento_id).limit(1), 'empreendimento da campanha'))[0];
+      if (emp) vinculoNome = emp.nome || '';
+    }
+    if (!vinculoNome && c.imovel_id) {
       const im = (await db(supabaseClient.from('imovel').select('codigo,titulo,endereco')
         .eq('id', c.imovel_id).limit(1), 'imóvel da campanha'))[0];
       if (im) vinculoNome = im.titulo || im.endereco || im.codigo || '';

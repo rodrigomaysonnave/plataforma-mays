@@ -28,6 +28,42 @@
                         ['encerrado','Encerrado','autorizado']];
 
   // ── Proprietários ───────────────────────────────────────────────────
+  // Abrir um proprietário não mostrava os imóveis dele. O vínculo sempre
+  // existiu (`imovel.proprietario_id`), mas só era navegável no sentido
+  // contrário: do imóvel se chegava ao dono, do dono não se chegava a
+  // imóvel nenhum sem voltar à lista de imóveis e procurar pelo nome.
+  //
+  // Rascunho entra na lista. É imóvel dele do mesmo jeito, e esconder o
+  // que ainda está sendo cadastrado é justamente perder de vista o que
+  // falta terminar.
+  const STATUS_IMOVEL = { disponivel: 'Disponível', reservado: 'Reservado',
+                          vendido: 'Vendido', alugado: 'Alugado', suspenso: 'Suspenso' };
+
+  async function imoveisDoProprietario(proprietarioId) {
+    const linhas = await db(supabaseClient.from('imovel')
+      .select('id,codigo,titulo,endereco,numero,bairro_id,valor,status,rascunho')
+      .eq('proprietario_id', proprietarioId)
+      .order('codigo'), 'carregar imóveis do proprietário');
+
+    const bairros = await Crud.listaApoio('bairro');
+    const nomeBairro = id => (bairros.find(b => b.id === id) || {}).nome;
+
+    return (linhas || []).map(im => {
+      const endereco = [im.endereco, im.numero].filter(Boolean).join(', ');
+      const sub = [endereco || null, nomeBairro(im.bairro_id) || null,
+                   im.valor ? Crud.brl(im.valor) : null].filter(Boolean).join(' · ');
+      return {
+        id: im.id,
+        rotulo: im.codigo || null,
+        titulo: im.titulo || endereco || 'Sem título',
+        sub: sub || null,
+        selo: im.rascunho ? 'rascunho' : (STATUS_IMOVEL[im.status] || im.status),
+        seloTipo: im.rascunho ? 'restrito'
+                : im.status === 'disponivel' ? 'autorizado' : 'vitrine',
+      };
+    });
+  }
+
   Crud.criar({
     nome: 'proprietarios', titulo: 'Proprietários',
     tabela: 'proprietario', singular: 'proprietário', plural: 'proprietários',
@@ -37,6 +73,13 @@
     ordem: { campo: 'nome', asc: true },
     obrigatorios: ['nome'],
     padrao: { ativo: true },
+    vinculos: {
+      titulo: 'Imóveis deste proprietário',
+      descricao: 'Clique para abrir a ficha do imóvel.',
+      vazio: 'Nenhum imóvel cadastrado no nome dele ainda.',
+      modulo: 'imoveis',
+      carregar: imoveisDoProprietario,
+    },
     colunas: [
       { campo: 'nome', rotulo: 'Nome' },
       { campo: 'telefone', rotulo: 'Telefone' },
