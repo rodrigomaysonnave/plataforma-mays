@@ -116,8 +116,7 @@
     const atendidos = porEtapa(leads.filter(l => l.atendido));
 
     const linha = l => `
-      <tr class="cad-linha${l.classificacao ? ' lead-linha-etapa' : ''}" data-id="${l.id}"
-          ${l.classificacao ? `style="--c:${COR_ETAPA[l.classificacao]}"` : ''}>
+      <tr class="cad-linha" data-id="${l.id}">
         <td class="lead-marca">
           <input type="checkbox" class="lead-check" value="${l.id}"
                  aria-label="Selecionar o lead de ${esc(l.nome)}"></td>
