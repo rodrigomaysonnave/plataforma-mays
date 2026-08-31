@@ -1416,9 +1416,9 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
    ainda é texto e não semáforo, e a faixa da esquerda é que dá a leitura de
    longe. Vai na primeira célula, não na `tr`: com `border-collapse: collapse`
    a sombra na linha não desenha em todo navegador. */
-.lead-linha-etapa { background: color-mix(in srgb, var(--c) 7%, transparent); }
-.lead-linha-etapa:hover { background: color-mix(in srgb, var(--c) 15%, transparent); }
-.lead-linha-etapa > td:first-child { box-shadow: inset 3px 0 0 var(--c); }
+.lead-linha-etapa { background: color-mix(in srgb, var(--c) 26%, transparent); }
+.lead-linha-etapa:hover { background: color-mix(in srgb, var(--c) 38%, transparent); }
+.lead-linha-etapa > td:first-child { box-shadow: inset 6px 0 0 var(--c); }
 
 .lead-etapa-selo {
   display: inline-block; padding: 2px 9px; border-radius: 20px;
