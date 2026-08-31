@@ -1416,29 +1416,22 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
    ainda é texto e não semáforo, e a faixa da esquerda é que dá a leitura de
    longe. Vai na primeira célula, não na `tr`: com `border-collapse: collapse`
    a sombra na linha não desenha em todo navegador. */
-/* A cor mistura com a SUPERFÍCIE, não com transparente. Translúcida, ela
-   deixava passar o degradê que o container da tabela desenha por baixo, e a
-   mesma etapa aparecia mais clara no topo e mais escura embaixo: a lista
-   inteira ficava esfumaçada. Opaca, verde é verde em qualquer posição. */
-.lead-linha-etapa { background: color-mix(in srgb, var(--c) 45%, var(--superficie)); }
-.lead-linha-etapa:hover { background: color-mix(in srgb, var(--c) 58%, var(--superficie)); }
-
-/* Cada célula vira uma peça em relevo, com o mesmo vocabulário do resto do
-   sistema: verniz por cima (a luz vem de cima), fio de luz na borda superior
-   e sombra na inferior. Vai no `td` e não na `tr` porque a tabela é
-   `border-collapse: collapse`, e nela a sombra da linha não desenha em todo
-   navegador. O fio claro na esquerda e o vinco escuro na direita separam
-   coluna de coluna, senão a linha inteira lê como uma barra só. */
-.lead-secao .cad-tabela tbody td {
-  background-image: var(--verniz);
-  box-shadow: var(--bisel), inset 1px 0 0 rgba(255,255,255,.05), inset -1px 0 0 rgba(0,0,0,.4);
-}
+/* A cor da etapa vive na TIRA da esquerda, não na linha inteira. Pintar a
+   linha toda funcionava para uma etapa e virava carnaval com seis: seis cores
+   fortes empilhadas competem entre si e a lista para de ser lida. Concentrada
+   numa tira sólida, a mesma informação chega de longe e o resto da linha
+   continua sendo texto. O fundo segue neutro, como no resto do sistema. */
+.lead-linha-etapa { background: var(--superficie); }
+.lead-linha-etapa:hover { background: var(--superficie-2); }
 
 /* A primeira célula carrega a tarja da etapa, então acumula: tarja primeiro,
    relevo depois. Sem repetir o bisel aqui a linha da etapa perderia o relevo,
    porque `box-shadow` não soma entre regras, substitui. */
 .lead-linha-etapa > td:first-child {
-  box-shadow: inset 7px 0 0 var(--c), var(--bisel), inset -1px 0 0 rgba(0,0,0,.4);
+  box-shadow:
+    inset 11px 0 0 var(--c),                /* a tira */
+    inset 12px 0 0 rgba(0,0,0,.55),         /* vinco que fecha a tira e a define */
+    var(--bisel), inset -1px 0 0 rgba(0,0,0,.4);
 }
 
 /* Texto em cima de cor forte precisa de mais peso e de uma sombra curta, que
