@@ -49,11 +49,24 @@
     sem_interesse: 'Sem interesse',
   };
   const COR_ETAPA = {
-    atendendo:     'var(--ouro, #c9a84c)',
+    atendendo:     'var(--dourado, #c9a84c)',
     interesse:     'var(--verde, #4caf7d)',
     sem_perfil:    'var(--texto-fraco, #8b8b8b)',
     sem_interesse: 'var(--vermelho, #d15b5b)',
   };
+
+  // A fila não é cronológica, é por chance de virar negócio: interessado
+  // primeiro, quem está em atendimento no meio, e os dois desfechos ruins no
+  // fim, onde não roubam a atenção de quem ainda vale trabalho. Lead atendido
+  // e ainda sem etapa fica entre o meio e o fim: não é promessa nem descarte.
+  const ORDEM_ETAPA = {
+    interesse: 0, atendendo: 1, sem_perfil: 3, sem_interesse: 4,
+  };
+  const postoNaFila = l => (l.classificacao ? ORDEM_ETAPA[l.classificacao] ?? 2 : 2);
+
+  // Dentro da mesma etapa vale o mais recente primeiro, que é a ordem que o
+  // banco já devolve. `sort` do JS é estável, então basta ordenar pelo posto.
+  const porEtapa = itens => [...itens].sort((a, b) => postoNaFila(a) - postoNaFila(b));
 
   let alvoEl = null;
   let leads = [], imoveisPorId = new Map(), corretores = [];
@@ -90,11 +103,12 @@
     imoveisPorId = new Map(imoveis.map(i => [i.id, i]));
     corretores = equipe;
 
-    const pendentes = leads.filter(l => !l.atendido);
-    const atendidos = leads.filter(l => l.atendido);
+    const pendentes = porEtapa(leads.filter(l => !l.atendido));
+    const atendidos = porEtapa(leads.filter(l => l.atendido));
 
     const linha = l => `
-      <tr class="cad-linha" data-id="${l.id}">
+      <tr class="cad-linha${l.classificacao ? ' lead-linha-etapa' : ''}" data-id="${l.id}"
+          ${l.classificacao ? `style="--c:${COR_ETAPA[l.classificacao]}"` : ''}>
         <td class="lead-marca">
           <input type="checkbox" class="lead-check" value="${l.id}"
                  aria-label="Selecionar o lead de ${esc(l.nome)}"></td>

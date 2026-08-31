@@ -28,7 +28,7 @@
   'use strict';
 
   // Sobe junto com a tag. Ver o cabeçalho acima pra regra de quando muda.
-  const VERSAO = '1.20.0';
+  const VERSAO = '1.20.1';
 
   const doisDigitos = n => String(n).padStart(2, '0');
 

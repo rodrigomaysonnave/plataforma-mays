@@ -1410,6 +1410,16 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 
 /* Selo de etapa na lista. A cor vem do --c da linha, não de uma classe por
    etapa: são quatro etapas e a cor já está definida em JS junto do rótulo. */
+/* A linha inteira toma a cor da etapa. O selo continua dizendo o nome, porque
+   cor sozinha não é rótulo: quem não decorou a legenda, e quem não distingue
+   verde de vermelho, precisa do texto. A tinta é fraca de propósito, a linha
+   ainda é texto e não semáforo, e a faixa da esquerda é que dá a leitura de
+   longe. Vai na primeira célula, não na `tr`: com `border-collapse: collapse`
+   a sombra na linha não desenha em todo navegador. */
+.lead-linha-etapa { background: color-mix(in srgb, var(--c) 7%, transparent); }
+.lead-linha-etapa:hover { background: color-mix(in srgb, var(--c) 15%, transparent); }
+.lead-linha-etapa > td:first-child { box-shadow: inset 3px 0 0 var(--c); }
+
 .lead-etapa-selo {
   display: inline-block; padding: 2px 9px; border-radius: 20px;
   font-size: 11px; font-weight: 600; white-space: nowrap;
