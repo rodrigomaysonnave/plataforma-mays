@@ -50,14 +50,18 @@
     sem_perfil:    'Sem perfil',
     sem_interesse: 'Sem interesse',
   };
+  // Cores cheias e vivas, não as do tema: aqui elas são sinal, não decoração,
+  // e precisam se separar umas das outras a um metro de distância. Todas são
+  // claras o bastante para o texto escuro do selo se apoiar em cima.
   const COR_ETAPA = {
-    atendendo:     'var(--dourado, #c9a84c)',
-    // Laranja é o que a campanha já usa para "Não atendeu". Mesma ideia,
-    // mesma cor: quem anda nos dois módulos não precisa reaprender.
-    nao_respondeu: '#ff9100',
-    interesse:     'var(--verde, #4caf7d)',
-    sem_perfil:    'var(--texto-fraco, #8b8b8b)',
-    sem_interesse: 'var(--vermelho, #d15b5b)',
+    interesse:     '#2fd07a',   // verde
+    atendendo:     '#ffd21e',   // amarelo
+    nao_respondeu: '#ff9100',   // laranja, a mesma da campanha em "Não atendeu"
+    sem_perfil:    '#ff3b30',   // vermelho
+    // Sem interesse fica no mesmo campo do vermelho, mais fechado. São os dois
+    // fins de linha, vizinhos no fim da lista, e quem separa um do outro é o
+    // nome escrito no selo.
+    sem_interesse: '#e0574f',
   };
 
   // A fila não é cronológica, é por chance de virar negócio: interessado
