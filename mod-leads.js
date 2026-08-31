@@ -39,17 +39,22 @@
   'use strict';
   const { db, esc, avisar } = Plataforma;
 
-  // Menos etapas que a campanha de propósito: quem preencheu o formulário
-  // do site já se contatou sozinho, então "Contatado" e "Não atendeu" não
-  // querem dizer nada aqui.
+  // Menos etapas que a campanha de propósito: quem preencheu o formulário do
+  // site já se contatou sozinho, então "Contatado" não quer dizer nada aqui.
+  // "Não respondeu" quer: é o lead que a gente procurou e que sumiu, coisa
+  // diferente de nunca ter sido trabalhado e diferente de ter dito não.
   const ETAPAS = {
     atendendo:     'Atendendo',
+    nao_respondeu: 'Não respondeu',
     interesse:     'Interessado',
     sem_perfil:    'Sem perfil',
     sem_interesse: 'Sem interesse',
   };
   const COR_ETAPA = {
     atendendo:     'var(--dourado, #c9a84c)',
+    // Laranja é o que a campanha já usa para "Não atendeu". Mesma ideia,
+    // mesma cor: quem anda nos dois módulos não precisa reaprender.
+    nao_respondeu: '#ff9100',
     interesse:     'var(--verde, #4caf7d)',
     sem_perfil:    'var(--texto-fraco, #8b8b8b)',
     sem_interesse: 'var(--vermelho, #d15b5b)',
@@ -60,9 +65,9 @@
   // fim, onde não roubam a atenção de quem ainda vale trabalho. Lead atendido
   // e ainda sem etapa fica entre o meio e o fim: não é promessa nem descarte.
   const ORDEM_ETAPA = {
-    interesse: 0, atendendo: 1, sem_perfil: 3, sem_interesse: 4,
+    interesse: 0, atendendo: 1, nao_respondeu: 2, sem_perfil: 4, sem_interesse: 5,
   };
-  const postoNaFila = l => (l.classificacao ? ORDEM_ETAPA[l.classificacao] ?? 2 : 2);
+  const postoNaFila = l => (l.classificacao ? ORDEM_ETAPA[l.classificacao] ?? 3 : 3);
 
   // Dentro da mesma etapa vale o mais recente primeiro, que é a ordem que o
   // banco já devolve. `sort` do JS é estável, então basta ordenar pelo posto.
@@ -344,9 +349,29 @@
 
     document.getElementById('leadAtenderBtn').addEventListener('click', async () => {
       const atender = !l.atendido;
-      await db(supabaseClient.from('lead_site').update({ atendido: atender }).eq('id', id),
-               atender ? 'marcar atendido' : 'reabrir');
-      avisar(atender ? 'Marcado como atendido.' : 'Reaberto.');
+      // Marcar atendido sem dizer em que pé está deixava o lead no limbo: fora
+      // da fila do sino e sem etapa nenhuma na lista. Quem atende está
+      // atendendo, então a etapa entra junto. Só quando ainda não há etapa:
+      // um lead já marcado Interessado não pode ser rebaixado por um clique
+      // em "atendido".
+      const marcarEtapa = atender && !l.classificacao;
+      const agora = new Date().toISOString();
+      await db(supabaseClient.from('lead_site').update({
+        atendido: atender,
+        ...(marcarEtapa ? { classificacao: 'atendendo', classificado_em: agora } : {}),
+      }).eq('id', id), atender ? 'marcar atendido' : 'reabrir');
+
+      if (marcarEtapa) {
+        l.classificacao = 'atendendo';
+        l.classificado_em = agora;
+        l.atendido = true;
+        await gravarAnotacao(l, {
+          em: agora, etapa: 'atendendo', texto: `Etapa: ${ETAPAS.atendendo}`, automatico: true,
+        });
+      }
+      avisar(atender
+        ? (marcarEtapa ? 'Marcado como atendido, na etapa Atendendo.' : 'Marcado como atendido.')
+        : 'Reaberto.');
       fecharFicha();
       await montar(alvoEl);
       if (Plataforma.atualizarSino) Plataforma.atualizarSino();
