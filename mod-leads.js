@@ -105,7 +105,8 @@
     const [dadosLeads, imoveis, equipe] = await Promise.all([
       db(supabaseClient.from('lead_site').select('*').is('excluido_em', null)
         .order('created_at', { ascending: false }), 'carregar leads do site'),
-      db(supabaseClient.from('imovel').select('id,titulo,codigo'), 'carregar imóveis'),
+      // `endereco` vem junto para o botão Agendar já preencher o local do encontro.
+      db(supabaseClient.from('imovel').select('id,titulo,codigo,endereco'), 'carregar imóveis'),
       db(supabaseClient.from('perfil').select('id,nome').eq('ativo', true).order('nome'), 'carregar equipe'),
     ]);
     leads = dadosLeads;
@@ -308,6 +309,8 @@
         <div class="cp-anot-btns" style="margin-top:18px">
           <button class="btn btn-primario" id="leadAtenderBtn">${l.atendido ? 'Reabrir' : 'Marcar atendido'}</button>
           <a class="btn btn-mini" href="https://wa.me/${esc(waNumero(l.telefone))}" target="_blank" rel="noopener">Abrir WhatsApp</a>
+          <button class="btn btn-mini" id="leadAgendarBtn"
+                  title="Marca visita ou reunião com este lead e manda para o seu Google">Agendar</button>
           <button class="btn btn-mini btn-remover" id="leadExcluirBtn"
                   title="Apaga o lead de vez. Serve para teste e para engano.">Excluir</button>
           <button class="btn btn-mini" id="leadFecharBtn">Fechar</button>
@@ -345,6 +348,32 @@
       await gravarAnotacao(l, { em: new Date().toISOString(), etapa: l.classificacao || null, texto: t });
       document.getElementById('leadNovaAnot').value = '';
       desenharHistorico(l);
+    });
+
+    // Agendar sai da ficha do lead porque é aqui que o "sim, pode marcar"
+    // acontece. O contato da carteira nasce na hora se ainda não existir, e
+    // o agendamento volta como anotação no histórico deste lead.
+    document.getElementById('leadAgendarBtn').addEventListener('click', () => {
+      const im = l.imovel_id ? imoveisPorId.get(l.imovel_id) : null;
+      Plataforma.agendar({
+        titulo: im ? `Visita: ${im.titulo || im.codigo}` : `Visita com ${l.nome}`,
+        tipo: 'visita',
+        local: im ? (im.endereco || '') : '',
+        contato_id: l.contato_id || null,
+        imovel_id: l.imovel_id || null,
+        origem: {
+          tabela: 'lead_site', id: l.id,
+          nome: l.nome, telefone: l.telefone, email: l.email,
+          obs: `Veio do formulário do site (${origemDe(l)})`,
+        },
+        async aoSalvar(c) {
+          await gravarAnotacao(l, {
+            em: new Date().toISOString(), etapa: l.classificacao || null,
+            texto: Plataforma.fraseDoAgendamento(c), automatico: true,
+          });
+          desenharHistorico(l);
+        },
+      });
     });
 
     document.getElementById('leadExcluirBtn').addEventListener('click', () =>

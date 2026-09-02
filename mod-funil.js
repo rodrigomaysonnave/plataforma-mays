@@ -155,6 +155,7 @@
         </div>
         <div class="secao-acoes">
           ${id === 'novo' ? '' : '<button class="btn btn-remover" id="negExcluir">Excluir</button>'}
+          ${id === 'novo' ? '' : '<button class="btn" id="negAgendar" title="Marca visita ou reunião deste negócio e manda para o seu Google">Agendar</button>'}
           <button class="btn" id="negVoltar">Voltar ao funil</button>
           <button class="btn btn-primario" id="negSalvar">Salvar</button>
         </div>
@@ -277,6 +278,35 @@
       avisar('Negócio salvo.');
       await desenhar();
     });
+    // Agendar a partir do negócio: aqui o cliente já existe na carteira, então
+    // não há contato para criar. O imóvel vem do que está SELECIONADO na tela,
+    // e não do que está salvo: quem acabou de trocar o imóvel e vai marcar a
+    // visita está falando do novo, mesmo sem ter clicado em Salvar ainda.
+    const ag = document.getElementById('negAgendar');
+    if (ag) ag.addEventListener('click', async () => {
+      const nomeDigitado = document.getElementById('negContatoBusca').value.trim();
+      const achado = contatos.find(c => c.nome.trim().toLowerCase() === nomeDigitado.toLowerCase());
+      const contatoId = achado ? achado.id : n.contato_id;
+      if (!contatoId) { avisar('Escolha o cliente antes de agendar.'); return; }
+
+      const imovelId = document.getElementById('negImovel').value || null;
+      const [cli] = await db(supabaseClient.from('contato')
+        .select('nome,telefone,email').eq('id', contatoId).limit(1), 'carregar o cliente');
+      const im = imovelId ? (await db(supabaseClient.from('imovel')
+        .select('codigo,titulo,endereco').eq('id', imovelId).limit(1), 'carregar o imóvel'))[0] : null;
+
+      Plataforma.agendar({
+        titulo: im ? `Visita: ${im.titulo || im.codigo}` : `Visita com ${(cli || {}).nome || 'cliente'}`,
+        tipo: 'visita',
+        local: im ? (im.endereco || '') : '',
+        contato_id: contatoId,
+        imovel_id: imovelId,
+        negocio_id: id,
+        nome: (cli || {}).nome || null,
+        email: (cli || {}).email || null,
+      });
+    });
+
     const ex = document.getElementById('negExcluir');
     if (ex) ex.addEventListener('click', async () => {
       if (!confirm('Excluir este negócio?')) return;

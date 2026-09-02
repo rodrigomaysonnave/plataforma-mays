@@ -901,6 +901,8 @@
         ${aberta.contexto_agente && !SEM_AGENTE.includes(lead.classificacao)
           ? '<button class="btn btn-mini" id="cpSugerir">Sugerir mensagem</button>' : ''}
         ${lead.email ? '<button class="btn btn-mini" data-email>E-mail</button>' : ''}
+        <button class="btn btn-mini" data-agendar
+                title="Marca visita ou reunião com este lead e manda para o seu Google">Agendar</button>
         <button class="btn btn-mini btn-remover" data-excluir-lead title="Apaga este lead da campanha, com anotações e histórico">Excluir</button>
       </div>
       <div id="cpSugestao"></div>
@@ -924,6 +926,8 @@
       b.addEventListener('click', () => enviarWhats(lead.id, b.dataset.whats)));
     const em = painel.querySelector('[data-email]');
     if (em) em.addEventListener('click', () => enviarEmail(lead.id));
+    const ag = painel.querySelector('[data-agendar]');
+    if (ag) ag.addEventListener('click', () => agendarLead(lead));
     const exc = painel.querySelector('[data-excluir-lead]');
     if (exc) exc.addEventListener('click', () => excluirLead(lead.id));
     const lp = painel.querySelector('[data-enviar-lp]');
@@ -968,6 +972,31 @@
     const json = JSON.stringify(arr);
     await db(supabaseClient.from('campanha_lead').update({ anotacoes: json }).eq('id', lead.id), 'salvar anotação');
     lead.anotacoes = json;
+  }
+
+  // Agendar direto da fila de telemarketing. O lead da campanha vira cliente
+  // da carteira na hora (o compromisso aponta para `contato`, não para lead),
+  // e o imóvel da campanha já entra preenchido: numa campanha de um prédio
+  // só, é sempre ele que vai ser visitado.
+  function agendarLead(lead) {
+    Plataforma.agendar({
+      titulo: aberta.vinculoNome ? `Visita: ${aberta.vinculoNome}` : `Visita com ${lead.nome}`,
+      tipo: 'visita',
+      imovel_id: aberta.imovel_id || null,
+      contato_id: lead.contato_id || null,
+      origem: {
+        tabela: 'campanha_lead', id: lead.id,
+        nome: lead.nome, telefone: lead.telefone, email: lead.email,
+        obs: `Veio da campanha ${aberta.nome}`,
+      },
+      async aoSalvar(c) {
+        await gravarAnotacao(lead, {
+          em: new Date().toISOString(), etapa: lead.classificacao || null,
+          texto: Plataforma.fraseDoAgendamento(c), automatico: true,
+        });
+        renderDetalhe();
+      },
+    });
   }
 
   const gravarAnotacao = (lead, entrada) => salvarAnotacoes(lead, [...anotacoesDe(lead), entrada]);

@@ -89,11 +89,13 @@
 
       ${tabela('Sem responsável', 'Lead que entrou e ninguém assumiu. É aqui que atendimento se perde.',
         semResponsavel, 'Todo mundo tem responsável.',
-        '<button class="btn btn-mini btn-primario" data-acao="assumir">Assumir</button>')}
+        '<button class="btn btn-mini btn-primario" data-acao="assumir">Assumir</button>' +
+        '<button class="btn btn-mini" data-acao="agendar">Agendar</button>')}
 
       ${tabela('Sem negócio aberto', 'Tem responsável, mas nada no funil. Ou vira negócio, ou vira motivo de perda.',
         semNegocio, 'Todos os clientes têm negócio.',
         '<button class="btn btn-mini" data-acao="negocio">Abrir negócio</button>' +
+        '<button class="btn btn-mini" data-acao="agendar">Agendar</button>' +
         '<button class="btn btn-mini" data-acao="conversa">Registrar</button>')}
 
       <section class="ficha-secao">
@@ -127,6 +129,27 @@
           }), 'abrir o negócio');
           avisar(`Negócio aberto na etapa "${(etapas[0] || {}).nome}". Está no funil.`);
           return montar(alvoEl);
+        }
+        // O compromisso vira interação sozinho: a fila de "últimas conversas"
+        // desta tela é o histórico do cliente, e visita marcada é o passo mais
+        // importante que pode ter acontecido no atendimento de hoje.
+        if (acao === 'agendar') {
+          const c = contatos.find(x => x.id === id) || {};
+          Plataforma.agendar({
+            titulo: `Visita com ${c.nome || 'cliente'}`,
+            tipo: 'visita',
+            contato_id: id,
+            nome: c.nome || null,
+            email: c.email || null,
+            async aoSalvar(comp) {
+              await db(supabaseClient.from('interacao').insert({
+                contato_id: id, canal: 'outro', imovel_id: comp.imovel_id || null,
+                resumo: Plataforma.fraseDoAgendamento(comp), quem: Plataforma.perfil.id,
+              }), 'registrar o agendamento');
+              await montar(alvoEl);
+            },
+          });
+          return;
         }
         if (acao === 'conversa') formularioConversa(id, contatos);
       });

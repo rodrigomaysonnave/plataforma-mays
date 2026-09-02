@@ -33,6 +33,12 @@
   const SITUACOES = [['marcado', 'Marcado', 'autorizado'], ['realizado', 'Realizado', 'vitrine'],
                      ['cancelado', 'Cancelado', 'restrito'], ['remarcado', 'Remarcado', 'mural']];
 
+  // Mesma lista da janela de agendar (agendar.js). Sem lembrete é string
+  // vazia no <select> e NULL no banco, que é diferente de zero minutos.
+  const LEMBRETES = [['10', '10 minutos antes'], ['30', '30 minutos antes'],
+                     ['60', '1 hora antes'], ['120', '2 horas antes'],
+                     ['1440', '1 dia antes'], ['', 'Sem lembrete']];
+
   const rotulo = (lista, v) => (lista.find(x => x[0] === v) || [, v || '—'])[1];
   const selo = v => (SITUACOES.find(x => x[0] === v) || [, , 'restrito'])[2];
 
@@ -453,6 +459,12 @@
           <div class="campo"><label for="agFim">Fim</label>
             <input type="datetime-local" id="agFim" value="${paraCampo(c.fim)}">
             <p class="campo-dica">Em branco vira uma hora.</p></div>
+          <div class="campo"><label for="agLembrete">Lembrete</label>
+            <select id="agLembrete">${LEMBRETES.map(l =>
+              `<option value="${l[0]}"${
+                l[0] === (c.lembrete_min == null ? (novo ? '60' : '') : String(c.lembrete_min))
+                  ? ' selected' : ''}>${l[1]}</option>`).join('')}</select>
+            <p class="campo-dica">Toca no seu Google.</p></div>
           <div class="campo campo-largo"><label for="agLocal">Local</label>
             <input type="text" id="agLocal" value="${esc(c.local ?? '')}"></div>
           <div class="campo"><label for="agContato">Cliente</label>
@@ -487,6 +499,7 @@
         local: v('agLocal') || null,
         contato_id: v('agContato') || null, imovel_id: v('agImovel') || null,
         obs: v('agObs') || null, feedback: v('agFeedback') || null,
+        lembrete_min: v('agLembrete') === '' ? null : Number(v('agLembrete')),
         corretor_id: (Plataforma.perfil || {}).id || null,
       };
 

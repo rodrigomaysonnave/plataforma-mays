@@ -1019,6 +1019,17 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 .cp-modal-caixa h3 { margin: 0 0 6px; font-size: 17px; }
 .cp-modal-caixa .cp-checks { margin-top: 12px; }
 
+/* ── Janela de agendar, chamada das fichas de lead e do funil ──────── */
+/* Mais larga que a caixa padrão porque tem grade de dois campos por linha,
+   e com rolagem própria: em tela de notebook o formulário inteiro não cabe
+   na altura, e sem isto o botão Agendar fica fora do alcance. */
+.ag-modal-caixa {
+  width: min(100%, 560px); max-height: 88vh; overflow-y: auto;
+}
+/* A grade já vem com recuo pensado para a ficha de página inteira. Dentro
+   do modal ele soma com o da caixa e afasta os campos da borda. */
+.ag-modal-grade { padding: 0; }
+
 
 /* ── Alça de arrastar nas listas das Configurações ─────────────────── */
 /* Mesma alça do módulo Site, mesma mecânica (arrastar.js). A ordem daqui é a
