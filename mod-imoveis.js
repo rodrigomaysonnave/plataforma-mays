@@ -345,6 +345,10 @@
             '<div class="fotos" id="fotosImovel" style="grid-column:1/-1"></div>')}
 
       ${secao('Anúncio', 'O que aparece no site. Diferente das notas internas, que ninguém de fora vê.',
+        campo('', `<button class="btn btn-mini" id="imGerarIA">✨ Gerar com IA</button>
+          <p class="campo-dica">Escreve título, descrição e o SEO (próxima seção) juntos, a partir
+            dos dados já preenchidos acima. Mostra um rascunho pra revisar antes de usar.</p>
+          <div id="imTextoIA"></div>`, true) +
         campo('Título', txt('fTitulo', im.titulo, 'Ex: Apartamento 3 dormitórios no Centro'), true) +
         campo('Selo', txt('fSelo', im.selo, 'Ex: Vista para o mar, Abaixo do preço')) +
         campo('Descrição pública', `<textarea id="fDescricao" rows="5" placeholder="Texto do anúncio">${esc(im.descricao_publica ?? '')}</textarea>`, true)
@@ -447,6 +451,86 @@
      'fAreaUtil','fAreaTotal','fValor','fMetaTitulo','fMetaDescricao','fSlug']
       .forEach(i => document.getElementById(i).addEventListener('input', atualizarPrevia));
     atualizarPrevia();
+
+    // ── Gerar com IA (anúncio + SEO, numa chamada só) ──────────────────
+    // Mesmo padrão da "Sugestão do agente" em Campanhas: escreve, mostra um
+    // rascunho pra revisar, e só entra nos campos quando o usuário confirmar
+    // — nada substitui o que já estava escrito sem essa confirmação.
+    function dadosParaIA() {
+      const nomeDe = (lista, id) => (lista.find(x => x.id === id) || {}).nome || null;
+      const g = i => document.getElementById(i).value;
+      return {
+        tipo: nomeDe(apoio.tipos, g('fTipo')),
+        subtipo: nomeDe(apoio.subtipos, g('fSubtipo')),
+        finalidade: rotulo(FINALIDADES, g('fFinalidade')),
+        situacao: g('fSituacao') ? rotulo(SITUACOES, g('fSituacao')) : null,
+        bairro: nomeDe(apoio.bairros, g('fBairro')),
+        cidade: nomeDe(apoio.cidades, g('fCidade')),
+        dormitorios: num(g('fDormitorios')),
+        suites: num(g('fSuites')),
+        vagas: num(g('fVagas')),
+        areaUtil: num(g('fAreaUtil')),
+        areaTotal: num(g('fAreaTotal')),
+        valor: num(g('fValor')),
+        selo: g('fSelo').trim() || null,
+        caracteristicas: [...document.querySelectorAll('#fCaracteristicas input:checked')]
+          .map(i => (apoio.caracts.find(c => c.id === i.value) || {}).nome).filter(Boolean),
+      };
+    }
+
+    document.getElementById('imGerarIA').addEventListener('click', async () => {
+      const botao = document.getElementById('imGerarIA');
+      const caixa = document.getElementById('imTextoIA');
+      const dados = dadosParaIA();
+      if (!dados.tipo || !dados.finalidade || !dados.cidade) {
+        avisar('Preencha ao menos Tipo, Finalidade e Cidade antes de gerar com IA.');
+        return;
+      }
+      botao.disabled = true;
+      caixa.innerHTML = '<div class="cp-sugestao cp-sugestao-espera">A IA está escrevendo…</div>';
+
+      const { data, error } = await supabaseClient.functions.invoke('gerar-texto-imovel', { body: dados });
+      botao.disabled = false;
+
+      let motivo = (error && error.message) || (data && data.error);
+      if (error && error.context && typeof error.context.json === 'function') {
+        try { const corpo = await error.context.json(); if (corpo && corpo.error) motivo = corpo.error; } catch (e) {}
+      }
+      if (motivo || !(data && data.titulo)) {
+        caixa.innerHTML = `<div class="cp-sugestao cp-sugestao-erro">
+          Não consegui gerar: ${esc(motivo || 'resposta vazia')}.
+          ${/not found|404|Failed to send/i.test(motivo || '')
+            ? 'A função "gerar-texto-imovel" ainda não foi publicada neste projeto.' : ''}</div>`;
+        return;
+      }
+
+      caixa.innerHTML = `
+        <div class="cp-sugestao">
+          <div class="cp-sugestao-rot">Rascunho da IA. Revise antes de usar.</div>
+          <label class="campo-dica">Título</label>
+          <input type="text" id="iaTitulo" value="${esc(data.titulo)}">
+          <label class="campo-dica">Descrição pública</label>
+          <textarea id="iaDescricao" rows="4">${esc(data.descricao)}</textarea>
+          <label class="campo-dica">Título na busca</label>
+          <input type="text" id="iaMetaTitulo" value="${esc(data.metaTitulo)}">
+          <label class="campo-dica">Resumo na busca</label>
+          <textarea id="iaMetaDescricao" rows="3">${esc(data.metaDescricao)}</textarea>
+          <div class="cp-anot-btns" style="margin-top:8px">
+            <button class="btn btn-mini btn-primario" id="iaUsar">Usar</button>
+            <button class="btn btn-mini" id="iaDescartar">Descartar</button>
+          </div>
+        </div>`;
+
+      document.getElementById('iaDescartar').addEventListener('click', () => { caixa.innerHTML = ''; });
+      document.getElementById('iaUsar').addEventListener('click', () => {
+        document.getElementById('fTitulo').value = document.getElementById('iaTitulo').value;
+        document.getElementById('fDescricao').value = document.getElementById('iaDescricao').value;
+        document.getElementById('fMetaTitulo').value = document.getElementById('iaMetaTitulo').value;
+        document.getElementById('fMetaDescricao').value = document.getElementById('iaMetaDescricao').value;
+        caixa.innerHTML = '';
+        atualizarPrevia();
+      });
+    });
 
     Fotos.montar(document.getElementById('fotosImovel'),
                  { tabela: 'imovel_foto', coluna: 'imovel_id', id, pasta: 'imoveis' });

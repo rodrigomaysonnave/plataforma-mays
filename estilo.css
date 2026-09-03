@@ -972,6 +972,10 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 .cp-sugestao textarea { width: 100%; margin: 8px 0; }
 .cp-sugestao-rot { font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
                    color: var(--dourado); font-weight: 600; }
+/* Rascunho de vários campos (ficha de imóvel: título + descrição + SEO),
+   não só um textarea solto como a sugestão da campanha. */
+.cp-sugestao label.campo-dica { display: block; margin-top: 10px; }
+.cp-sugestao input[type="text"] { width: 100%; margin: 4px 0 0; }
 .cp-sugestao-espera { border-style: dashed; border-color: var(--borda); color: var(--texto-fraco); }
 .cp-sugestao-erro { border-color: var(--vermelho); color: var(--vermelho); }
 
