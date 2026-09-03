@@ -698,9 +698,9 @@
             <button class="cp-aba${vistaCamp === 'leads' ? ' ativo' : ''}" data-vista="leads">Lista</button>
             <button class="cp-aba${vistaCamp === 'crm' ? ' ativo' : ''}" data-vista="crm">Quadro</button>
           </div>
+          <button class="btn" id="cpFechar">Voltar</button>
           <button class="btn" id="cpExportar">Exportar</button>
           <button class="btn" id="cpRelatorio">Relatório</button>
-          <button class="btn" id="cpFechar">Voltar</button>
         </div>
       </div>
 
@@ -777,6 +777,13 @@
       editandoAnotacao = null;
       renderListaLeads();
       renderDetalhe();
+      // No celular a lista e a ficha empilham na mesma coluna, e a lista
+      // sozinha já ocupa a tela quase toda com rolagem própria. Sem isto o
+      // toque no contato muda o estado mas a ficha nasce fora da vista: a
+      // sensação de quem tocou é que nada aconteceu.
+      if (window.innerWidth <= 900) {
+        document.getElementById('cpDetalhe')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }));
   }
 

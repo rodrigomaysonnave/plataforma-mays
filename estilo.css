@@ -1371,7 +1371,7 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   margin: 0; padding: 12px 14px; background: var(--superficie-2);
   border-radius: var(--raio-p); font-size: 14px; line-height: 1.6; white-space: pre-wrap;
 }
-.lead-modal-atribuir { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--borda); }
+.lead-modal-duo { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--borda); }
 .lead-modal-atribuir > b {
   display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
   color: var(--texto-fraco); font-weight: 600; margin-bottom: 8px;
@@ -1382,8 +1382,9 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 /* Etapa, histórico e nova anotação na ficha do lead. O miolo (cp-etapas,
    cp-tempo, cp-anot) é o mesmo da campanha e já está estilizado acima;
    aqui só entram o espaçamento e o rótulo, iguais aos das outras seções
-   da janela. */
-.lead-modal-etapas,
+   da janela. Enviar-para-corretor e Etapa dividem uma borda só
+   (.lead-modal-duo), por isso não repetem a própria. */
+.lead-modal-etapas { margin-top: 18px; }
 .lead-modal-hist,
 .lead-modal-nova-anot { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--borda); }
 .lead-modal-etapas > b,
@@ -1393,6 +1394,16 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   color: var(--texto-fraco); font-weight: 600; margin-bottom: 8px;
 }
 .lead-modal-hist .cp-tempo { max-height: 260px; overflow-y: auto; }
+
+/* Em telas largas o modal ganha largura em vez de altura: os campos e os
+   dois blocos de ação viram colunas lado a lado, o que evita a rolagem
+   longa que uma ficha inteira empilhada numa caixa de 520px sempre teve.
+   Abaixo de 860px (tablet/celular) segue tudo em uma coluna só. */
+@media (min-width: 860px) {
+  .lead-modal-caixa { width: min(92vw, 860px); }
+  .lead-modal-linhas { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; }
+  .lead-modal-duo { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; align-items: start; }
+}
 
 /* Registros vinculados na ficha (imóveis de um proprietário). Botão, não
    link: a navegação é por irPara(), não por href, e botão já vem com

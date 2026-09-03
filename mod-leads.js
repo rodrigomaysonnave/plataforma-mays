@@ -44,11 +44,12 @@
   // "Não respondeu" quer: é o lead que a gente procurou e que sumiu, coisa
   // diferente de nunca ter sido trabalhado e diferente de ter dito não.
   const ETAPAS = {
-    atendendo:     'Atendendo',
-    nao_respondeu: 'Não respondeu',
-    interesse:     'Interessado',
-    sem_perfil:    'Sem perfil',
-    sem_interesse: 'Sem interesse',
+    atendendo:       'Atendendo',
+    nao_respondeu:   'Não respondeu',
+    interesse:       'Interessado',
+    sem_perfil:      'Sem perfil',
+    sem_interesse:   'Sem interesse',
+    numero_invalido: 'Número inválido',
   };
   // Cores cheias e vivas, não as do tema: aqui elas são sinal, não decoração,
   // e precisam se separar umas das outras a um metro de distância. Todas são
@@ -62,6 +63,9 @@
     // fins de linha, vizinhos no fim da lista, e quem separa um do outro é o
     // nome escrito no selo.
     sem_interesse: '#e0574f',
+    // Número inválido não é recusa, é um contato que nunca vai existir — cor
+    // fora da família vermelha de propósito, mesma família da campanha.
+    numero_invalido: '#a1887f',
   };
 
   // A fila não é cronológica, é por chance de virar negócio: interessado
@@ -70,6 +74,7 @@
   // e ainda sem etapa fica entre o meio e o fim: não é promessa nem descarte.
   const ORDEM_ETAPA = {
     interesse: 0, atendendo: 1, nao_respondeu: 2, sem_perfil: 4, sem_interesse: 5,
+    numero_invalido: 6,
   };
   const postoNaFila = l => (l.classificacao ? ORDEM_ETAPA[l.classificacao] ?? 3 : 3);
 
@@ -263,37 +268,41 @@
           <span class="cad-selo ${l.atendido ? 'cad-selo-vitrine' : 'cad-selo-autorizado'}">
             ${l.atendido ? 'atendido' : 'aguardando'}</span>
         </div>
-        <div class="lead-modal-linha"><b>Quando</b><span>${esc(dataHora(l.created_at))}</span></div>
-        <div class="lead-modal-linha"><b>Telefone</b><span><a href="tel:${esc(l.telefone.replace(/\D/g,''))}">${esc(l.telefone)}</a></span></div>
-        ${l.email ? `<div class="lead-modal-linha"><b>E-mail</b><span><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>` : ''}
-        ${linkImovel ? `<div class="lead-modal-linha"><b>Imóvel</b><span>${linkImovel}</span></div>` : ''}
-        <div class="lead-modal-linha"><b>Origem</b><span>${esc(origemDe(l))}</span></div>
+        <div class="lead-modal-linhas">
+          <div class="lead-modal-linha"><b>Quando</b><span>${esc(dataHora(l.created_at))}</span></div>
+          <div class="lead-modal-linha"><b>Telefone</b><span><a href="tel:${esc(l.telefone.replace(/\D/g,''))}">${esc(l.telefone)}</a></span></div>
+          ${l.email ? `<div class="lead-modal-linha"><b>E-mail</b><span><a href="mailto:${esc(l.email)}">${esc(l.email)}</a></span></div>` : ''}
+          ${linkImovel ? `<div class="lead-modal-linha"><b>Imóvel</b><span>${linkImovel}</span></div>` : ''}
+          <div class="lead-modal-linha"><b>Origem</b><span>${esc(origemDe(l))}</span></div>
+        </div>
 
         <div class="lead-modal-msg">
           <b>Mensagem</b>
           <p>${esc(l.mensagem || 'Sem mensagem.')}</p>
         </div>
 
-        <div class="lead-modal-atribuir">
-          <b>Enviar para um corretor</b>
-          <div class="lead-modal-atribuir-linha">
-            <select id="leadCorretorSel">
-              <option value="">No balcão comum, sem atribuir</option>
-              ${corretores.map(c => `<option value="${c.id}" ${c.id === l.corretor_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
-            </select>
-            <button class="btn btn-mini btn-primario" id="leadEnviarBtn">Enviar</button>
+        <div class="lead-modal-duo">
+          <div class="lead-modal-atribuir">
+            <b>Enviar para um corretor</b>
+            <div class="lead-modal-atribuir-linha">
+              <select id="leadCorretorSel">
+                <option value="">No balcão comum, sem atribuir</option>
+                ${corretores.map(c => `<option value="${c.id}" ${c.id === l.corretor_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
+              </select>
+              <button class="btn btn-mini btn-primario" id="leadEnviarBtn">Enviar</button>
+            </div>
+            ${l.corretor_id ? `<p class="campo-dica">Atualmente com ${esc(nomeCorretor(l.corretor_id) || '—')}${l.enviado_em ? ', desde ' + esc(dataHora(l.enviado_em)) : ''}.</p>` : ''}
           </div>
-          ${l.corretor_id ? `<p class="campo-dica">Atualmente com ${esc(nomeCorretor(l.corretor_id) || '—')}${l.enviado_em ? ', desde ' + esc(dataHora(l.enviado_em)) : ''}.</p>` : ''}
-        </div>
 
-        <div class="lead-modal-etapas">
-          <b>Etapa</b>
-          <div class="cp-etapas">${Object.entries(ETAPAS).map(([k, r]) =>
-            `<button class="cp-etapa${l.classificacao === k ? ' ativo' : ''}"
-               style="${l.classificacao === k ? `--c:${COR_ETAPA[k]}` : ''}"
-               data-etapa="${k}">${r}</button>`).join('')}</div>
-          <p class="campo-dica">Interessado abre o negócio no funil sozinho. Clicar na
-            etapa em que já está desmarca.</p>
+          <div class="lead-modal-etapas">
+            <b>Etapa</b>
+            <div class="cp-etapas">${Object.entries(ETAPAS).map(([k, r]) =>
+              `<button class="cp-etapa${l.classificacao === k ? ' ativo' : ''}"
+                 style="${l.classificacao === k ? `--c:${COR_ETAPA[k]}` : ''}"
+                 data-etapa="${k}">${r}</button>`).join('')}</div>
+            <p class="campo-dica">Interessado abre o negócio no funil sozinho. Clicar na
+              etapa em que já está desmarca.</p>
+          </div>
         </div>
 
         <div id="leadHistorico"></div>
