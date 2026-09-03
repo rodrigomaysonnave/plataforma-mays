@@ -245,9 +245,12 @@
   }
 
   // ── Ficha completa, em janela ──────────────────────────────────────
+  const aoTeclarFicha = e => { if (e.key === 'Escape') fecharFicha(); };
+
   function fecharFicha() {
     const m = document.getElementById('leadModal');
     if (m) m.remove();
+    document.removeEventListener('keydown', aoTeclarFicha);
   }
 
   function abrirFicha(id) {
@@ -329,6 +332,7 @@
 
     overlay.addEventListener('click', e => { if (e.target === overlay) fecharFicha(); });
     document.getElementById('leadFecharBtn').addEventListener('click', fecharFicha);
+    document.addEventListener('keydown', aoTeclarFicha);
 
     const abrirImovel = overlay.querySelector('[data-abrir-imovel]');
     if (abrirImovel) abrirImovel.addEventListener('click', e => {
