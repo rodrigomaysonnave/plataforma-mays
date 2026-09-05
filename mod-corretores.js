@@ -129,6 +129,7 @@
           <div class="secao-meta">Quem entra no sistema e com qual papel.</div></div>
         </div>
         <div class="secao-acoes">
+          <button class="btn" id="crCriarDireto" title="Cria já com a senha que você escolher, sem link nem espera">Criar direto</button>
           <button class="btn btn-primario" id="crConvidar">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             Convidar corretor
@@ -163,6 +164,7 @@
       </div>`;
 
     document.getElementById('crConvidar').addEventListener('click', () => montarConvite(alvoEl));
+    document.getElementById('crCriarDireto').addEventListener('click', abrirCriarDireto);
 
     // ── Ações ────────────────────────────────────────────────────────
     alvo.querySelectorAll('[data-aprovar]').forEach(b => b.addEventListener('click', async () => {
@@ -392,6 +394,54 @@
         dados, criado_por: eu.id,
       }).select(), 'gerar o convite');
       if (r && r[0]) await montarConvite(alvoEl, r[0]);
+    });
+  }
+
+  // Caminho curto pro convite: serve quando quem vai usar a conta não é uma
+  // pessoa esperando link por WhatsApp, e sim uma automação/serviço (ex.:
+  // conta de backup) — aí faz sentido o próprio admin já escolher a senha.
+  function abrirCriarDireto() {
+    const overlay = document.createElement('div');
+    overlay.className = 'cp-modal';
+    overlay.id = 'criarDiretoModal';
+    overlay.innerHTML = `
+      <div class="cp-modal-caixa">
+        <h3>Criar usuário direto</h3>
+        <p class="campo-dica">Já entra aprovado, com a senha que você definir agora — sem
+          link, sem espera. Pra pessoa de verdade da equipe, prefira "Convidar corretor".</p>
+        <div class="ficha-grade" style="margin-top:14px">
+          <div class="campo campo-largo"><label for="cdNome">Nome</label>
+            <input type="text" id="cdNome" placeholder="Ex.: Jarvis Backup"></div>
+          <div class="campo campo-largo"><label for="cdEmail">E-mail</label>
+            <input type="email" id="cdEmail" placeholder="nome@exemplo.com"></div>
+          <div class="campo"><label for="cdSenha">Senha</label>
+            <input type="text" id="cdSenha" placeholder="pelo menos 6 caracteres"></div>
+          <div class="campo"><label for="cdPapel">Papel</label>
+            <select id="cdPapel">${PAPEIS.map(([v, r]) =>
+              `<option value="${v}"${v === 'corretor' ? ' selected' : ''}>${r}</option>`).join('')}</select></div>
+        </div>
+        <div class="cp-anot-btns" style="margin-top:18px">
+          <button class="btn btn-primario" id="cdCriar">Criar</button>
+          <button class="btn btn-mini" id="cdCancelar">Cancelar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('cdCancelar').addEventListener('click', () => overlay.remove());
+    document.getElementById('cdCriar').addEventListener('click', async () => {
+      const nome = document.getElementById('cdNome').value.trim();
+      const email = document.getElementById('cdEmail').value.trim().toLowerCase();
+      const senha = document.getElementById('cdSenha').value;
+      const papel = document.getElementById('cdPapel').value;
+      if (!nome) { avisar('Falta o nome.'); return; }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { avisar('E-mail inválido.'); return; }
+      if (senha.length < 6) { avisar('A senha precisa de pelo menos 6 caracteres.'); return; }
+      try {
+        await chamarAdminUsuarios('criar', { nome, email, senha, papel });
+        avisar(`${nome} criado e já aprovado.`);
+        overlay.remove();
+        await montar(alvoEl, 'equipe');
+      } catch (e) { avisar('Não consegui criar: ' + e.message); }
     });
   }
 
