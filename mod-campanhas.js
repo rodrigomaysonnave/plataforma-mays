@@ -757,7 +757,14 @@
     const q = buscaLead.trim().toLowerCase();
     let visiveis = leads;
     if (etapaFiltro === 'pendente') visiveis = visiveis.filter(l => !l.classificacao);
-    else if (etapaFiltro !== 'todos') visiveis = visiveis.filter(l => l.classificacao === etapaFiltro);
+    else if (etapaFiltro !== 'todos') {
+      visiveis = visiveis.filter(l => l.classificacao === etapaFiltro)
+        // Numa etapa só, o que importa é quem foi mexido por último, não a
+        // ordem alfabética: senão o último contatado se perde no meio da
+        // lista e vira rolagem até achar. Pendente e "todas as etapas"
+        // seguem alfabético, que é o que ajuda a achar alguém pelo nome.
+        .sort((a, b) => new Date(b.classificado_em || 0) - new Date(a.classificado_em || 0));
+    }
     if (q) visiveis = visiveis.filter(l => l.nome.toLowerCase().includes(q) ||
       l.telefone.includes(q) || (l.email || '').toLowerCase().includes(q));
 

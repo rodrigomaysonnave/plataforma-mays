@@ -438,7 +438,10 @@
     l.anotacoes = json;
   }
 
-  const gravarAnotacao = (l, entrada) => salvarAnotacoes(l, [...anotacoesDe(l), entrada]);
+  async function gravarAnotacao(l, entrada) {
+    await salvarAnotacoes(l, [...anotacoesDe(l), entrada]);
+    await espelharNoFunil(l, entrada);
+  }
 
   function desenharHistorico(l) {
     const alvo = document.getElementById('leadHistorico');
@@ -601,6 +604,27 @@
     const etapas = await Crud.listaApoio('etapa_funil');
     if (!etapas.length || meu.etapa_id !== etapas[0].id) return;
     await db(supabaseClient.from('negocio').delete().eq('id', meu.id), 'desfazer negócio');
+  }
+
+  // O negócio nasce com uma fotografia do histórico até aquele instante
+  // (mandarProFunil), mas o atendimento do lead continua depois disso. Sem
+  // este espelho, quem só olha o Funil nunca vê o que aconteceu no lead
+  // depois que o negócio foi aberto — as duas telas iam divergindo. Ainda
+  // não existe negócio na primeira anotação que abre o funil (a etapa
+  // "Interessado" é gravada antes de mandarProFunil rodar): a busca não
+  // acha nada, sai calada, e mandarProFunil já embute essa anotação na
+  // fotografia inicial — sem isso, ela duplicava.
+  async function espelharNoFunil(l, entrada) {
+    if (!l.contato_id) return;
+    const marca = marcaDe(l);
+    const negocios = await db(supabaseClient.from('negocio').select('id,obs')
+      .eq('contato_id', l.contato_id), 'conferir o funil');
+    const meu = (negocios || []).find(n => (n.obs || '').startsWith(marca));
+    if (!meu) return;
+    const etapa = entrada.etapa ? ` [${ETAPAS[entrada.etapa] || entrada.etapa}]` : '';
+    const linha = `${dataHora(entrada.em)}${etapa} — ${entrada.texto}`;
+    await db(supabaseClient.from('negocio')
+      .update({ obs: `${meu.obs}\n${linha}` }).eq('id', meu.id), 'espelhar anotação no funil');
   }
 
   // Todo link de WhatsApp é wa.me/55 + DDD + número, sem símbolo. Lista

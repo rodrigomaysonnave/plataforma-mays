@@ -396,6 +396,11 @@ a{color:var(--marca)}
 /* Palco: foto grande, carrossel de setas + pontos (mesma peça do cartão) */
 .palco .ficha-capa{margin-bottom:0;cursor:zoom-in}
 .palco .cartao-seta{width:44px;height:100%;font-size:34px}
+/* No cartão a seta aparece no hover, porque a grade toda cheia de seta vira
+   ruído. No palco é o contrário: é A foto do imóvel, e seta que só aparece
+   quando o mouse encosta é seta que a maioria nunca descobre. */
+.palco .cartao-seta{opacity:.72}
+.palco .cartao-foto:hover .cartao-seta{opacity:1}
 /* Imóvel com muita foto (20+) gera ponto demais pra caber numa linha só —
    rola por dentro em vez de estourar a moldura. */
 .palco .cartao-pontos{bottom:14px;gap:7px;max-width:80%;overflow-x:auto;scrollbar-width:none;padding:2px 0}
@@ -426,7 +431,7 @@ a{color:var(--marca)}
 .cartao-seta:hover{background:rgba(36,28,20,.74)}
 .cartao-pontos{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:3;
   display:flex;gap:5px}
-.cartao-pontos i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5)}
+.cartao-pontos i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer}
 .cartao-pontos i.on{background:#fff}
 @media(hover:none){.cartao-seta{opacity:.85}}
 
@@ -1066,12 +1071,25 @@ document.querySelectorAll('.cartao-foto').forEach(moldura => {
   const fotos = [img.getAttribute('src')].concat(img.dataset.fotos.split('|'));
   const pontos = moldura.querySelectorAll('.cartao-pontos i');
   let i = 0;
+  // A foto de capa da ficha tem `srcset`, e srcset MANDA MAIS que src: trocar
+  // só o src mudava o endereço e o navegador seguia desenhando a candidata
+  // que ele já tinha escolhido, a primeira foto. Da tela, o carrossel parecia
+  // morto — só o fundo borrado acompanhava, denunciando pelas bordas que algo
+  // mudava. O srcset sai enquanto se navega e volta ao chegar de novo na
+  // primeira, que é a única que tem versão em vários tamanhos.
+  const srcset0 = img.getAttribute('srcset'), sizes0 = img.getAttribute('sizes');
+  const responsivo = (ligar) => {
+    if (!srcset0) return;
+    if (ligar) { img.setAttribute('srcset', srcset0); if (sizes0) img.setAttribute('sizes', sizes0); }
+    else { img.removeAttribute('srcset'); img.removeAttribute('sizes'); }
+  };
   // O fundo borrado que preenche a sobra precisa acompanhar a foto que está
   // à mostra. Preso na primeira, virar o carrossel deixava a moldura com o
   // borrão de uma foto e a foto de outra na frente.
   const temFundo = getComputedStyle(moldura).getPropertyValue('--fundo').trim() !== '';
   const ir = passo => {
     i = (i + passo + fotos.length) % fotos.length;
+    responsivo(i === 0);          // antes do src: é ele que decide o que desenha
     img.src = fotos[i];
     if (temFundo) moldura.style.setProperty('--fundo', 'url("' + fotos[i] + '")');
     moldura.dataset.indiceAtual = i;
@@ -1079,12 +1097,33 @@ document.querySelectorAll('.cartao-foto').forEach(moldura => {
   };
   moldura.dataset.indiceAtual = 0;
   pontos.forEach((p, k) => p.classList.toggle('on', k === 0));
-  const ant = moldura.querySelector('.cartao-ant'), prox = moldura.querySelector('.cartao-prox');
   // A seta vive DENTRO do link do cartão (ou do clique-pra-abrir-visor da
   // ficha) — sem parar a propagação, o clique navegava/abria em vez de só
   // trocar a foto.
-  if (ant) ant.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); ir(-1); });
-  if (prox) prox.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); ir(1); });
+  const parar = ev => { ev.preventDefault(); ev.stopPropagation(); };
+  const ant = moldura.querySelector('.cartao-ant'), prox = moldura.querySelector('.cartao-prox');
+  if (ant) ant.addEventListener('click', ev => { parar(ev); ir(-1); });
+  if (prox) prox.addEventListener('click', ev => { parar(ev); ir(1); });
+  // O ponto também troca a foto. Ele parecia botão e não era: quem tentava
+  // clicar nele concluía, com razão, que o carrossel não funcionava.
+  pontos.forEach((p, k) => p.addEventListener('click', ev => { parar(ev); ir(k - i); }));
+  // Arrastar o dedo, igual ao visualizador. Sem isto, no celular a única
+  // forma de passar foto no corpo da página era acertar a seta, e era por
+  // isso que só o visualizador parecia ter carrossel.
+  let x0 = null, arrastou = false;
+  moldura.addEventListener('touchstart', ev => { x0 = ev.touches[0].clientX; arrastou = false; }, {passive: true});
+  moldura.addEventListener('touchend', ev => {
+    if (x0 === null) return;
+    const d = ev.changedTouches[0].clientX - x0;
+    x0 = null;
+    if (Math.abs(d) < 45) return;   // toque curto é clique, não arrasto
+    arrastou = true;
+    ir(d < 0 ? 1 : -1);
+  }, {passive: true});
+  // O arrasto vira clique depois do touchend, e esse clique abriria o
+  // visualizador (na ficha) ou seguiria o link (no cartão). Na fase de
+  // captura dá para engolir antes de chegar em qualquer um dos dois.
+  moldura.addEventListener('click', ev => { if (arrastou) { arrastou = false; parar(ev); } }, true);
 });
 </script>"""
 
@@ -1685,7 +1724,12 @@ def pagina_imovel(cfg, im, base, todos=None):
         # Carrossel igual ao do cartão (setas + pontos): passa as fotos sem
         # sair da ficha nem depender da coluna de miniaturas. Clicar na foto
         # continua abrindo o visualizador cheio, na foto que estiver mostrando.
-        outras_capa = (minis[1:] if len(minis) > 1 else fotos[1:])
+        # O palco tem 1400px de largura. Virar para a miniatura de 600px
+        # deixava da segunda foto em diante tudo borrado, e era isso que fazia
+        # o carrossel do corpo parecer quebrado ao lado do visualizador, que
+        # sempre mostrou a foto cheia. Vai a foto inteira, baixada só quando a
+        # pessoa vira o carrossel.
+        outras_capa = fotos[1:]
         dados_capa = (' data-fotos="' + e("|".join(outras_capa)) + '"') if outras_capa else ""
         setas_capa = ""
         if outras_capa:
