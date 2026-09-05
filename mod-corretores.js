@@ -544,6 +544,7 @@
           <div class="secao-meta">${esc(c.email)} · ${c.aprovado ? 'aprovado' : 'esperando aprovação'}</div></div>
         </div>
         <div class="secao-acoes">
+          <button class="btn" id="crResetSenha" title="Manda um link de redefinição de senha pro e-mail desta pessoa">Redefinir senha</button>
           <button class="btn" id="crContrato">Emitir contrato</button>
           <button class="btn" id="crVoltar">Voltar à equipe</button>
           <button class="btn btn-primario" id="crSalvar">Salvar</button>
@@ -656,6 +657,20 @@
     ['crSalvar', 'crSalvar2'].forEach(i =>
       document.getElementById(i).addEventListener('click', salvar));
     document.getElementById('crContrato').addEventListener('click', () => emitirContrato(c));
+
+    // O admin não tem como ver nem trocar a senha de ninguém — a chave de
+    // serviço que faria isso não pode rodar no navegador. O que dá pra
+    // fazer sem ela é o mesmo link de "esqueci minha senha" do login,
+    // disparado por quem já está de posse do sistema, pra socorrer quem
+    // ficou de fora.
+    document.getElementById('crResetSenha').addEventListener('click', async () => {
+      if (!c.email) { avisar('Esta pessoa não tem e-mail cadastrado.'); return; }
+      if (!confirm(`Enviar link de redefinição de senha para ${c.email}?`)) return;
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(c.email, {
+        redirectTo: location.origin + location.pathname,
+      });
+      avisar(error ? 'Não consegui enviar: ' + error.message : `Link enviado para ${c.email}.`);
+    });
 
     // Admin envia direto pra foto_url — ele já É a revisão, então não passa
     // pela fila de "Minha foto" (essa é só pro corretor se autoenviando).

@@ -150,6 +150,12 @@ select option { background: var(--superficie-2); }
 .auth-titulo { font-size: 18px; font-weight: 600; letter-spacing: .2px; }
 .auth-sub { font-size: 12.5px; color: var(--texto-fraco); margin-bottom: 26px; }
 .auth-erro { font-size: 12.5px; color: var(--vermelho); margin-top: 12px; min-height: 18px; }
+.auth-ok { font-size: 12.5px; color: var(--verde, #2fd07a); margin-top: 12px; min-height: 18px; }
+.auth-link {
+  background: none; border: none; cursor: pointer; font-size: 12.5px;
+  color: var(--texto-fraco); text-decoration: underline; padding: 0; margin-top: 14px;
+}
+.auth-link:hover { color: var(--dourado); }
 
 /* Campo obrigatório e campo recusado na validação */
 .obrigatorio { color: var(--dourado); font-weight: 700; }

@@ -91,10 +91,12 @@ const Plataforma = (() => {
 
   // ── Entrada e saída ────────────────────────────────────────────────
   function mostrar(tela) {
-    $('telaLogin').hidden   = tela !== 'login';
-    $('telaEspera').hidden  = tela !== 'espera';
-    $('telaConvite').hidden = tela !== 'convite';
-    $('app').hidden         = tela !== 'app';
+    $('telaLogin').hidden      = tela !== 'login';
+    $('telaEspera').hidden     = tela !== 'espera';
+    $('telaConvite').hidden    = tela !== 'convite';
+    $('telaRecuperar').hidden  = tela !== 'recuperar';
+    $('telaNovaSenha').hidden  = tela !== 'novaSenha';
+    $('app').hidden            = tela !== 'app';
   }
 
   // ── Convite ─────────────────────────────────────────────────────────
@@ -254,6 +256,52 @@ const Plataforma = (() => {
     $('loginSenha').value = '';
   }
 
+  // ── Recuperação de senha ──────────────────────────────────────────────
+  // O Supabase nunca diz se o e-mail existe ou não nesse endpoint — dizer
+  // isso é convite pra descobrir quem tem conta só tentando e-mails. Por
+  // isso a mensagem de sucesso é sempre a mesma, exista o e-mail ou não.
+  async function pedirRecuperacao() {
+    const email = $('recEmail').value.trim();
+    const erro  = $('recErro'), ok = $('recOk'), btn = $('btnEnviarRecuperacao');
+    erro.textContent = ''; ok.textContent = '';
+    if (!email) { erro.textContent = 'Preencha o e-mail.'; return; }
+
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: location.origin + location.pathname,
+    });
+    btn.disabled = false; btn.textContent = 'Enviar link';
+
+    if (error && !/rate limit/i.test(error.message)) { erro.textContent = error.message; return; }
+    if (error) { erro.textContent = 'Muitas tentativas. Espera um pouco e tenta de novo.'; return; }
+    ok.textContent = 'Se esse e-mail tiver conta aqui, o link chegou. Confere a caixa de entrada e o spam.';
+  }
+
+  // Supabase devolve a pessoa aqui mesmo com a sessão de recuperação já
+  // aberta (evento PASSWORD_RECOVERY), sem senha nova nenhuma ainda — só
+  // esse formulário decide a senha de fato.
+  async function salvarNovaSenha() {
+    const s1 = $('novaSenha1').value, s2 = $('novaSenha2').value;
+    const erro = $('novaSenhaErro'), btn = $('btnSalvarNovaSenha');
+    erro.textContent = '';
+    if (s1.length < 6) { erro.textContent = 'A senha precisa de pelo menos 6 caracteres.'; return; }
+    if (s1 !== s2) { erro.textContent = 'As duas senhas estão diferentes.'; return; }
+
+    btn.disabled = true; btn.textContent = 'Salvando…';
+    const { error } = await supabaseClient.auth.updateUser({ password: s1 });
+    btn.disabled = false; btn.textContent = 'Salvar nova senha';
+    if (error) { erro.textContent = error.message; return; }
+
+    // Sai e manda pro login de novo: entrar com a senha nova do zero evita
+    // ficar com uma sessão de recuperação meio aberta rodando por aí.
+    history.replaceState(null, '', location.pathname);
+    await supabaseClient.auth.signOut();
+    usuario = perfil = null;
+    mostrar('login');
+    $('loginErro').textContent = '';
+    avisar('Senha alterada. Entre com ela.');
+  }
+
   // ── Sino de notificação ──────────────────────────────────────────────
   // Conta lead pendente, não lead total: o número precisa dizer "isto pede
   // ação", senão vira decoração que ninguém mais olha depois da primeira
@@ -314,6 +362,25 @@ const Plataforma = (() => {
     $('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginSenha').focus(); });
     $('btnSair').addEventListener('click', sair);
     $('btnSairEspera').addEventListener('click', sair);
+
+    $('btnEsqueciSenha').addEventListener('click', () => {
+      $('recEmail').value = $('loginEmail').value.trim();
+      $('recErro').textContent = ''; $('recOk').textContent = '';
+      mostrar('recuperar');
+    });
+    $('btnVoltarLogin').addEventListener('click', () => mostrar('login'));
+    $('btnEnviarRecuperacao').addEventListener('click', pedirRecuperacao);
+    $('recEmail').addEventListener('keydown', e => { if (e.key === 'Enter') pedirRecuperacao(); });
+
+    $('btnSalvarNovaSenha').addEventListener('click', salvarNovaSenha);
+    $('novaSenha2').addEventListener('keydown', e => { if (e.key === 'Enter') salvarNovaSenha(); });
+
+    // O Supabase abre a sessão de recuperação sozinho a partir do link do
+    // e-mail (lê o hash da própria URL) e avisa por este evento — não tem
+    // token pra ler na mão aqui.
+    supabaseClient.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') mostrar('novaSenha');
+    });
     $('topoSino').addEventListener('click', () => irPara('leads'));
 
     $('menu').addEventListener('click', e => {
