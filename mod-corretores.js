@@ -647,6 +647,18 @@
         </div>
       </div>
 
+      <div class="ficha-secao">
+        <div class="ficha-secao-topo"><h3>Acesso</h3>
+          <p>Definir aqui muda a senha na hora, sem precisar do link por e-mail.</p></div>
+        <div class="ficha-grade">
+          <div class="campo"><label for="crSenhaNova">Nova senha</label>
+            <input type="text" id="crSenhaNova" placeholder="pelo menos 6 caracteres" autocomplete="new-password"></div>
+          <div class="campo" style="align-self:flex-end">
+            <button class="btn btn-mini" id="crDefinirSenha">Definir senha</button>
+          </div>
+        </div>
+      </div>
+
       <div class="ficha-rodape">
         <button class="btn" id="crVoltar2">Voltar à equipe</button>
         <button class="btn btn-primario" id="crSalvar2">Salvar</button>
@@ -670,6 +682,17 @@
         redirectTo: location.origin + location.pathname,
       });
       avisar(error ? 'Não consegui enviar: ' + error.message : `Link enviado para ${c.email}.`);
+    });
+
+    document.getElementById('crDefinirSenha').addEventListener('click', async () => {
+      const senha = document.getElementById('crSenhaNova').value;
+      if (senha.length < 6) { avisar('A senha precisa de pelo menos 6 caracteres.'); return; }
+      if (!confirm(`Trocar a senha de ${c.nome} agora? A senha antiga para de funcionar na hora.`)) return;
+      try {
+        await chamarAdminUsuarios('redefinir_senha', { id, senha });
+        document.getElementById('crSenhaNova').value = '';
+        avisar(`Senha de ${c.nome} atualizada.`);
+      } catch (e) { avisar('Não consegui trocar: ' + e.message); }
     });
 
     // Admin envia direto pra foto_url — ele já É a revisão, então não passa
@@ -1019,6 +1042,17 @@
     return data;
   }
   Plataforma.google = chamarGoogle;
+
+  async function chamarAdminUsuarios(acao, extra) {
+    const { data, error } = await supabaseClient.functions.invoke('admin-usuarios',
+      { body: { acao, ...(extra || {}) } });
+    let motivo = (error && error.message) || (data && data.error);
+    if (error && error.context && typeof error.context.json === 'function') {
+      try { const c = await error.context.json(); if (c && c.error) motivo = c.error; } catch (e) {}
+    }
+    if (motivo) throw new Error(motivo);
+    return data;
+  }
 
   async function montarAgenda(alvo) {
     const eu = Plataforma.perfil;
