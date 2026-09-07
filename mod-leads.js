@@ -348,34 +348,32 @@
           <p>${esc(l.mensagem || 'Sem mensagem.')}</p>
         </div>
 
-        <div class="lead-modal-duo">
-          <div class="lead-modal-atribuir">
-            <b>Enviar para um corretor</b>
-            <div class="lead-modal-atribuir-linha">
-              <select id="leadCorretorSel">
-                <option value="">No balcão comum, sem atribuir</option>
-                ${corretores.map(c => `<option value="${c.id}" ${c.id === l.corretor_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
-              </select>
-              <button class="btn btn-mini btn-primario" id="leadEnviarBtn">Enviar</button>
-            </div>
-            ${l.corretor_id ? `<p class="campo-dica">Atualmente com ${esc(nomeCorretor(l.corretor_id) || '—')}${l.enviado_em ? ', desde ' + esc(dataHora(l.enviado_em)) : ''}.</p>` : ''}
+        <div class="lead-modal-atribuir">
+          <b>Enviar para um corretor</b>
+          <div class="lead-modal-atribuir-linha">
+            <select id="leadCorretorSel">
+              <option value="">No balcão comum, sem atribuir</option>
+              ${corretores.map(c => `<option value="${c.id}" ${c.id === l.corretor_id ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}
+            </select>
+            <button class="btn btn-mini btn-primario" id="leadEnviarBtn">Enviar</button>
           </div>
-
-          <div class="lead-modal-etapas">
-            <b>Etapa</b>
-            <div class="cp-etapas">${Object.entries(ETAPAS).map(([k, r]) =>
-              `<button class="cp-etapa${l.classificacao === k ? ' ativo' : ''}"
-                 style="${l.classificacao === k ? `--c:${COR_ETAPA[k]}` : ''}"
-                 data-etapa="${k}">${r}</button>`).join('')}</div>
-            <p class="campo-dica">Interessado abre o negócio no funil sozinho. Clicar na
-              etapa em que já está desmarca.</p>
-          </div>
+          ${l.corretor_id ? `<p class="campo-dica">Atualmente com ${esc(nomeCorretor(l.corretor_id) || '—')}${l.enviado_em ? ', desde ' + esc(dataHora(l.enviado_em)) : ''}.</p>` : ''}
         </div>
 
-        <div class="cp-anot-btns" style="margin-top:18px">
-          <button class="btn btn-primario" id="leadAtenderBtn">${l.atendido ? 'Reabrir' : 'Marcar atendido'}</button>
+        <div class="lead-modal-etapas-bloco">
           ${ETAPAS_TRANSFERIVEIS.has(l.classificacao) ? `<button class="btn btn-primario" id="leadTransferirBtn"
                   title="Vira negócio no funil de vendas e sai da lista de Leads do site">Transferir pro funil</button>` : ''}
+          <b>Etapa</b>
+          <div class="cp-etapas cp-etapas-linha">${Object.entries(ETAPAS).map(([k, r]) =>
+            `<button class="cp-etapa${l.classificacao === k ? ' ativo' : ''}"
+               style="${l.classificacao === k ? `--c:${COR_ETAPA[k]}` : ''}"
+               data-etapa="${k}">${r}</button>`).join('')}</div>
+          <p class="campo-dica">Interessado abre o negócio no funil sozinho. Clicar na
+            etapa em que já está desmarca.</p>
+        </div>
+
+        <div class="cp-anot-btns lead-modal-acoes">
+          <button class="btn btn-primario" id="leadAtenderBtn">${l.atendido ? 'Reabrir' : 'Marcar atendido'}</button>
           <a class="btn btn-mini" href="https://wa.me/${esc(waNumero(l.telefone))}" target="_blank" rel="noopener">Abrir WhatsApp</a>
           <button class="btn btn-mini" id="leadAgendarBtn"
                   title="Marca visita ou reunião com este lead e manda para o seu Google">Agendar</button>
