@@ -82,6 +82,16 @@
   // banco já devolve. `sort` do JS é estável, então basta ordenar pelo posto.
   const porEtapa = itens => [...itens].sort((a, b) => postoNaFila(a) - postoNaFila(b));
 
+  // Os quatro fins de linha: não vão receber mais nenhum contato. Sujam a
+  // tela principal sem motivo depois de trabalhados, então ficam escondidos
+  // atrás da aba "Desativados" por padrão — quem quiser conferir um número
+  // inválido de novo sabe onde clicar, mas o dia a dia não esbarra neles.
+  const ETAPAS_DESATIVADAS = new Set(['nao_respondeu', 'sem_perfil', 'sem_interesse', 'numero_invalido']);
+
+  // Só faz sentido oferecer o funil pra quem já está em conversa (Atendendo)
+  // ou já disse que tem interesse — os outros são desfechos, não avanço.
+  const ETAPAS_TRANSFERIVEIS = new Set(['atendendo', 'interesse']);
+
   let alvoEl = null;
   let leads = [], imoveisPorId = new Map(), corretores = [];
   let editandoAnotacao = null;
@@ -89,6 +99,8 @@
   // tela (excluir, atribuir, classificar) porque quem filtrou pelos leads do
   // Marcos não quer voltar pra ver tudo de novo a cada ação.
   let filtroCorretor = 'todos';
+  // Mesma lógica: fica marcado até trocar de aba de propósito.
+  let mostrarDesativados = false;
 
   const dataHora = iso => new Date(iso).toLocaleString('pt-BR',
     { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -112,7 +124,7 @@
   async function montar(alvo) {
     alvoEl = alvo;
     const [dadosLeads, imoveis, equipe] = await Promise.all([
-      db(supabaseClient.from('lead_site').select('*').is('excluido_em', null)
+      db(supabaseClient.from('lead_site').select('*').is('excluido_em', null).is('transferido_em', null)
         .order('created_at', { ascending: false }), 'carregar leads do site'),
       // `endereco` vem junto para o botão Agendar já preencher o local do encontro.
       db(supabaseClient.from('imovel').select('id,titulo,codigo,endereco'), 'carregar imóveis'),
@@ -137,8 +149,13 @@
       : filtroCorretor === 'balcao' ? leads.filter(l => !l.corretor_id)
       : leads.filter(l => l.corretor_id === filtroCorretor);
 
-    const pendentes = porEtapa(filtrados.filter(l => !l.atendido));
-    const atendidos = porEtapa(filtrados.filter(l => l.atendido));
+    const desativadosCount = filtrados.filter(l => ETAPAS_DESATIVADAS.has(l.classificacao)).length;
+    const visiveis = mostrarDesativados
+      ? filtrados.filter(l => ETAPAS_DESATIVADAS.has(l.classificacao))
+      : filtrados.filter(l => !ETAPAS_DESATIVADAS.has(l.classificacao));
+
+    const pendentes = porEtapa(visiveis.filter(l => !l.atendido));
+    const atendidos = porEtapa(visiveis.filter(l => l.atendido));
 
     const linha = l => `
       <tr class="cad-linha" data-id="${l.id}">
@@ -199,16 +216,29 @@
         </div>
       </div>
 
+      <div class="secao-acoes" style="margin-bottom:14px">
+        <div class="cp-abas">
+          <button class="cp-aba${!mostrarDesativados ? ' ativo' : ''}" data-filtro-etapa="ativos">Em atendimento</button>
+          <button class="cp-aba${mostrarDesativados ? ' ativo' : ''}" data-filtro-etapa="desativados">Desativados<span class="ini-conta">${desativadosCount}</span></button>
+        </div>
+      </div>
+
       <div class="painel-numeros">
         <div class="num${pendentes.length ? ' num-destaque' : ''}"><span class="num-v">${pendentes.length}</span><span class="num-r">Aguardando resposta</span></div>
-        <div class="num"><span class="num-v">${filtrados.length}</span><span class="num-r">${filtroCorretor === 'todos' ? 'Total recebido' : 'Total nesta aba'}</span></div>
+        <div class="num"><span class="num-v">${visiveis.length}</span><span class="num-r">${filtroCorretor === 'todos' ? 'Total recebido' : 'Total nesta aba'}</span></div>
       </div>
 
       ${tabela('Aguardando resposta', pendentes, 'Nenhum lead pendente. Tudo respondido.')}
-      ${tabela('Já atendidos', atendidos, 'Nenhum lead atendido ainda.')}`;
+      ${tabela(mostrarDesativados ? 'Desativados' : 'Já atendidos', atendidos,
+        mostrarDesativados ? 'Nenhum lead desativado por aqui.' : 'Nenhum lead atendido ainda.')}`;
 
     alvo.querySelectorAll('[data-filtro-corretor]').forEach(b => b.addEventListener('click', () => {
       filtroCorretor = b.dataset.filtroCorretor;
+      renderizar();
+    }));
+
+    alvo.querySelectorAll('[data-filtro-etapa]').forEach(b => b.addEventListener('click', () => {
+      mostrarDesativados = b.dataset.filtroEtapa === 'desativados';
       renderizar();
     }));
 
@@ -354,6 +384,8 @@
 
         <div class="cp-anot-btns" style="margin-top:18px">
           <button class="btn btn-primario" id="leadAtenderBtn">${l.atendido ? 'Reabrir' : 'Marcar atendido'}</button>
+          ${ETAPAS_TRANSFERIVEIS.has(l.classificacao) ? `<button class="btn btn-primario" id="leadTransferirBtn"
+                  title="Vira negócio no funil de vendas e sai da lista de Leads do site">Transferir pro funil</button>` : ''}
           <a class="btn btn-mini" href="https://wa.me/${esc(waNumero(l.telefone))}" target="_blank" rel="noopener">Abrir WhatsApp</a>
           <button class="btn btn-mini" id="leadAgendarBtn"
                   title="Marca visita ou reunião com este lead e manda para o seu Google">Agendar</button>
@@ -380,6 +412,21 @@
         .update({ corretor_id: corretorId, enviado_em: corretorId ? new Date().toISOString() : null })
         .eq('id', id), 'atribuir lead');
       avisar(corretorId ? `Enviado para ${nomeCorretor(corretorId)}.` : 'Voltou pro balcão comum.');
+      fecharFicha();
+      await montar(alvoEl);
+    });
+
+    const transferirBtn = document.getElementById('leadTransferirBtn');
+    if (transferirBtn) transferirBtn.addEventListener('click', async () => {
+      if (!confirm(`Transferir ${l.nome} pro funil de vendas? Ele sai da lista de Leads do site.`)) return;
+      // mandarProFunil é o mesmo caminho que "Interessado" já usa: cria o
+      // cliente na carteira se faltar e abre o negócio na primeira etapa.
+      // Idempotente — se já tinha sido criado (lead marcado Interessado
+      // antes), só marca a transferência.
+      await mandarProFunil(l);
+      const agora = new Date().toISOString();
+      await db(supabaseClient.from('lead_site').update({ transferido_em: agora }).eq('id', id), 'transferir pro funil');
+      avisar(`${l.nome} agora está no funil de vendas.`);
       fecharFicha();
       await montar(alvoEl);
     });
