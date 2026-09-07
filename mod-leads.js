@@ -85,6 +85,10 @@
   let alvoEl = null;
   let leads = [], imoveisPorId = new Map(), corretores = [];
   let editandoAnotacao = null;
+  // 'todos' | 'balcao' | id do corretor. Persiste entre recarregamentos da
+  // tela (excluir, atribuir, classificar) porque quem filtrou pelos leads do
+  // Marcos não quer voltar pra ver tudo de novo a cada ação.
+  let filtroCorretor = 'todos';
 
   const dataHora = iso => new Date(iso).toLocaleString('pt-BR',
     { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -118,8 +122,23 @@
     imoveisPorId = new Map(imoveis.map(i => [i.id, i]));
     corretores = equipe;
 
-    const pendentes = porEtapa(leads.filter(l => !l.atendido));
-    const atendidos = porEtapa(leads.filter(l => l.atendido));
+    // Corretor removido/desativado some da aba, mas não pode travar quem
+    // ficou olhando os leads dele: some pro filtro de "Todos" em vez de
+    // mostrar uma aba com lista vazia pra sempre.
+    if (filtroCorretor !== 'todos' && filtroCorretor !== 'balcao'
+        && !corretores.some(c => c.id === filtroCorretor)) filtroCorretor = 'todos';
+
+    renderizar();
+  }
+
+  function renderizar() {
+    const alvo = alvoEl;
+    const filtrados = filtroCorretor === 'todos' ? leads
+      : filtroCorretor === 'balcao' ? leads.filter(l => !l.corretor_id)
+      : leads.filter(l => l.corretor_id === filtroCorretor);
+
+    const pendentes = porEtapa(filtrados.filter(l => !l.atendido));
+    const atendidos = porEtapa(filtrados.filter(l => l.atendido));
 
     const linha = l => `
       <tr class="cad-linha" data-id="${l.id}">
@@ -161,6 +180,12 @@
           : `<p class="ini-vazio" style="padding:18px 20px">${esc(vazio)}</p>`}
       </section>`;
 
+    const abas = [
+      ['todos', 'Todos'],
+      ...corretores.map(c => [c.id, c.nome]),
+      ['balcao', 'No balcão'],
+    ];
+
     alvo.innerHTML = `
       <div class="secao-topo">
         <div class="secao-titulo"><div class="ponto"></div>
@@ -168,15 +193,24 @@
             <div class="secao-meta">Quem preencheu o formulário no site. Clique numa linha para
               ver a mensagem inteira e enviar para um corretor.</div></div>
         </div>
+        <div class="secao-acoes">
+          <div class="cp-abas">${abas.map(([k, r]) =>
+            `<button class="cp-aba${filtroCorretor === k ? ' ativo' : ''}" data-filtro-corretor="${k}">${esc(r)}</button>`).join('')}</div>
+        </div>
       </div>
 
       <div class="painel-numeros">
         <div class="num${pendentes.length ? ' num-destaque' : ''}"><span class="num-v">${pendentes.length}</span><span class="num-r">Aguardando resposta</span></div>
-        <div class="num"><span class="num-v">${leads.length}</span><span class="num-r">Total recebido</span></div>
+        <div class="num"><span class="num-v">${filtrados.length}</span><span class="num-r">${filtroCorretor === 'todos' ? 'Total recebido' : 'Total nesta aba'}</span></div>
       </div>
 
       ${tabela('Aguardando resposta', pendentes, 'Nenhum lead pendente. Tudo respondido.')}
       ${tabela('Já atendidos', atendidos, 'Nenhum lead atendido ainda.')}`;
+
+    alvo.querySelectorAll('[data-filtro-corretor]').forEach(b => b.addEventListener('click', () => {
+      filtroCorretor = b.dataset.filtroCorretor;
+      renderizar();
+    }));
 
     // Marcador e botão de excluir moram dentro da linha, e a linha inteira
     // abre a ficha. Clicar num deles não pode abrir ficha nenhuma.
