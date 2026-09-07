@@ -372,16 +372,6 @@
           </div>
         </div>
 
-        <div id="leadHistorico"></div>
-
-        <div class="lead-modal-nova-anot">
-          <b>Nova anotação</b>
-          <div class="cp-nova-anot">
-            <textarea id="leadNovaAnot" rows="2" placeholder="Registre o que aconteceu neste contato"></textarea>
-            <button class="btn btn-primario" id="leadSalvarAnot">Salvar</button>
-          </div>
-        </div>
-
         <div class="cp-anot-btns" style="margin-top:18px">
           <button class="btn btn-primario" id="leadAtenderBtn">${l.atendido ? 'Reabrir' : 'Marcar atendido'}</button>
           ${ETAPAS_TRANSFERIVEIS.has(l.classificacao) ? `<button class="btn btn-primario" id="leadTransferirBtn"
@@ -393,6 +383,16 @@
                   title="Apaga o lead de vez. Serve para teste e para engano.">Excluir</button>
           <button class="btn btn-mini" id="leadFecharBtn">Fechar</button>
         </div>
+
+        <div class="lead-modal-nova-anot">
+          <b>Nova anotação</b>
+          <div class="cp-nova-anot">
+            <textarea id="leadNovaAnot" rows="2" placeholder="Registre o que aconteceu neste contato"></textarea>
+            <button class="btn btn-primario" id="leadSalvarAnot">Salvar</button>
+          </div>
+        </div>
+
+        <div id="leadHistorico"></div>
       </div>`;
     document.body.appendChild(overlay);
 
