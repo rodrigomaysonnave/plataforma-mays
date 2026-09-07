@@ -15,7 +15,7 @@
   const { db, esc, avisar } = Plataforma;
 
   const DIAS_PARADO = 7;   // acima disso, o negócio é "estagnado"
-  let alvoEl = null, etapas = [], contatos = [], imoveis = [];
+  let alvoEl = null, etapas = [], contatos = [], imoveis = [], empreendimentos = [];
 
   const vgv = v => !v ? 'R$ 0' :
     v >= 1e6 ? `R$ ${(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})} M`
@@ -24,13 +24,14 @@
   const diasDe = iso => Math.floor((Date.now() - new Date(iso)) / 86400000);
 
   async function carregar() {
-    const [e, n, c, i] = await Promise.all([
+    const [e, n, c, i, emp] = await Promise.all([
       db(supabaseClient.from('etapa_funil').select('*').eq('ativo', true).order('ordem'), 'carregar etapas'),
       db(supabaseClient.from('negocio').select('*').order('updated_at', { ascending: false }), 'carregar negócios'),
       Crud.listaApoio('contato'),
       Crud.listaApoio('imovel'),
+      Crud.listaApoio('empreendimento'),
     ]);
-    etapas = e; contatos = c; imoveis = i;
+    etapas = e; contatos = c; imoveis = i; empreendimentos = emp;
     return n;
   }
 
@@ -41,7 +42,8 @@
     return `
       <article class="kan-cartao${parado >= DIAS_PARADO ? ' kan-parado' : ''}" data-id="${n.id}" draggable="true">
         <div class="kan-cliente">${esc(nomeDe(contatos, n.contato_id))}</div>
-        ${n.imovel_id ? `<div class="kan-imovel">${esc(nomeDe(imoveis, n.imovel_id))}</div>` : ''}
+        ${n.imovel_id ? `<div class="kan-imovel">${esc(nomeDe(imoveis, n.imovel_id))}</div>`
+          : n.empreendimento_id ? `<div class="kan-imovel">${esc(nomeDe(empreendimentos, n.empreendimento_id))}</div>` : ''}
         <div class="kan-rodape">
           <span class="kan-valor">${n.valor ? vgv(n.valor) : '<span class="cad-vazio">sem valor</span>'}</span>
           ${parado >= DIAS_PARADO ? `<span class="kan-alerta" title="Sem movimento há ${parado} dias">${parado}d</span>` : ''}
@@ -155,7 +157,7 @@
         </div>
         <div class="secao-acoes">
           ${id === 'novo' ? '' : '<button class="btn btn-remover" id="negExcluir">Excluir</button>'}
-          ${id === 'novo' ? '' : '<button class="btn" id="negAgendar" title="Marca visita ou reunião deste negócio e manda para o seu Google">Agendar</button>'}
+          <button class="btn" id="negAgendar" title="Marca visita ou reunião deste negócio e manda para o seu Google">Agendar</button>
           <button class="btn" id="negVoltar">Voltar ao funil</button>
           <button class="btn btn-primario" id="negSalvar">Salvar</button>
         </div>
@@ -187,6 +189,9 @@
               <button class="btn btn-primario btn-mini" type="button" id="negNovoSalvar">Cadastrar cliente</button>
             </div>
           </div></div>
+        <div class="campo campo-largo"><label for="negEmpreendimento">Empreendimento</label>
+          <select id="negEmpreendimento">${op(empreendimentos, n.empreendimento_id, 'Nenhum ainda')}</select>
+          <p class="campo-dica">Pra quando o interesse é no lançamento, antes de fechar numa unidade.</p></div>
         <div class="campo campo-largo"><label for="negImovel">Imóvel</label>
           <select id="negImovel">${op(imoveis, n.imovel_id, 'Nenhum ainda')}</select></div>
         <div class="campo"><label for="negEtapa">Etapa</label>
@@ -270,6 +275,7 @@
       if (!contatoId) { avisar('Escolha um cliente da lista de sugestões, ou cadastre um novo com "+ Novo".'); return; }
       const dados = {
         contato_id: contatoId, imovel_id: v('negImovel') || null,
+        empreendimento_id: v('negEmpreendimento') || null,
         etapa_id: v('negEtapa') || null, valor: v('negValor') === '' ? null : Number(v('negValor')),
         motivo_perda_id: v('negMotivo') || null, obs: v('negObs').trim() || null,
       };
@@ -282,21 +288,44 @@
     // não há contato para criar. O imóvel vem do que está SELECIONADO na tela,
     // e não do que está salvo: quem acabou de trocar o imóvel e vai marcar a
     // visita está falando do novo, mesmo sem ter clicado em Salvar ainda.
+    //
+    // Negócio recém-aberto ("novo") ainda não tem id, e sem id o compromisso
+    // não teria pra onde apontar. Em vez de obrigar Salvar → reabrir →
+    // Agendar, o clique aqui salva o negócio com o que já estiver preenchido
+    // (mesmos campos do botão Salvar) e segue direto pra janela de agendar.
     const ag = document.getElementById('negAgendar');
     if (ag) ag.addEventListener('click', async () => {
       const nomeDigitado = document.getElementById('negContatoBusca').value.trim();
       const achado = contatos.find(c => c.nome.trim().toLowerCase() === nomeDigitado.toLowerCase());
-      const contatoId = achado ? achado.id : n.contato_id;
+      const contatoId = achado ? achado.id : (id === 'novo' ? null : n.contato_id);
       if (!contatoId) { avisar('Escolha o cliente antes de agendar.'); return; }
 
       const imovelId = document.getElementById('negImovel').value || null;
+      const empId = document.getElementById('negEmpreendimento').value || null;
+
+      if (id === 'novo') {
+        const v = i => document.getElementById(i).value;
+        const dados = {
+          contato_id: contatoId, imovel_id: imovelId, empreendimento_id: empId,
+          etapa_id: v('negEtapa') || null, valor: v('negValor') === '' ? null : Number(v('negValor')),
+          motivo_perda_id: v('negMotivo') || null, obs: v('negObs').trim() || null,
+        };
+        const salvo = await db(supabaseClient.from('negocio')
+          .insert(dados).select('id').single(), 'salvar o negócio');
+        avisar('Negócio criado.');
+        await abrirNegocio(salvo.id);
+        document.getElementById('negAgendar').click();
+        return;
+      }
+
       const [cli] = await db(supabaseClient.from('contato')
         .select('nome,telefone,email').eq('id', contatoId).limit(1), 'carregar o cliente');
       const im = imovelId ? (await db(supabaseClient.from('imovel')
         .select('codigo,titulo,endereco').eq('id', imovelId).limit(1), 'carregar o imóvel'))[0] : null;
+      const emp = (!im && empId) ? empreendimentos.find(e => e.id === empId) : null;
 
       Plataforma.agendar({
-        titulo: im ? `Visita: ${im.titulo || im.codigo}` : `Visita com ${(cli || {}).nome || 'cliente'}`,
+        titulo: im ? `Visita: ${im.titulo || im.codigo}` : emp ? `Visita: ${emp.nome}` : `Visita com ${(cli || {}).nome || 'cliente'}`,
         tipo: 'visita',
         local: im ? (im.endereco || '') : '',
         contato_id: contatoId,
