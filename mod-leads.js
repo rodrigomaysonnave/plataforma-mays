@@ -121,6 +121,12 @@
     return c ? c.nome : null;
   }
 
+  // Corretor comum só vê e mexe nos próprios leads (RLS já garante isso no
+  // banco, migração 48). As abas por corretor e "Enviar para um corretor"
+  // são coisa de quem triagem tudo — mostrar pra quem não pode usar só
+  // confunde e expõe nome de colega à toa.
+  const souAdmin = () => Plataforma.perfil && Plataforma.perfil.papel === 'admin';
+
   async function montar(alvo) {
     alvoEl = alvo;
     const [dadosLeads, imoveis, equipe] = await Promise.all([
@@ -207,13 +213,14 @@
       <div class="secao-topo">
         <div class="secao-titulo"><div class="ponto"></div>
           <div><h2>Leads do site</h2>
-            <div class="secao-meta">Quem preencheu o formulário no site. Clique numa linha para
-              ver a mensagem inteira e enviar para um corretor.</div></div>
+            <div class="secao-meta">${souAdmin()
+              ? 'Quem preencheu o formulário no site. Clique numa linha para ver a mensagem inteira e enviar para um corretor.'
+              : 'Seus leads vindos do formulário do site. Clique numa linha para ver a mensagem inteira.'}</div></div>
         </div>
-        <div class="secao-acoes">
+        ${souAdmin() ? `<div class="secao-acoes">
           <div class="cp-abas">${abas.map(([k, r]) =>
             `<button class="cp-aba${filtroCorretor === k ? ' ativo' : ''}" data-filtro-corretor="${k}">${esc(r)}</button>`).join('')}</div>
-        </div>
+        </div>` : ''}
       </div>
 
       <div class="secao-acoes" style="margin-bottom:14px">
@@ -348,7 +355,7 @@
           <p>${esc(l.mensagem || 'Sem mensagem.')}</p>
         </div>
 
-        <div class="lead-modal-atribuir">
+        ${souAdmin() ? `<div class="lead-modal-atribuir">
           <b>Enviar para um corretor</b>
           <div class="lead-modal-atribuir-linha">
             <select id="leadCorretorSel">
@@ -358,7 +365,7 @@
             <button class="btn btn-mini btn-primario" id="leadEnviarBtn">Enviar</button>
           </div>
           ${l.corretor_id ? `<p class="campo-dica">Atualmente com ${esc(nomeCorretor(l.corretor_id) || '—')}${l.enviado_em ? ', desde ' + esc(dataHora(l.enviado_em)) : ''}.</p>` : ''}
-        </div>
+        </div>` : ''}
 
         <div class="lead-modal-etapas-bloco">
           ${ETAPAS_TRANSFERIVEIS.has(l.classificacao) ? `<button class="btn btn-primario" id="leadTransferirBtn"
@@ -404,7 +411,8 @@
       Plataforma.irPara('imoveis', l.imovel_id);
     });
 
-    document.getElementById('leadEnviarBtn').addEventListener('click', async () => {
+    const enviarBtn = document.getElementById('leadEnviarBtn');
+    if (enviarBtn) enviarBtn.addEventListener('click', async () => {
       const corretorId = document.getElementById('leadCorretorSel').value || null;
       await db(supabaseClient.from('lead_site')
         .update({ corretor_id: corretorId, enviado_em: corretorId ? new Date().toISOString() : null })
