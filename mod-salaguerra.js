@@ -21,7 +21,7 @@
   const { db, esc, avisar } = Plataforma;
 
   const DIAS_PARADO = 7;   // mesmo limiar do Funil (mod-funil.js) e do Início
-  let alvoEl = null, focos = [], imoveisTodos = null, detalheAberto = null;
+  let alvoEl = null, focos = [], imoveisTodos = null, tiposCache = null, detalheAberto = null;
 
   const brl = v => !v ? '<span class="cad-vazio">sem valor</span>' :
     'R$ ' + Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -35,8 +35,16 @@
   async function carregarImoveisTodos() {
     if (imoveisTodos) return imoveisTodos;
     imoveisTodos = await db(supabaseClient.from('imovel')
-      .select('id,codigo,titulo,endereco').order('codigo'), 'carregar imóveis');
+      .select('id,codigo,titulo,endereco,tipo_imovel_id').order('codigo'), 'carregar imóveis');
     return imoveisTodos;
+  }
+
+  // Mesma lista de tipos do cadastro de imóvel (Apartamento, Casa, Terreno,
+  // Loja…), pra filtrar a busca de adicionar sem precisar saber o código.
+  async function carregarTipos() {
+    if (tiposCache) return tiposCache;
+    tiposCache = await Crud.listaApoio('tipo_imovel');
+    return tiposCache;
   }
 
   async function carregarFocos() {
@@ -64,12 +72,23 @@
       </article>`;
   }
 
+  // Recalculada a cada chamada (não uma vez só) porque o filtro de tipo e
+  // a própria lista de focos podem ter mudado desde o último desenho.
+  function disponiveisFiltrados() {
+    const jaEmFoco = new Set(focos.map(f => f.imovel_id));
+    const tipoSel = document.getElementById('sgFiltroTipo')?.value || '';
+    return imoveisTodos.filter(im => !jaEmFoco.has(im.id) && (!tipoSel || im.tipo_imovel_id === tipoSel));
+  }
+
+  function atualizarDatalist() {
+    document.getElementById('sgImovelLista').innerHTML =
+      disponiveisFiltrados().map(im => `<option value="${esc(nomeImovel(im))}">`).join('');
+  }
+
   async function desenhar() {
-    await Promise.all([carregarFocos(), carregarImoveisTodos()]);
+    await Promise.all([carregarFocos(), carregarImoveisTodos(), carregarTipos()]);
     const abertosSoma = focos.reduce((s, f) => s + Number(f.negocios_abertos || 0), 0);
     const estagnados = focos.filter(estagnado);
-    const jaEmFoco = new Set(focos.map(f => f.imovel_id));
-    const disponiveis = imoveisTodos.filter(im => !jaEmFoco.has(im.id));
 
     alvoEl.innerHTML = `
       <div class="secao-topo">
@@ -79,8 +98,10 @@
             Marque "Sala de guerra" no cadastro do imóvel, ou traga um aqui.</div></div>
         </div>
         <div class="secao-acoes">
+          <select id="sgFiltroTipo"><option value="">Todo tipo</option>
+            ${tiposCache.map(t => `<option value="${t.id}">${esc(t.nome)}</option>`).join('')}</select>
           <input type="text" id="sgBuscaImovel" list="sgImovelLista" autocomplete="off" placeholder="Buscar por código, título ou endereço…">
-          <datalist id="sgImovelLista">${disponiveis.map(im => `<option value="${esc(nomeImovel(im))}">`).join('')}</datalist>
+          <datalist id="sgImovelLista">${disponiveisFiltrados().map(im => `<option value="${esc(nomeImovel(im))}">`).join('')}</datalist>
           <button class="btn" id="sgAdicionar">+ Adicionar</button>
           <button class="btn" id="sgRelatorio">Relatório de atividade</button>
         </div>
@@ -101,19 +122,24 @@
 
       <div id="sgDetalhe"></div>`;
 
-    document.getElementById('sgAdicionar').addEventListener('click', () => adicionar(disponiveis));
+    document.getElementById('sgFiltroTipo').addEventListener('change', () => {
+      document.getElementById('sgBuscaImovel').value = '';
+      atualizarDatalist();
+    });
+    document.getElementById('sgAdicionar').addEventListener('click', adicionar);
     document.getElementById('sgBuscaImovel').addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); adicionar(disponiveis); }
+      if (e.key === 'Enter') { e.preventDefault(); adicionar(); }
     });
     document.getElementById('sgRelatorio').addEventListener('click', gerarRelatorio);
     alvoEl.querySelectorAll('.sala-cartao').forEach(c =>
       c.addEventListener('click', () => abrirDetalhe(c.dataset.id, c.dataset.imovel)));
   }
 
-  async function adicionar(disponiveis) {
+  async function adicionar() {
     const campo = document.getElementById('sgBuscaImovel');
     const nome = campo.value.trim();
     if (!nome) { avisar('Digite ou escolha um imóvel na busca.'); return; }
+    const disponiveis = disponiveisFiltrados();
     const achado = disponiveis.find(im => nomeImovel(im) === nome) ||
       disponiveis.find(im => nomeImovel(im).toLowerCase().includes(nome.toLowerCase()));
     if (!achado) { avisar('Não achei esse imóvel na lista (ou ele já está em foco). Escolha uma sugestão da busca.'); return; }
