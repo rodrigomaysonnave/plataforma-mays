@@ -260,6 +260,13 @@
     const marcadas = (await db(supabaseClient.from('imovel_caracteristica')
       .select('caracteristica_id').eq('imovel_id', id), 'carregar características')).map(x => x.caracteristica_id);
 
+    // Sala de guerra não é coluna de imovel — é uma tabela à parte
+    // (imovel_foco, ver sql/51_sala_guerra.sql), pra guardar quem
+    // adicionou e quando. O checkbox aqui só reflete se existe uma linha
+    // ativa pra este imóvel.
+    const [focoAtivo] = novo ? [] : await db(supabaseClient.from('imovel_foco')
+      .select('id').eq('imovel_id', id).eq('ativo', true).limit(1), 'verificar sala de guerra');
+
     alvoEl.innerHTML = `
       <div class="secao-topo">
         <div class="secao-titulo">
@@ -375,6 +382,8 @@
         `<div class="onde">
           <label class="check"><input type="checkbox" id="fMural"${im.no_mural?' checked':''}>
             <span><strong>No mural</strong><em>Aparece no teu radar de trabalho. Não tem nada a ver com o site.</em></span></label>
+          <label class="check"><input type="checkbox" id="fSalaGuerra"${focoAtivo?' checked':''}>
+            <span><strong>Sala de guerra</strong><em>Entra na tela de venda ativa da equipe, com negócios ligados e alerta de estagnação.</em></span></label>
           <label class="check"><input type="checkbox" id="fAutorizacao"${im.autorizacao_venda?' checked':''}>
             <span><strong>Autorização de venda registrada</strong><em>Sem isto o imóvel não pode ser publicado. O banco recusa.</em></span></label>
           <label class="check"><input type="checkbox" id="fSite"${im.publicar_no_site?' checked':''}>
@@ -690,7 +699,24 @@
       await db(supabaseClient.from('imovel_caracteristica')
         .insert(marcadas.map(cid => ({ imovel_id: idSalvo, caracteristica_id: cid }))), 'salvar características');
     }
+    await sincronizarSalaGuerra(idSalvo, c('fSalaGuerra'));
     await montarLista();
+  }
+
+  // Reaproveita a linha se ela já existiu e foi desativada, em vez de
+  // empilhar histórico duplicado — mesma disciplina de "não apaga,
+  // desativa" do resto da plataforma.
+  async function sincronizarSalaGuerra(imovelId, querSala) {
+    const [foco] = await db(supabaseClient.from('imovel_foco')
+      .select('id,ativo').eq('imovel_id', imovelId)
+      .order('created_at', { ascending: false }).limit(1), 'verificar sala de guerra');
+    if (querSala && (!foco || !foco.ativo)) {
+      if (foco) await db(supabaseClient.from('imovel_foco').update({ ativo: true }).eq('id', foco.id), 'ativar sala de guerra');
+      else await db(supabaseClient.from('imovel_foco')
+        .insert({ imovel_id: imovelId, adicionado_por: (Plataforma.perfil || {}).id || null }), 'adicionar à sala de guerra');
+    } else if (!querSala && foco && foco.ativo) {
+      await db(supabaseClient.from('imovel_foco').update({ ativo: false }).eq('id', foco.id), 'remover da sala de guerra');
+    }
   }
 
   Plataforma.registrar('imoveis', {

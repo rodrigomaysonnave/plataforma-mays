@@ -65,19 +65,24 @@
   }
 
   async function desenhar() {
-    await carregarFocos();
+    await Promise.all([carregarFocos(), carregarImoveisTodos()]);
     const abertosSoma = focos.reduce((s, f) => s + Number(f.negocios_abertos || 0), 0);
     const estagnados = focos.filter(estagnado);
+    const jaEmFoco = new Set(focos.map(f => f.imovel_id));
+    const disponiveis = imoveisTodos.filter(im => !jaEmFoco.has(im.id));
 
     alvoEl.innerHTML = `
       <div class="secao-topo">
         <div class="secao-titulo"><div class="ponto"></div>
           <div><h2>Sala de guerra</h2>
-          <div class="secao-meta">Imóveis em foco pra venda ativa. Compartilhada com a equipe.</div></div>
+          <div class="secao-meta">Imóveis em foco pra venda ativa. Compartilhada com a equipe.
+            Marque "Sala de guerra" no cadastro do imóvel, ou traga um aqui.</div></div>
         </div>
         <div class="secao-acoes">
+          <input type="text" id="sgBuscaImovel" list="sgImovelLista" autocomplete="off" placeholder="Buscar por código, título ou endereço…">
+          <datalist id="sgImovelLista">${disponiveis.map(im => `<option value="${esc(nomeImovel(im))}">`).join('')}</datalist>
+          <button class="btn" id="sgAdicionar">+ Adicionar</button>
           <button class="btn" id="sgRelatorio">Relatório de atividade</button>
-          <button class="btn btn-primario" id="sgAdicionar">+ Adicionar imóvel</button>
         </div>
       </div>
 
@@ -91,27 +96,27 @@
         <div class="vazio"><div class="vazio-ico">◎</div>
           <h3>Nenhum imóvel em foco ainda</h3>
           <p>Traga pra cá os imóveis que a equipe está empurrando agora.
-             Comece por <strong>+ Adicionar imóvel</strong>.</p></div>` : `
+             Marque "Sala de guerra" no cadastro do imóvel, ou busque aqui em cima.</p></div>` : `
         <div class="sala-grade">${focos.map(card).join('')}</div>`}
 
       <div id="sgDetalhe"></div>`;
 
-    document.getElementById('sgAdicionar').addEventListener('click', abrirAdicionar);
+    document.getElementById('sgAdicionar').addEventListener('click', () => adicionar(disponiveis));
+    document.getElementById('sgBuscaImovel').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); adicionar(disponiveis); }
+    });
     document.getElementById('sgRelatorio').addEventListener('click', gerarRelatorio);
     alvoEl.querySelectorAll('.sala-cartao').forEach(c =>
       c.addEventListener('click', () => abrirDetalhe(c.dataset.id, c.dataset.imovel)));
   }
 
-  async function abrirAdicionar() {
-    await carregarImoveisTodos();
-    const jaEmFoco = new Set(focos.map(f => f.imovel_id));
-    const disponiveis = imoveisTodos.filter(im => !jaEmFoco.has(im.id));
-    const nome = prompt('Código ou título do imóvel pra trazer pra sala de guerra:\n\n' +
-      '(digite parte do código, ex.: MI-108)');
-    if (!nome) return;
-    const termo = nome.trim().toLowerCase();
-    const achado = disponiveis.find(im => nomeImovel(im).toLowerCase().includes(termo));
-    if (!achado) { avisar('Não achei esse imóvel (ou ele já está em foco).'); return; }
+  async function adicionar(disponiveis) {
+    const campo = document.getElementById('sgBuscaImovel');
+    const nome = campo.value.trim();
+    if (!nome) { avisar('Digite ou escolha um imóvel na busca.'); return; }
+    const achado = disponiveis.find(im => nomeImovel(im) === nome) ||
+      disponiveis.find(im => nomeImovel(im).toLowerCase().includes(nome.toLowerCase()));
+    if (!achado) { avisar('Não achei esse imóvel na lista (ou ele já está em foco). Escolha uma sugestão da busca.'); return; }
 
     // Reaproveita a linha se ela já existiu e foi desativada, em vez de
     // empilhar histórico duplicado — mesma disciplina de "não apaga,
