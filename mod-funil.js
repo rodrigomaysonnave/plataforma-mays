@@ -17,6 +17,13 @@
   const DIAS_PARADO = 7;   // acima disso, o negócio é "estagnado"
   let alvoEl = null, etapas = [], contatos = [], imoveis = [], empreendimentos = [];
 
+  // Temperatura é o nível de intenção do prospect — diferente da etapa,
+  // que é onde ele está no processo. Cor dinâmica via --c, mesma receita
+  // de .lead-etapa-selo (estilo.css). Sem azul no design system, frio usa
+  // o neutro (--texto-fraco) em vez de inventar token novo.
+  const TEMP_COR   = { frio: 'var(--texto-fraco)', morno: 'var(--amarelo)', quente: 'var(--vermelho)' };
+  const TEMP_LABEL = { frio: 'Frio', morno: 'Morno', quente: 'Quente' };
+
   const vgv = v => !v ? 'R$ 0' :
     v >= 1e6 ? `R$ ${(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})} M`
              : `R$ ${(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0})} k`;
@@ -46,6 +53,7 @@
           : n.empreendimento_id ? `<div class="kan-imovel">${esc(nomeDe(empreendimentos, n.empreendimento_id))}</div>` : ''}
         <div class="kan-rodape">
           <span class="kan-valor">${n.valor ? vgv(n.valor) : '<span class="cad-vazio">sem valor</span>'}</span>
+          ${n.temperatura ? `<span class="kan-temp-selo" style="--c:${TEMP_COR[n.temperatura]}">${TEMP_LABEL[n.temperatura]}</span>` : ''}
           ${parado >= DIAS_PARADO ? `<span class="kan-alerta" title="Sem movimento há ${parado} dias">${parado}d</span>` : ''}
         </div>
       </article>`;
@@ -142,6 +150,11 @@
     const n = id === 'novo' ? {} :
       (await db(supabaseClient.from('negocio').select('*').eq('id', id).limit(1), 'abrir negócio'))[0];
     const motivos = await Crud.listaApoio('motivo_perda');
+    // Seleção já existente pra este negócio, se houver — evita criar uma
+    // "Página do cliente" nova a cada clique no botão.
+    const [selecaoExistente] = id === 'novo' ? [] : await db(supabaseClient
+      .from('selecao_cliente').select('id').eq('negocio_id', id)
+      .order('created_at', { ascending: false }).limit(1), 'verificar página do cliente');
     const op = (lista, sel, vazio) => `<option value="">${vazio}</option>` + lista.map(o =>
       `<option value="${o.id}"${o.id === sel ? ' selected' : ''}>${esc(o.nome)}</option>`).join('');
     // Nome do cliente já ligado, pra preencher o campo de busca — a lista de
@@ -157,6 +170,7 @@
         </div>
         <div class="secao-acoes">
           ${id === 'novo' ? '' : '<button class="btn btn-remover" id="negExcluir">Excluir</button>'}
+          ${id === 'novo' ? '' : `<button class="btn" id="negSelecao" title="Link único pra este cliente, com a seleção de imóveis e condição que você montar">Página do cliente</button>`}
           <button class="btn" id="negAgendar" title="Marca visita ou reunião deste negócio e manda para o seu Google">Agendar</button>
           <button class="btn" id="negVoltar">Voltar ao funil</button>
           <button class="btn btn-primario" id="negSalvar">Salvar</button>
@@ -196,6 +210,14 @@
           <select id="negImovel">${op(imoveis, n.imovel_id, 'Nenhum ainda')}</select></div>
         <div class="campo"><label for="negEtapa">Etapa</label>
           <select id="negEtapa">${op(etapas, n.etapa_id || (etapas[0] || {}).id, 'Selecione')}</select></div>
+        <div class="campo"><label for="negTemp">Temperatura</label>
+          <select id="negTemp">
+            <option value="">Sem classificação</option>
+            <option value="frio"${n.temperatura === 'frio' ? ' selected' : ''}>Frio</option>
+            <option value="morno"${n.temperatura === 'morno' ? ' selected' : ''}>Morno</option>
+            <option value="quente"${n.temperatura === 'quente' ? ' selected' : ''}>Quente</option>
+          </select>
+          <p class="campo-dica">Intenção do prospect — diferente da etapa, que é onde ele está no funil.</p></div>
         <div class="campo"><label for="negValor">Valor do negócio (R$)</label>
           <input type="number" id="negValor" value="${n.valor ?? ''}" step="0.01" min="0">
           <p class="campo-dica">É o que soma no VGV de cada etapa.</p></div>
@@ -207,6 +229,15 @@
       </div></div>`;
 
     document.getElementById('negVoltar').addEventListener('click', desenhar);
+
+    const selBtn = document.getElementById('negSelecao');
+    if (selBtn) selBtn.addEventListener('click', () => {
+      const nomeDigitado = document.getElementById('negContatoBusca').value.trim();
+      const achado = contatos.find(c => c.nome.trim().toLowerCase() === nomeDigitado.toLowerCase());
+      const contatoId = achado ? achado.id : n.contato_id;
+      if (!contatoId) { avisar('Escolha o cliente antes de montar a página dele.'); return; }
+      Plataforma.irPara('selecoes', selecaoExistente ? selecaoExistente.id : `novo:${contatoId}:${id}`);
+    });
     // Cadastro rápido de cliente. Só o nome é obrigatório: no meio de um
     // atendimento nem sempre se tem o telefone à mão, e barrar o cadastro
     // fazia o negócio ficar sem cliente nenhum, que é pior que um cliente
@@ -278,6 +309,7 @@
         empreendimento_id: v('negEmpreendimento') || null,
         etapa_id: v('negEtapa') || null, valor: v('negValor') === '' ? null : Number(v('negValor')),
         motivo_perda_id: v('negMotivo') || null, obs: v('negObs').trim() || null,
+        temperatura: v('negTemp') || null,
       };
       if (id === 'novo') await db(supabaseClient.from('negocio').insert(dados), 'salvar o negócio');
       else await db(supabaseClient.from('negocio').update(dados).eq('id', id), 'salvar o negócio');
@@ -347,6 +379,12 @@
 
   Plataforma.registrar('funil', {
     titulo: 'Funil de vendas',
-    async montar(alvo) { alvoEl = alvo; await desenhar(); },
+    // `arg` = id de um negócio pra abrir direto na ficha (ex.: voltando da
+    // Página do cliente) — sem isso, cai no kanban normal.
+    async montar(alvo, arg) {
+      alvoEl = alvo;
+      if (arg) { await carregar(); await abrirNegocio(arg); return; }
+      await desenhar();
+    },
   });
 })();
