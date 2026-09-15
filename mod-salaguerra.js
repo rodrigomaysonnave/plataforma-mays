@@ -188,6 +188,10 @@
 
     alvo.innerHTML = `
       <div class="ficha-secao">
+        <button class="btn btn-primario" id="sgPaginaCliente">Página do cliente</button>
+      </div>
+
+      <div class="ficha-secao">
         <div class="secao-titulo" style="margin-bottom:12px">
           <div><h3>Negócios ligados a este imóvel</h3></div>
         </div>
@@ -221,6 +225,10 @@
       <div class="ficha-secao">
         <button class="btn btn-remover" id="sgRemover">Remover da sala de guerra</button>
       </div>`;
+
+    document.getElementById('sgPaginaCliente').addEventListener('click', () => {
+      Plataforma.irPara('selecoes', `novo-imovel:${imovelId}`);
+    });
 
     document.getElementById('sgRemover').addEventListener('click', async () => {
       if (!confirm('Remover este imóvel da sala de guerra?')) return;
