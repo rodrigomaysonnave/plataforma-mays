@@ -33,7 +33,7 @@ const Fotos = (() => {
   // envio. Só a foto de imóvel/empreendimento passa por aqui; retrato de
   // corretor usa recortarQuadrado, função separada, e não é tocado.
   const MARCA_TAMANHO = 0.20 * 4 / 3;  // fração da largura da foto
-  const MARCA_OPACIDADE = 0.30;
+  const MARCA_OPACIDADE = 0.45;
   let logoMaskPromise = null, logoAroPromise = null;
   function carregarImg(src) {
     return new Promise((ok, falhou) => {
