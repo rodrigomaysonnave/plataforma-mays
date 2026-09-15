@@ -21,7 +21,7 @@
   const { db, esc, avisar } = Plataforma;
 
   const DIAS_PARADO = 7;   // mesmo limiar do Funil (mod-funil.js) e do Início
-  let alvoEl = null, focos = [], imoveisTodos = null, tiposCache = null, detalheAberto = null;
+  let alvoEl = null, focos = [], imoveisTodos = null, tiposCache = null, painelAberto = null, painelEl = null;
 
   const brl = v => !v ? '<span class="cad-vazio">sem valor</span>' :
     'R$ ' + Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -118,9 +118,7 @@
           <h3>Nenhum imóvel em foco ainda</h3>
           <p>Traga pra cá os imóveis que a equipe está empurrando agora.
              Marque "Sala de guerra" no cadastro do imóvel, ou busque aqui em cima.</p></div>` : `
-        <div class="sala-grade">${focos.map(card).join('')}</div>`}
-
-      <div id="sgDetalhe"></div>`;
+        <div class="sala-grade">${focos.map(card).join('')}</div>`}`;
 
     document.getElementById('sgFiltroTipo').addEventListener('change', () => {
       document.getElementById('sgBuscaImovel').value = '';
@@ -132,7 +130,7 @@
     });
     document.getElementById('sgRelatorio').addEventListener('click', gerarRelatorio);
     alvoEl.querySelectorAll('.sala-cartao').forEach(c =>
-      c.addEventListener('click', () => abrirDetalhe(c.dataset.id, c.dataset.imovel)));
+      c.addEventListener('click', () => abrirPainel(c.dataset.id, c.dataset.imovel)));
   }
 
   async function adicionar() {
@@ -160,35 +158,119 @@
     await desenhar();
   }
 
-  async function abrirDetalhe(focoId, imovelId) {
-    if (detalheAberto === focoId) { detalheAberto = null; document.getElementById('sgDetalhe').innerHTML = ''; return; }
-    detalheAberto = focoId;
-    const alvo = document.getElementById('sgDetalhe');
-    alvo.innerHTML = '<div class="vazio"><p>Carregando…</p></div>';
+  // Painel lateral (drawer), não modal centrado: fica anexado direto no
+  // body (mesmo precedente do .cp-modal em mod-corretores.js/mod-
+  // campanhas.js), pra cobrir só uma faixa da tela e deixar a grade visível
+  // ao lado. Único cuidado que esse precedente não tinha: como ele muda de
+  // tela por conta própria (Página do cliente, ir pro negócio), toda
+  // navegação daqui pra fora fecha o painel primeiro — sem isso ele fica
+  // flutuando por cima do módulo seguinte.
+  function garantirPainel() {
+    if (painelEl) return painelEl;
+    const fundo = document.createElement('div');
+    fundo.className = 'sg-painel-fundo';
+    fundo.innerHTML = '<div class="sg-painel" id="sgPainel"></div>';
+    fundo.addEventListener('click', e => { if (e.target === fundo) fecharPainel(); });
+    document.body.appendChild(fundo);
+    painelEl = fundo;
+    requestAnimationFrame(() => fundo.querySelector('.sg-painel').classList.add('aberto'));
+    return painelEl;
+  }
 
-    const [negocios, interacoes, etapas] = await Promise.all([
+  function fecharPainel() {
+    if (painelEl) { painelEl.remove(); painelEl = null; }
+    painelAberto = null;
+  }
+
+  const quando = iso => {
+    if (!iso) return null;
+    const dias = Math.floor((Date.now() - new Date(iso)) / 86400000);
+    if (dias === 0) return 'hoje';
+    if (dias === 1) return 'ontem';
+    if (dias < 30) return `há ${dias} dias`;
+    return new Date(iso).toLocaleDateString('pt-BR');
+  };
+
+  function envioHtml(e, etapas) {
+    const visitas = e.selecao.visualizacoes > 0
+      ? `visto ${e.selecao.visualizacoes}× · última vez ${quando(e.selecao.ultima_visualizacao_em)}`
+      : 'ainda não abriu o link';
+    const badge = e.item.interesse ? '<span class="sg-envio-badge sg-envio-interesse">◆ Interesse</span>' : '';
+    const desativada = e.selecao.ativo ? '' : ' <span class="secao-meta">(link desativado)</span>';
+    let acao;
+    if (e.negocio) {
+      acao = `<select class="sg-etapa-select">${etapas.map(et =>
+        `<option value="${et.id}"${et.id === e.negocio.etapa_id ? ' selected' : ''}>${esc(et.nome)}</option>`).join('')}</select>
+        <button class="btn btn-mini" type="button" data-salvar-etapa="${e.negocio.id}">Salvar etapa</button>`;
+    } else if (e.item.interesse) {
+      acao = `<button class="btn btn-mini btn-primario" type="button" data-colocar-funil="${e.item.id}" data-contato="${e.selecao.contato_id}">Colocar no funil</button>`;
+    } else {
+      acao = '<span class="secao-meta">Aguardando interesse</span>';
+    }
+    return `
+      <li class="cfg-item sg-envio-item">
+        <div class="cfg-item-nome"><strong>${esc(e.contatoNome)}</strong>${badge}${desativada}
+          <br><span class="secao-meta">Enviado ${quando(e.selecao.created_at)} · ${esc(visitas)}</span></div>
+        <div class="linha-com-botao">${acao}</div>
+      </li>`;
+  }
+
+  async function abrirPainel(focoId, imovelId) {
+    if (painelAberto === focoId) { fecharPainel(); return; }
+    painelAberto = focoId;
+    garantirPainel();
+    const conteudo = document.getElementById('sgPainel');
+    conteudo.innerHTML = '<div class="vazio"><p>Carregando…</p></div>';
+
+    const f = focos.find(x => x.foco_id === focoId) || {};
+
+    const [negocios, interacoes, etapas, itensImovel] = await Promise.all([
       db(supabaseClient.from('negocio').select('*').eq('imovel_id', imovelId)
         .order('updated_at', { ascending: false }), 'carregar negócios do imóvel'),
       db(supabaseClient.from('interacao').select('*').eq('imovel_id', imovelId)
         .order('quando', { ascending: false }).limit(20), 'carregar interações do imóvel'),
-      db(supabaseClient.from('etapa_funil').select('id,nome'), 'carregar etapas'),
+      Crud.listaApoio('etapa_funil'),
+      db(supabaseClient.from('selecao_cliente_item').select('id,selecao_id,interesse,interesse_em')
+        .eq('imovel_id', imovelId), 'carregar envios do imóvel'),
     ]);
-    const contatoIds = [...new Set([...negocios.map(n => n.contato_id), ...interacoes.map(i => i.contato_id)].filter(Boolean))];
+
+    const selecaoIds = itensImovel.map(i => i.selecao_id);
+    const selecoes = selecaoIds.length ? await db(supabaseClient.from('selecao_cliente')
+      .select('id,contato_id,ativo,visualizacoes,ultima_visualizacao_em,created_at')
+      .in('id', selecaoIds), 'carregar seleções do imóvel') : [];
+
+    const contatoIds = [...new Set([
+      ...negocios.map(n => n.contato_id), ...interacoes.map(i => i.contato_id), ...selecoes.map(s => s.contato_id),
+    ].filter(Boolean))];
     const contatos = contatoIds.length ? await db(supabaseClient.from('contato')
       .select('id,nome').in('id', contatoIds), 'carregar clientes') : [];
     const nomeContato = id => (contatos.find(c => c.id === id) || {}).nome || '—';
     const nomeEtapa = id => (etapas.find(e => e.id === id) || {}).nome || '—';
-    const quando = iso => {
-      const dias = Math.floor((Date.now() - new Date(iso)) / 86400000);
-      if (dias === 0) return 'hoje';
-      if (dias === 1) return 'ontem';
-      if (dias < 30) return `há ${dias} dias`;
-      return new Date(iso).toLocaleDateString('pt-BR');
-    };
 
-    alvo.innerHTML = `
+    // Negócio mais recente de cada cliente ligado a ESTE imóvel (a query já
+    // veio filtrada por imovel_id, e ordenada do mais novo pro mais velho —
+    // por isso só grava se ainda não tinha visto o cliente).
+    const negocioPorContato = new Map();
+    negocios.forEach(n => { if (!negocioPorContato.has(n.contato_id)) negocioPorContato.set(n.contato_id, n); });
+
+    const envios = itensImovel.map(it => {
+      const selecao = selecoes.find(s => s.id === it.selecao_id);
+      if (!selecao) return null; // seleção excluída depois do envio
+      return { item: it, selecao, contatoNome: nomeContato(selecao.contato_id), negocio: negocioPorContato.get(selecao.contato_id) };
+    }).filter(Boolean).sort((a, b) => new Date(b.selecao.created_at) - new Date(a.selecao.created_at));
+
+    conteudo.innerHTML = `
+      <div class="sg-painel-topo">
+        <div><h2>${esc(f.codigo || '')} · ${esc(f.titulo || 'sem título')}</h2>
+          <div class="secao-meta">${brl(f.valor)}</div></div>
+        <button class="sg-painel-fechar" id="sgFechar" type="button" aria-label="Fechar">×</button>
+      </div>
+
       <div class="ficha-secao">
-        <button class="btn btn-primario" id="sgPaginaCliente">Página do cliente</button>
+        <div class="secao-titulo" style="margin-bottom:12px"><div><h3>Enviado para</h3></div></div>
+        <button class="btn btn-primario" id="sgPaginaCliente" style="margin-bottom:12px">+ Página do cliente</button>
+        ${envios.length === 0 ? '<div class="vazio"><p>Ainda não foi enviado pra ninguém.</p></div>' : `
+          <ul class="cfg-itens">${envios.map(e => envioHtml(e, etapas)).join('')}</ul>`}
       </div>
 
       <div class="ficha-secao">
@@ -226,7 +308,10 @@
         <button class="btn btn-remover" id="sgRemover">Remover da sala de guerra</button>
       </div>`;
 
+    document.getElementById('sgFechar').addEventListener('click', fecharPainel);
+
     document.getElementById('sgPaginaCliente').addEventListener('click', () => {
+      fecharPainel();
       Plataforma.irPara('selecoes', `novo-imovel:${imovelId}`);
     });
 
@@ -234,11 +319,11 @@
       if (!confirm('Remover este imóvel da sala de guerra?')) return;
       await db(supabaseClient.from('imovel_foco').update({ ativo: false }).eq('id', focoId), 'remover foco');
       avisar('Removido da sala de guerra.');
-      detalheAberto = null;
+      fecharPainel();
       await desenhar();
     });
 
-    alvo.querySelectorAll('[data-registrar]').forEach(b => b.addEventListener('click', () => {
+    conteudo.querySelectorAll('[data-registrar]').forEach(b => b.addEventListener('click', () => {
       const linha = b.closest('tr');
       if (linha.querySelector('.sg-registrar-form')) return;
       const form = document.createElement('tr');
@@ -257,21 +342,65 @@
           canal: form.querySelector('.sg-canal').value, resumo, quem: Plataforma.perfil.id,
         }), 'registrar a interação');
         avisar('Interação registrada.');
-        await abrirDetalheForcado(focoId, imovelId);
+        await reabrirPainel(focoId, imovelId);
       });
     }));
 
-    alvo.querySelectorAll('[data-ir-negocio]').forEach(tr => tr.addEventListener('click', e => {
+    // "Colocar no funil" só aparece quando já tem interesse marcado (o
+    // cliente clicou "Tenho interesse" na página pública). Etapa entra
+    // pré-marcada em "Proposta" — é a etapa que já corresponde a "cliente
+    // confirmou interesse num imóvel específico" — mas o corretor escolhe
+    // antes de confirmar.
+    conteudo.querySelectorAll('[data-colocar-funil]').forEach(b => b.addEventListener('click', () => {
+      const li = b.closest('li');
+      if (li.nextElementSibling?.classList.contains('sg-funil-form')) return;
+      const propostaId = (etapas.find(e => e.nome === 'Proposta') || etapas[0] || {}).id;
+      const form = document.createElement('li');
+      form.className = 'cfg-item sg-funil-form';
+      form.innerHTML = `
+        <div class="linha-com-botao">
+          <select class="sg-nova-etapa">${etapas.map(et =>
+            `<option value="${et.id}"${et.id === propostaId ? ' selected' : ''}>${esc(et.nome)}</option>`).join('')}</select>
+          <select class="sg-nova-temp">
+            <option value="">Sem classificação</option>
+            <option value="frio">Frio</option>
+            <option value="morno">Morno</option>
+            <option value="quente" selected>Quente</option>
+          </select>
+          <button class="btn btn-primario btn-mini" type="button">Criar negócio</button>
+        </div>`;
+      li.after(form);
+      form.querySelector('button').addEventListener('click', async () => {
+        await db(supabaseClient.from('negocio').insert({
+          contato_id: b.dataset.contato, imovel_id: imovelId,
+          etapa_id: form.querySelector('.sg-nova-etapa').value,
+          temperatura: form.querySelector('.sg-nova-temp').value || null,
+        }), 'criar o negócio');
+        avisar('Negócio criado.');
+        await reabrirPainel(focoId, imovelId);
+      });
+    }));
+
+    conteudo.querySelectorAll('[data-salvar-etapa]').forEach(b => b.addEventListener('click', async () => {
+      const select = b.closest('.linha-com-botao').querySelector('.sg-etapa-select');
+      await db(supabaseClient.from('negocio').update({ etapa_id: select.value }).eq('id', b.dataset.salvarEtapa), 'mudar a etapa');
+      avisar('Etapa atualizada.');
+      await reabrirPainel(focoId, imovelId);
+    }));
+
+    conteudo.querySelectorAll('[data-ir-negocio]').forEach(tr => tr.addEventListener('click', e => {
       if (e.target.closest('[data-registrar]') || e.target.closest('.sg-registrar-form')) return;
+      fecharPainel();
       Plataforma.irPara('funil', tr.dataset.irNegocio);
     }));
   }
 
-  // Reabre o mesmo detalhe depois de uma ação (registrar interação), sem o
-  // efeito de "clicar de novo fecha" que abrirDetalhe tem por padrão.
-  async function abrirDetalheForcado(focoId, imovelId) {
-    detalheAberto = null;
-    await abrirDetalhe(focoId, imovelId);
+  // Recarrega o painel depois de uma ação feita nele (registrar interação,
+  // criar negócio, mudar etapa), sem o efeito de "clicar de novo fecha" que
+  // abrirPainel tem por padrão pro clique no card.
+  async function reabrirPainel(focoId, imovelId) {
+    painelAberto = null;
+    await abrirPainel(focoId, imovelId);
   }
 
   function gerarRelatorio() {
@@ -307,6 +436,6 @@
 
   Plataforma.registrar('salaguerra', {
     titulo: 'Sala de guerra',
-    async montar(alvo) { alvoEl = alvo; detalheAberto = null; await desenhar(); },
+    async montar(alvo) { alvoEl = alvo; fecharPainel(); await desenhar(); },
   });
 })();

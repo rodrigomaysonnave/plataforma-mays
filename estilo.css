@@ -1512,6 +1512,30 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 .sala-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .sala-cartao { cursor: pointer; }
 
+/* Sala de guerra: painel lateral no lugar do card expandido — mesma ideia
+   visual do painel da extensão de Chrome. Cobre uma faixa da direita, a
+   grade continua visível (e escurecida) atrás. */
+.sg-painel-fundo { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.5); }
+.sg-painel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 61;
+  width: min(480px, 100%); overflow-y: auto;
+  background: var(--superficie); border-left: 1px solid var(--borda);
+  padding: 20px; transform: translateX(100%); transition: transform .18s ease;
+}
+.sg-painel.aberto { transform: translateX(0); }
+.sg-painel-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.sg-painel-fechar {
+  background: none; border: none; color: var(--texto-fraco); font-size: 22px;
+  line-height: 1; cursor: pointer; padding: 2px 8px; flex-shrink: 0;
+}
+.sg-painel-fechar:hover { color: var(--texto); }
+.sg-envio-item .linha-com-botao { margin-top: 8px; }
+.sg-envio-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 3px;
+  padding: 1px 6px; margin-left: 6px; vertical-align: 1px;
+}
+.sg-envio-interesse { color: var(--verde); background: rgba(76,175,125,.14); }
+
 /* ══════════════════════════════════════════════════════════════════════
    RELEVO COMPARTILHADO
    Tem que ficar no FIM do arquivo, e não junto de cada componente: as
@@ -1530,8 +1554,9 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   box-shadow: var(--bisel), var(--sombra-cartao);
 }
 
-/* Janela e menu suspenso ficam acima de tudo: bisel e sombra fortes. */
-.cp-modal-caixa, .topo-flyout {
+/* Janela, menu suspenso e painel lateral ficam acima de tudo: bisel e
+   sombra fortes. */
+.cp-modal-caixa, .topo-flyout, .sg-painel {
   background-image: var(--verniz-forte);
   box-shadow: var(--bisel-forte), var(--sombra-alta);
 }
