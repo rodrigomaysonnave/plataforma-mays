@@ -34,6 +34,7 @@
     'Outras redes': 'LinkedIn, YouTube, TikTok, X ou Pinterest.',
     'Outros sites': 'Outro site com link para o seu.',
     'Outros anúncios': 'Anúncio marcado com utm que não é do Google nem do Meta.',
+    'Outros links marcados': 'Link com utm de uma origem própria, como QR code de placa, folder ou cartão.',
   };
 
   let dias = 30;
