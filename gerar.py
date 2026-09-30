@@ -848,15 +848,136 @@ def menus_html(cfg, raiz):
     return '<nav class="nav">' + "".join(itens) + busca + '</nav>'
 
 
+# Medição própria (painel Inteligência da Plataforma, sql/54). Grava cada
+# página vista e cada clique no WhatsApp, telefone ou formulário na tabela
+# visita_site, com a origem da visita: de onde a pessoa veio (Google,
+# Instagram, anúncio) vale para todas as páginas que ela vê depois, como no
+# Analytics. Sessão acaba com 30 minutos parado ou quando chega por outra
+# origem.
+#
+# Sem cookie, sem IP, sem biblioteca: visitante e sessão são sorteados e
+# ficam no localStorage. Dispara depois do load, então não pesa no LCP.
+# Robô, navegador automatizado e quem abriu o site com ?nao-contar ficam de
+# fora (?contar desfaz). __URL__ e __CHAVE__ são trocados em bloco_medicao;
+# string comum de propósito, chave de JavaScript quebraria uma f-string.
+MEDICAO_PROPRIA = r"""<script>
+(function () {
+  'use strict';
+  try {
+    var w = window, d = document, n = navigator, L = location;
+    if (L.protocol === 'file:' || w.maysMedir) return;
+    var ls = null;
+    try { ls = w.localStorage; ls.setItem('_m', '1'); ls.removeItem('_m'); } catch (e) { ls = null; }
+    var ler = function (k) { try { return ls ? ls.getItem(k) : null; } catch (e) { return null; } };
+    var gravar = function (k, v) { try { if (ls) { if (v === null) ls.removeItem(k); else ls.setItem(k, v); } } catch (e) {} };
+    var q = new URLSearchParams(L.search);
+    if (q.has('nao-contar')) gravar('mays_nao_contar', '1');
+    if (q.has('contar')) gravar('mays_nao_contar', null);
+    w.maysMedir = function () {};
+    if (ler('mays_nao_contar') || n.webdriver ||
+        /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|facebookexternalhit|embedly/i.test(n.userAgent)) return;
+
+    var sorteio = function () {
+      var a = new Uint8Array(12), s = '';
+      w.crypto.getRandomValues(a);
+      for (var i = 0; i < a.length; i++) s += (a[i] % 36).toString(36);
+      return s;
+    };
+    var base = L.hostname.replace(/^www\./, '');
+    var ref = d.referrer || '', refHost = '';
+    try { refHost = ref ? new URL(ref).hostname.replace(/^www\./, '') : ''; } catch (e) {}
+    var externo = !!refHost && refHost !== base && refHost.slice(-base.length - 1) !== '.' + base;
+    var utm = {}, temUtm = false, clique = null;
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(function (k) {
+      var v = q.get(k); if (v) { utm[k] = v.slice(0, 150); temUtm = true; }
+    });
+    ['gclid', 'gbraid', 'wbraid', 'fbclid', 'msclkid', 'ttclid'].some(function (k) {
+      if (q.has(k)) { clique = k; return true; } return false;
+    });
+
+    var agora = Date.now(), s = null, entrada = false;
+    try { s = JSON.parse(ler('mays_sessao') || 'null'); } catch (e) {}
+    var nova = (externo || temUtm || clique) ? { r: externo ? ref.slice(0, 300) : null, u: utm, c: clique } : null;
+    var assinatura = nova ? JSON.stringify([refHost, utm, clique]) : null;
+    if (!s || !s.id || agora - (s.ult || 0) > 1800000 || (nova && assinatura !== s.sig)) {
+      s = { id: sorteio(), sig: assinatura, a: nova || { r: null, u: {}, c: null } };
+      entrada = true;
+    }
+    var visitante = ler('mays_visitante');
+    if (!/^[a-z0-9]{8,32}$/.test(visitante || '')) { visitante = sorteio(); gravar('mays_visitante', visitante); }
+
+    var ua = n.userAgent;
+    var disp = (/iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) ||
+                (/Macintosh/.test(ua) && n.maxTouchPoints > 1)) ? 'tablet'
+             : (/Mobi|iPhone|iPod|Android/i.test(ua) ? 'celular' : 'computador');
+    var lead = q.get('lead');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lead || '')) lead = null;
+    var caminho = (L.pathname.replace(/index\.html$/, '') || '/').slice(0, 300);
+
+    var enviar = function (tipo, alvo) {
+      s.ult = Date.now(); gravar('mays_sessao', JSON.stringify(s));
+      var a = s.a || {}, u = a.u || {};
+      var corpo = JSON.stringify({
+        tipo: tipo, visitante: visitante, sessao: s.id,
+        entrada: tipo === 'pagina' && entrada,
+        caminho: caminho, titulo: (d.title || '').slice(0, 200) || null,
+        referencia: a.r || null, clique: a.c || null,
+        utm_source: u.utm_source || null, utm_medium: u.utm_medium || null,
+        utm_campaign: u.utm_campaign || null, utm_content: u.utm_content || null,
+        utm_term: u.utm_term || null, dispositivo: disp,
+        alvo: alvo ? String(alvo).replace(/\s+/g, ' ').trim().slice(0, 150) || null : null,
+        lead_campanha: tipo === 'pagina' ? lead : null
+      });
+      if (tipo === 'pagina') entrada = false;
+      var mandar = function (manter) {
+        return fetch('__URL__/rest/v1/visita_site', {
+          method: 'POST', keepalive: manter, body: corpo,
+          headers: { apikey: '__CHAVE__', 'Content-Type': 'application/json', Prefer: 'return=minimal' }
+        });
+      };
+      // keepalive segura o envio quando o clique sai da página; navegador
+      // antigo que recusa keepalive com CORS cai no envio comum.
+      try { mandar(true).catch(function () { mandar(false).catch(function () {}); }); } catch (e) {}
+    };
+    w.maysMedir = enviar;
+
+    var pagina = function () { setTimeout(function () { enviar('pagina'); }, 0); };
+    if (d.readyState === 'complete') pagina(); else w.addEventListener('load', pagina);
+
+    d.addEventListener('click', function (ev) {
+      var el = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+      if (!el) return;
+      var h = el.getAttribute('href') || '';
+      var rot = el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '';
+      if (/wa\.me\/|api\.whatsapp\.com|^whatsapp:/i.test(h)) enviar('whatsapp', rot);
+      else if (/^tel:/i.test(h)) enviar('telefone', rot);
+    }, true);
+    // Formulário da ficha avisa sozinho quando o envio dá certo (maysMedir).
+    // Os demais (LPs, que mandam para o WhatsApp) contam no envio.
+    d.addEventListener('submit', function (ev) {
+      var f = ev.target;
+      if (!f || f.id === 'formLead' || f.getAttribute('role') === 'search' ||
+          /(^|\s)busca(\s|$)/.test(f.className || '')) return;
+      enviar('formulario', f.getAttribute('aria-label') || f.id || 'Formulário');
+    }, true);
+  } catch (e) {}
+})();
+</script>"""
+
+
 def bloco_medicao(cfg):
-    """Pixel do Meta, GA4, GTM e verificação do Search Console.
+    """Pixel do Meta, GA4, GTM, verificação do Search Console e a medição
+    própria do painel Inteligência.
 
     Virou função porque as landing pages passaram a usar o mesmo bloco. Antes
     cada LP era um site solto, sem pixel nenhum, então quem visitava uma delas
     não virava público para anúncio. Com todas sob o mesmo domínio e o mesmo
     pixel, visita de LP e visita de site são a mesma audiência.
     """
-    medicao = ""
+    # Sai sem recuo nem comentário: o arquivo fica legível aqui e leve no ar.
+    enxuto = "\n".join(l.strip() for l in MEDICAO_PROPRIA.splitlines()
+                        if l.strip() and not l.strip().startswith("//"))
+    medicao = enxuto.replace("__URL__", URL).replace("__CHAVE__", CHAVE)
     if cfg.get("search_console"):
         medicao += f'<meta name="google-site-verification" content="{e(cfg["search_console"])}">'
     if cfg.get("ga4_id"):
@@ -1956,6 +2077,7 @@ def pagina_imovel(cfg, im, base, todos=None):
         }})
       }});
       if (!r.ok) throw new Error(r.status);
+      if (window.maysMedir) window.maysMedir('formulario', 'Ficha do imóvel');
       f.innerHTML = '<p class="form-ok">Recebido. Retorno em breve no telefone que você deixou.</p>';
     }} catch (erro) {{
       aviso.textContent = 'Não consegui enviar agora. Chame no WhatsApp que eu respondo na hora.';

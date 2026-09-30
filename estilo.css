@@ -1569,3 +1569,126 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   transform: translateY(calc(var(--sobe-no-hover) * -1));
   box-shadow: var(--bisel), var(--sombra-alta);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   INTELIGÊNCIA DO SITE (mod-visitas.js)
+   Uma série só no gráfico, então uma cor só: o dourado. Contato é o único
+   dado que ganha verde, porque é o resultado que se quer ver crescer.
+   ══════════════════════════════════════════════════════════════════════ */
+.iv-periodos { gap: 6px; }
+.iv-periodo {
+  font: inherit; font-size: 12.5px; padding: 6px 13px; border-radius: 20px; cursor: pointer;
+  border: 1px solid var(--borda); background: transparent; color: var(--texto-fraco);
+  transition: border-color .12s, color .12s, background .12s;
+}
+.iv-periodo:hover { border-color: var(--dourado-fosco); color: var(--texto); }
+.iv-periodo.ativo { border-color: var(--dourado); color: var(--dourado); background: rgba(var(--dourado-rgb), .1); font-weight: 600; }
+.iv-periodo:focus-visible, .iv-filtro:focus-visible { outline: 2px solid var(--dourado); outline-offset: 2px; }
+.iv-periodo:disabled { opacity: .5; cursor: progress; }
+
+.iv-aviso {
+  border: 1px solid var(--dourado); background: rgba(var(--dourado-rgb), .08);
+  border-radius: var(--raio-p); padding: 16px 18px; margin-bottom: 18px;
+  font-size: 13.5px; line-height: 1.55; color: var(--texto);
+}
+.iv-aviso b { display: block; font-size: 15px; color: var(--dourado); margin-bottom: 4px; }
+.iv-carregando { color: var(--texto-fraco); padding: 30px 4px; }
+
+.iv-numeros .num-v { font-size: 30px; line-height: 1.1; }
+.iv-var { font-size: 11px; color: var(--texto-fraco); margin-top: 2px; }
+.iv-sobe { color: var(--verde); }
+.iv-desce { color: var(--vermelho); }
+
+.iv-bloco { margin-bottom: 16px; }
+.iv-corpo { padding: 16px 20px; min-width: 0; }
+.iv-duas { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
+.iv-duas > .ficha-secao { min-width: 0; }
+
+/* Gráfico */
+.iv-grafico { position: relative; padding: 14px 16px 8px; min-height: 190px; }
+.iv-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.iv-grade { stroke: var(--borda); stroke-width: 1; opacity: .55; }
+.iv-base { stroke: var(--borda); stroke-width: 1; }
+.iv-eixo { fill: var(--texto-fraco); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.iv-rotulo-max { fill: var(--texto); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.iv-barra { fill: var(--dourado); transition: opacity .12s; }
+.iv-barra.iv-apagada { opacity: .35; }
+.iv-alvo { fill: transparent; cursor: pointer; }
+.iv-tip {
+  position: absolute; top: 10px; pointer-events: none; z-index: 3;
+  background: var(--superficie-2); border: 1px solid var(--borda); border-radius: var(--raio-p);
+  box-shadow: var(--sombra-cartao); padding: 8px 11px; font-size: 12px;
+  display: flex; flex-direction: column; gap: 2px; min-width: 132px; white-space: nowrap;
+}
+.iv-tip em { font-style: normal; color: var(--texto-fraco); font-size: 11px; text-transform: capitalize; }
+.iv-tip b { font-size: 13.5px; }
+.iv-tip-contato { color: var(--verde); font-weight: 600; }
+.iv-tabela-dias { padding: 0 20px 14px; }
+.iv-tabela-dias summary { cursor: pointer; font-size: 12px; color: var(--texto-fraco); padding: 6px 0; }
+.iv-tabela-dias .cad-tabela-scroll { max-height: 320px; overflow-y: auto; }
+
+/* Origens */
+/* Uma grade só para todas as linhas: é o que faz as barras começarem juntas */
+.iv-origens { display: grid; grid-template-columns: minmax(110px, max-content) minmax(60px, 1fr) max-content max-content; align-items: center; gap: 12px 14px; }
+.iv-origem { display: contents; }
+.iv-origem-nome { font-size: 13px; font-weight: 600; min-width: 0; }
+.iv-trilho { display: block; background: var(--superficie-2); border-radius: 3px; height: 14px; overflow: hidden; }
+.iv-trilho > span { display: block; height: 100%; background: var(--dourado); border-radius: 0 4px 4px 0; }
+.iv-trilho-fino { height: 4px; margin-top: 6px; max-width: 260px; }
+.iv-origem-num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.iv-origem-num b { font-size: 14px; }
+.iv-origem-num em { font-style: normal; color: var(--texto-fraco); font-size: 11px; margin-left: 5px; }
+.iv-origem-contato { font-size: 11.5px; color: var(--texto-fraco); white-space: nowrap; }
+.iv-origem-contato.tem { color: var(--verde); font-weight: 600; }
+
+/* Perfil */
+.iv-lateral h4 { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--texto-fraco); margin: 0 0 8px; }
+.iv-lateral h4:not(:first-child) { margin-top: 18px; }
+.iv-minis { display: flex; gap: 10px; flex-wrap: wrap; }
+.iv-mini { flex: 1 1 80px; background: var(--superficie-2); border-radius: var(--raio-p); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.iv-mini b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.iv-mini span { font-size: 11.5px; color: var(--texto-fraco); }
+.iv-lista { list-style: none; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; }
+.iv-lista li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; }
+.iv-lista li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iv-lista small { display: block; font-size: 10.5px; color: var(--texto-fraco); }
+.iv-lista b { font-variant-numeric: tabular-nums; }
+.iv-lista em { font-style: normal; font-size: 11px; color: var(--texto-fraco); white-space: nowrap; }
+
+/* Tabelas */
+.iv-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.iv-filtro {
+  font: inherit; font-size: 12px; padding: 5px 11px; border-radius: 20px; cursor: pointer;
+  border: 1px solid var(--borda); background: transparent; color: var(--texto-fraco);
+}
+.iv-filtro.ativo { border-color: var(--dourado); color: var(--dourado); background: rgba(var(--dourado-rgb), .08); }
+.iv-tabela td { vertical-align: middle; }
+.iv-dir { text-align: right !important; }
+.iv-n { font-variant-numeric: tabular-nums; }
+.iv-pag { min-width: 220px; }
+.iv-pag a { color: var(--texto); text-decoration: none; font-weight: 600; }
+.iv-pag a:hover { color: var(--dourado); text-decoration: underline; }
+.iv-contato { color: var(--verde); font-weight: 700; }
+.iv-chamou { color: var(--verde); font-weight: 700; white-space: nowrap; }
+.iv-apagado { color: var(--texto-fraco); }
+.iv-vazio-p { color: var(--texto-fraco); font-size: 13px; }
+
+/* Ajuda */
+.iv-ajuda-corpo { padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; font-size: 12.5px; line-height: 1.6; color: var(--texto-fraco); }
+.iv-ajuda-corpo b { color: var(--texto); }
+.iv-ajuda-corpo code { font-size: 11.5px; background: var(--superficie-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; color: var(--texto); }
+.iv-copiar { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .iv-duas { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .iv-numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .iv-numeros .num:last-child { grid-column: 1 / -1; }
+  .iv-numeros .num-v { font-size: 24px; }
+  .iv-origens { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+  .iv-origem { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 5px; }
+  .iv-origem .iv-trilho { grid-column: 1 / -1; grid-row: 2; }
+  .iv-origem-contato { grid-column: 1 / -1; }
+  .iv-corpo, .iv-grafico { padding-left: 12px; padding-right: 12px; }
+}
