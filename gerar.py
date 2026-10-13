@@ -192,7 +192,7 @@ CSS = """
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --tinta:#241C14;--tinta-2:#5C4E42;--tinta-3:#6F6155;--sobre-escuro:#A79684;
-  --fundo:#FAF7F3;--superficie:#fff;--superficie-2:#F3EEE7;
+  --fundo:#FFFFFF;--superficie:#fff;--superficie-2:#F5F5F5;
   --linha:#E3DAD0;--marca:#7D5F41;--marca-clara:#9B7B5A;--escuro:#241C14;
 }
 html{scroll-behavior:smooth}
@@ -289,6 +289,13 @@ a{color:var(--marca)}
 .ficha{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,1fr);gap:32px;align-items:start;margin:32px 0 56px}
 .ficha h1{font-family:Georgia,serif;font-weight:400;font-size:clamp(24px,3.6vw,34px);line-height:1.2;margin-bottom:8px}
 .ficha-local{font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--marca);margin-bottom:20px}
+.ficha-mapa,.cond-resumo{margin:32px 0;padding-top:28px;border-top:1px solid var(--linha)}
+.ficha-mapa h2,.cond-resumo h2{font-family:Georgia,serif;font-weight:400;font-size:26px;margin-bottom:16px}
+.ficha-mapa iframe{display:block;width:100%;height:360px;border:0;border-radius:8px;margin:16px 0;background:var(--superficie-2)}
+.mapa-aviso{font-size:13px;color:var(--tinta-3);margin-bottom:16px}
+.emp-lazer{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding-left:20px;margin:20px 0}
+.emp-galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:24px 0}
+.emp-galeria img{display:block;width:100%;height:200px;object-fit:cover;border-radius:6px}
 .ficha-desc{margin:24px 0;color:var(--tinta-2);line-height:1.7}
 .ficha-desc p,.prose p{margin-bottom:1.1em}
 .ficha-desc p:last-child,.prose p:last-child{margin-bottom:0}
@@ -1775,6 +1782,39 @@ window.buscarTexto = function (q) {{
             + corpo + rodape_html(cfg, raiz="."))
 
 
+def mapa_localizacao(im, emp=None):
+    """Prioriza coordenadas válidas, endereço e por último a região cadastrada."""
+    emp = emp or {}
+    origem = im if im.get("endereco") else emp
+    cidade = im.get("_cidade") or emp.get("_cidade") or ""
+    bairro = im.get("_bairro") or emp.get("_bairro") or ""
+    endereco = ", ".join(str(x).strip() for x in
+                         (origem.get("endereco"), origem.get("numero"), bairro, cidade,
+                          origem.get("estado") or "RS", "Brasil") if x)
+    coordenadas = None
+    for fonte in (im, emp):
+        try:
+            lat, lon = float(fonte["latitude"]), float(fonte["longitude"])
+            if -90 <= lat <= 90 and -180 <= lon <= 180:
+                coordenadas = f"{lat},{lon}"
+                break
+        except (KeyError, TypeError, ValueError):
+            pass
+    if not coordenadas and not origem.get("endereco") and not (bairro or cidade):
+        return ""
+    aproximada = not coordenadas
+    consulta = coordenadas or endereco
+    parametros = urllib.parse.urlencode({"q": consulta, "z": 15 if origem.get("endereco") or coordenadas else 13,
+                                         "output": "embed", "hl": "pt-BR"})
+    link = "https://www.google.com/maps/search/?" + urllib.parse.urlencode({"api": 1, "query": consulta})
+    aviso = ("Localização aproximada por endereço. Confirme o ponto exato com o corretor."
+             if origem.get("endereco") else "Localização aproximada da região. Consulte o endereço exato.") if aproximada else "Ponto informado no cadastro do imóvel ou empreendimento."
+    return (f'<section class="ficha-mapa"><h2>Localização</h2><p>{e(endereco if origem.get("endereco") else " · ".join(x for x in (bairro, cidade) if x))}</p>'
+            f'<iframe src="https://www.google.com/maps?{e(parametros)}" title="Mapa de localização do imóvel" '
+            f'loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>'
+            f'<p class="mapa-aviso">{e(aviso)}</p><a class="botao" href="{e(link)}" target="_blank" rel="noopener">Abrir no Google Maps</a></section>')
+
+
 def pagina_imovel(cfg, im, base, todos=None):
     raiz = "../.."
     acao_titulo = "para alugar" if im.get("finalidade") == "aluguel" else "à venda"
@@ -1902,15 +1942,20 @@ def pagina_imovel(cfg, im, base, todos=None):
     # aqui fica só o resumo em texto, no fim da ficha.
     emp_html = ""
     emp_resumo_html = ""
-    if emp and emp.get("slug"):
-        emp_html = (f'<div class="lateral-empreendimento">Unidade no '
-                    f'<a href="{raiz}/condominio/{e(emp["slug"])}/">{e(emp["nome"])}</a></div>')
-        if emp.get("descricao"):
-            emp_resumo_html = (
-                f'<div class="cond-resumo"><h2>Sobre o {e(emp["nome"])}</h2>'
-                f'<div class="ficha-desc">{paragrafos_import(emp["descricao"])}</div>'
-                f'<a class="cond-fotos-link" href="{raiz}/condominio/{e(emp["slug"])}/">'
-                f'Ver a ficha completa de {e(emp["nome"])} →</a></div>')
+    if emp:
+        nome_emp = e(emp.get("nome") or "Empreendimento")
+        link_emp = (f'<a class="cond-fotos-link" href="{raiz}/condominio/{e(emp["slug"])}/">Ver empreendimento completo →</a>'
+                    if emp.get("slug") else "")
+        emp_html = f'<div class="lateral-empreendimento">Unidade no {nome_emp}</div>'
+        descricao_emp = paragrafos_import(emp["descricao"]) if emp.get("descricao") else ""
+        lazer = "".join(f'<li>{e(c)}</li>' for c in emp.get("_caracteristicas", []))
+        galeria_emp = "".join(f'<a href="{e(foto)}" target="_blank" rel="noopener"><img src="{e(foto)}" alt="{nome_emp} — foto {i+1}" loading="lazy" width="600" height="400"></a>'
+                             for i, foto in enumerate(fotos_condominio))
+        emp_resumo_html = (f'<section class="cond-resumo"><h2>Conheça o {nome_emp}</h2>'
+                           f'<div class="ficha-desc">{descricao_emp}</div>'
+                           + (f'<h3>Lazer e estrutura do empreendimento</h3><ul class="emp-lazer">{lazer}</ul>' if lazer else "")
+                           + (f'<div class="emp-galeria">{galeria_emp}</div>' if galeria_emp else "")
+                           + link_emp + '</section>')
 
     # Quem agenciou este imóvel — rosto por trás do anúncio, não só o
     # WhatsApp da imobiliária.
@@ -1969,6 +2014,7 @@ def pagina_imovel(cfg, im, base, todos=None):
       {video_html}
       {extras_html}
       {emp_resumo_html}
+      {mapa_localizacao(im, emp)}
     </div>
 
     <aside class="lateral">
@@ -2154,7 +2200,7 @@ def pagina_imovel(cfg, im, base, todos=None):
 </script>"""
 
     return (cabeca_html(cfg, titulo, desc, url, cam(raiz, im.get("_capa")), jsonld, raiz=raiz)
-            + corpo + semelhantes_html + visualizador + formulario + rodape_html(cfg, raiz=raiz))
+            + corpo + formulario + semelhantes_html + visualizador + rodape_html(cfg, raiz=raiz))
 
 
 # ── Condomínio ───────────────────────────────────────────────────────────
