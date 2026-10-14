@@ -190,11 +190,70 @@ const Fotos = (() => {
     return { url, url_thumb };
   }
 
+  // ── Download (só admin) ────────────────────────────────────────────
+  // A foto no Storage já é a versão com marca d'água; é ela que baixa.
+  // ZIP sem compressão (JPEG já é comprimido), montado aqui mesmo pra não
+  // depender de biblioteca externa.
+  const TABELA_CRC = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = TABELA_CRC[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function montarZip(arquivos) {   // [{ nome, bytes }]
+    const enc = new TextEncoder();
+    const partes = [], central = [];
+    let deslocamento = 0;
+    for (const { nome, bytes } of arquivos) {
+      const n = enc.encode(nome), crc = crc32(bytes);
+      const loc = new DataView(new ArrayBuffer(30));
+      loc.setUint32(0, 0x04034b50, true); loc.setUint16(4, 20, true); loc.setUint16(6, 0x0800, true);
+      loc.setUint32(14, crc, true); loc.setUint32(18, bytes.length, true);
+      loc.setUint32(22, bytes.length, true); loc.setUint16(26, n.length, true);
+      partes.push(loc.buffer, n, bytes);
+      const cen = new DataView(new ArrayBuffer(46));
+      cen.setUint32(0, 0x02014b50, true); cen.setUint16(4, 20, true); cen.setUint16(6, 20, true);
+      cen.setUint16(8, 0x0800, true); cen.setUint32(16, crc, true);
+      cen.setUint32(20, bytes.length, true); cen.setUint32(24, bytes.length, true);
+      cen.setUint16(28, n.length, true); cen.setUint32(42, deslocamento, true);
+      central.push(cen.buffer, n);
+      deslocamento += 30 + n.length + bytes.length;
+    }
+    const tamCentral = central.reduce((a, b) => a + (b.byteLength ?? b.length), 0);
+    const fim = new DataView(new ArrayBuffer(22));
+    fim.setUint32(0, 0x06054b50, true); fim.setUint16(8, arquivos.length, true);
+    fim.setUint16(10, arquivos.length, true); fim.setUint32(12, tamCentral, true);
+    fim.setUint32(16, deslocamento, true);
+    return new Blob([...partes, ...central, fim.buffer], { type: 'application/zip' });
+  }
+  function salvarBlob(blob, nome) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }
+  async function buscarBytes(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return new Uint8Array(await r.arrayBuffer());
+  }
+  const ehAdmin = () => (Plataforma.perfil || {}).papel === 'admin';
+
   // ── Galeria ────────────────────────────────────────────────────────
   // `dono` é { tabela, coluna, id } — assim serve para imóvel hoje e para
   // empreendimento depois, sem duplicar código.
   function montar(alvo, dono) {
     let fotos = [];
+    const podeBaixar = !!dono.baixavel && ehAdmin();
 
     async function carregar() {
       fotos = await db(supabaseClient.from(dono.tabela)
@@ -211,6 +270,7 @@ const Fotos = (() => {
             Adicionar fotos
             <input type="file" accept="image/*" multiple hidden id="fotoEntrada">
           </label>
+          ${podeBaixar && fotos.length ? `<button class="btn" id="fotosBaixarTodas" title="Só administrador">Baixar todas (.zip)</button>` : ''}
           <span class="fotos-conta">${fotos.length ? `${fotos.length} foto${fotos.length===1?'':'s'}` : 'Nenhuma foto ainda'}</span>
           <span class="fotos-dica">A primeira é a capa. Arraste pra reordenar, ou use as setas.</span>
         </div>
@@ -221,6 +281,7 @@ const Fotos = (() => {
               ${f.capa || (i === 0 && !fotos.some(x => x.capa)) ? '<span class="foto-selo">Capa</span>' : ''}
               <figcaption>
                 <button class="btn btn-mini" data-acao="capa" title="Usar como capa">Capa</button>
+                ${podeBaixar ? '<button class="btn btn-mini" data-acao="baixa" title="Baixar esta foto (admin)">⬇</button>' : ''}
                 <button class="btn btn-mini" data-acao="sobe" title="Mover para a esquerda">←</button>
                 <button class="btn btn-mini" data-acao="desce" title="Mover para a direita">→</button>
                 <button class="btn btn-mini btn-remover" data-acao="remove" title="Remover">×</button>
@@ -254,12 +315,37 @@ const Fotos = (() => {
         await carregar();
       });
 
+      const botaoZip = alvo.querySelector('#fotosBaixarTodas');
+      if (botaoZip) botaoZip.addEventListener('click', async () => {
+        botaoZip.disabled = true;
+        try {
+          const arquivos = [];
+          for (const [i, f] of fotos.entries()) {
+            botaoZip.textContent = `Preparando ${i + 1} de ${fotos.length}…`;
+            arquivos.push({ nome: `foto-${String(i + 1).padStart(2, '0')}.jpg`, bytes: await buscarBytes(f.url) });
+          }
+          salvarBlob(montarZip(arquivos), `${dono.nomeArquivo || 'fotos'}.zip`);
+        } catch (err) {
+          avisar(`Não consegui baixar as fotos: ${err.message}`);
+        }
+        botaoZip.disabled = false;
+        botaoZip.textContent = 'Baixar todas (.zip)';
+      });
+
       alvo.querySelectorAll('.foto').forEach(fig => {
         const id = fig.dataset.id;
         fig.querySelectorAll('[data-acao]').forEach(b => {
           b.addEventListener('click', async ev => {
             ev.preventDefault();
             const acao = b.dataset.acao;
+            if (acao === 'baixa') {
+              if (!ehAdmin()) return;
+              const i = fotos.findIndex(f => f.id === id);
+              try { salvarBlob(new Blob([await buscarBytes(fotos[i].url)], { type: 'image/jpeg' }),
+                               `${dono.nomeArquivo || 'foto'}-${String(i + 1).padStart(2, '0')}.jpg`); }
+              catch (err) { avisar(`Não consegui baixar a foto: ${err.message}`); }
+              return;
+            }
             if (acao === 'capa') {
               await db(supabaseClient.from(dono.tabela).update({ capa: false }).eq(dono.coluna, dono.id), 'trocar a capa');
               await db(supabaseClient.from(dono.tabela).update({ capa: true }).eq('id', id), 'trocar a capa');

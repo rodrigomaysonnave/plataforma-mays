@@ -542,7 +542,8 @@
     });
 
     Fotos.montar(document.getElementById('fotosImovel'),
-                 { tabela: 'imovel_foto', coluna: 'imovel_id', id, pasta: 'imoveis' });
+                 { tabela: 'imovel_foto', coluna: 'imovel_id', id, pasta: 'imoveis', baixavel: true,
+                   nomeArquivo: (im.codigo || im.titulo || 'imovel').toString().replace(/[^\w-]+/g, '-') });
 
     // Subtipo segue o tipo escolhido
     document.getElementById('fTipo').addEventListener('change', e => {

@@ -23,6 +23,7 @@ Uso:
     python3 gerar.py --abrir    gera e abre no navegador
 """
 import html
+import hashlib
 import json
 import os
 import re
@@ -1124,7 +1125,7 @@ def cabeca_html(cfg, titulo, descricao, canonica, imagem=None, jsonld=None, raiz
 <meta property="og:url" content="{e(canonica)}">
 {og_img}
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="{raiz}/estilo.css">
+<link rel="stylesheet" href="{raiz}/estilo.css?v={hashlib.sha256(CSS.encode()).hexdigest()[:12]}">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23241C14'/%3E%3Ctext x='16' y='22' font-family='Georgia,serif' font-size='15' font-weight='700' fill='%239B7B5A' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
 {ld}
 {medicao}
