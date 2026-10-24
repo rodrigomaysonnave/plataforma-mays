@@ -19,10 +19,21 @@
 
   const brl = v => v == null ? '—' : 'R$ ' + Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
+  function precoPrincipal(i) {
+    return i.finalidade === 'aluguel' ? i.valor_aluguel : i.valor;
+  }
+
+  function precoExibicao(i) {
+    if (i.finalidade === 'venda_aluguel') {
+      return [i.valor ? 'Venda: ' + brl(i.valor) : '', i.valor_aluguel ? 'Aluguel: ' + brl(i.valor_aluguel) + '/mês' : ''].filter(Boolean).join(' · ') || '—';
+    }
+    return brl(precoPrincipal(i));
+  }
+
   function motivoNaoPublica(i) {
     if (i.rascunho)            return 'rascunho';
     if (i.divulgacao_restrita) return 'divulgação restrita';
-    if (!i.valor)              return 'sem valor';
+    if (!precoPrincipal(i) && !(i.finalidade === 'venda_aluguel' && i.valor_aluguel)) return 'sem valor';
     if (!i.titulo)             return 'sem título';
     if (!i.temFoto)            return 'sem foto';
     return null;
@@ -54,7 +65,7 @@
         <td class="cad-codigo">${esc(i.codigo || '—')}</td>
         <td><div class="cad-end-rua">${esc(i.titulo || i.endereco || 'sem título')}</div>
             <div class="cad-end-sub">${esc(i.slug || 'sem endereço de página')}</div></td>
-        <td class="cad-valor">${brl(i.valor)}</td>
+        <td class="cad-valor">${precoExibicao(i)}</td>
         <td>${i.temFoto ? '<span class="cad-selo cad-selo-vitrine">com foto</span>'
                         : '<span class="cad-selo cad-selo-restrito">sem foto</span>'}</td>
         <td>${acao === 'tirar'
@@ -500,7 +511,7 @@ ${imoveis.map(i => `    <Listing>
       <TransactionType>${i.finalidade === 'aluguel' ? 'For Rent' : 'For Sale'}</TransactionType>
       <Details>
         <Description>${esc2(i.descricao_publica || i.titulo || '')}</Description>
-        ${i.valor ? `<ListPrice currency="BRL">${Math.round(i.valor)}</ListPrice>` : ''}
+        ${precoPrincipal(i) ? `<ListPrice currency="BRL">${Math.round(precoPrincipal(i))}</ListPrice>` : ''}
         ${i.area_util ? `<LivingArea unit="square metres">${Math.round(i.area_util)}</LivingArea>` : ''}
         ${i.area_total ? `<LotArea unit="square metres">${Math.round(i.area_total)}</LotArea>` : ''}
         ${i.dormitorios ? `<Bedrooms>${i.dormitorios}</Bedrooms>` : ''}
