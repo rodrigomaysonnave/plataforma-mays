@@ -70,6 +70,7 @@
   async function desenharAjustes() {
     const linhas = await db(supabaseClient.from('configuracao').select('*').limit(1), 'carregar ajustes');
     const c = linhas[0] || {};
+    const souAdmin = Plataforma.perfil && Plataforma.perfil.papel === 'admin';
     const cp = (id, rot, val, ph, dica) => `
       <div class="campo">
         <label for="${id}">${rot}</label>
@@ -94,7 +95,59 @@
       </div>
       <div class="ficha-rodape" style="padding:0 20px 18px">
         <button class="btn btn-primario" id="cfgSalvarAjustes">Salvar ajustes</button>
+      </div>
+
+      <div class="cfg-painel-topo" style="border-top:1px solid var(--borda)">
+        <div><h3>Inteligência artificial</h3>
+        <p>Qual IA escreve as mensagens do WhatsApp, as sugestões de Campanhas e os textos dos imóveis.${souAdmin ? '' : ' Só o administrador muda.'}</p></div>
+      </div>
+      <div class="ficha-grade">
+        <div class="campo">
+          <label for="cfgIaMotor">IA que atua</label>
+          <select id="cfgIaMotor" ${souAdmin ? '' : 'disabled'}>
+            <option value="claude"${c.ia_motor !== 'gemini' ? ' selected' : ''}>Claude (Anthropic)</option>
+            <option value="gemini"${c.ia_motor === 'gemini' ? ' selected' : ''}>Gemini (Google)</option>
+          </select>
+          <p class="campo-dica">O Claude escreve com mais cuidado e segue melhor as regras de tom. O Gemini tem cota gratuita diária.</p>
+        </div>
+        <div class="campo">
+          <label for="cfgIaReserva">Se a escolhida falhar</label>
+          <select id="cfgIaReserva" ${souAdmin ? '' : 'disabled'}>
+            <option value="1"${c.ia_reserva !== false ? ' selected' : ''}>A outra assume sozinha (recomendado)</option>
+            <option value="0"${c.ia_reserva === false ? ' selected' : ''}>Só a escolhida, avisar o erro</option>
+          </select>
+          <p class="campo-dica">Falha acontece por falta de crédito, cota esgotada ou serviço fora do ar.</p>
+        </div>
+      </div>
+      <div class="ficha-rodape" style="padding:0 20px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        ${souAdmin ? '<button class="btn btn-primario" id="cfgSalvarIa">Salvar IA</button>' : ''}
+        <button class="btn" id="cfgTestarIa">Testar a IA</button>
+        <span id="cfgIaResultado" class="campo-dica"></span>
       </div>`;
+
+    alvoEl.querySelector('#cfgSalvarIa')?.addEventListener('click', async () => {
+      await db(supabaseClient.from('configuracao').update({
+        ia_motor: alvoEl.querySelector('#cfgIaMotor').value,
+        ia_reserva: alvoEl.querySelector('#cfgIaReserva').value === '1',
+      }).eq('id', true), 'salvar a escolha da IA');
+      avisar('IA atualizada.');
+    });
+
+    alvoEl.querySelector('#cfgTestarIa').addEventListener('click', async () => {
+      const saida = alvoEl.querySelector('#cfgIaResultado'), btn = alvoEl.querySelector('#cfgTestarIa');
+      btn.disabled = true; saida.textContent = 'Testando…';
+      const { data, error } = await supabaseClient.functions.invoke('sugerir-mensagem', {
+        body: { briefing: 'Teste de conexão. Escreva apenas uma saudação curta.', leadNome: 'Teste' },
+      });
+      btn.disabled = false;
+      let motivo = (error && error.message) || (data && data.error);
+      if (error && error.context && typeof error.context.json === 'function') {
+        try { const j = await error.context.json(); if (j && j.error) motivo = j.error; } catch (e) { /* mantém */ }
+      }
+      saida.textContent = data && data.motor
+        ? `Funcionou: respondeu o ${data.motor === 'claude' ? 'Claude' : 'Gemini'}.`
+        : `Não funcionou: ${motivo || 'sem resposta'}`;
+    });
 
     alvoEl.querySelector('#cfgSalvarAjustes').addEventListener('click', async () => {
       const v = id => alvoEl.querySelector('#' + id).value.trim() || null;
