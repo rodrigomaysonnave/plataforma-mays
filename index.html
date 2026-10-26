@@ -133,7 +133,13 @@
       <button class="menu-item" data-modulo="funil"><span class="menu-ico">≡</span><span class="menu-txt">Funil de vendas</span></button>
       <button class="menu-item" data-modulo="salaguerra"><span class="menu-ico">⚑</span><span class="menu-txt">Sala de guerra</span></button>
       <button class="menu-item" data-modulo="campanhas"><span class="menu-ico">◍</span><span class="menu-txt">Campanhas</span></button>
-      <button class="menu-item" data-modulo="conversas"><span class="menu-ico">✆</span><span class="menu-txt">Conversas</span></button>
+      <button class="menu-item tem-sub" data-modulo="sdr"><span class="menu-ico">✆</span><span class="menu-txt">SDR · Assistente IA</span><span class="menu-seta" aria-hidden="true">›</span></button>
+      <div class="submenu" data-de="sdr">
+        <button class="menu-sub" data-modulo="sdr" data-sub="painel">Painel</button>
+        <button class="menu-sub" data-modulo="sdr" data-sub="conversas">Conversas</button>
+        <button class="menu-sub" data-modulo="sdr" data-sub="treinar">Treinar a IA</button>
+        <button class="menu-sub" data-modulo="sdr" data-sub="simulador">Simulador</button>
+      </div>
       <button class="menu-item" data-modulo="atendimento"><span class="menu-ico">◐</span><span class="menu-txt">Atendimento</span></button>
       <button class="menu-item" data-modulo="agenda"><span class="menu-ico">▦</span><span class="menu-txt">Agenda e visitas</span></button>
 
@@ -212,7 +218,7 @@
       <div class="topo-atalho">
         <button class="topo-atalho-alvo">CRM<span class="topo-atalho-seta" aria-hidden="true">⌄</span></button>
         <div class="topo-flyout">
-          <button class="topo-flyout-item" data-ir="conversas">Conversas</button>
+          <button class="topo-flyout-item" data-ir="sdr" data-arg="painel">SDR · Assistente IA</button>
           <button class="topo-flyout-item" data-ir="atendimento">Atendimento</button>
           <button class="topo-flyout-item" data-ir="agenda">Agenda e visitas</button>
           <button class="topo-flyout-item" data-ir="campanhas">Campanhas</button>
@@ -262,6 +268,7 @@
 <script src="mod-site.js"></script>
 <script src="mod-atendimento.js"></script>
 <script src="mod-conversas.js"></script>
+<script src="mod-sdr.js"></script>
 <script src="mod-blog.js"></script>
 <script src="mod-corretores.js"></script>
 <script src="mod-financeiro.js"></script>

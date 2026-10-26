@@ -28,6 +28,7 @@
   let cfgId = null;
   let timer = null;
   let rascunhoMostrado = null; // id do rascunho que está no campo de texto
+  const avaliadas = {};        // mensagem da IA já avaliada nesta sessão (👍/👎)
 
   const hhmm = iso => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const dataHora = iso => {
@@ -186,6 +187,8 @@
         ${quem ? `<span class="cv-msg-quem">${esc(quem)}</span>` : ''}
         <div class="cv-msg-txt">${corpo.replace(/\n/g, '<br>')}</div>
         <span class="cv-msg-meta">${dataHora(m.quando)}${saida && STATUS[m.status] ? ' · ' + STATUS[m.status] : ''}${m.erro ? ' · ' + esc(m.erro) : ''}</span>
+        ${m.autor === 'sdr' ? (avaliadas[m.id] ? `<span class="cv-msg-meta">${avaliadas[m.id] === 'boa' ? '👍' : '👎'} avaliada</span>`
+          : `<span class="cv-aval"><button class="btn btn-fantasma" data-aval="boa" data-msg="${m.id}" title="Boa resposta">👍</button><button class="btn btn-fantasma" data-aval="ruim" data-msg="${m.id}" title="Ensinar como deveria ser">👎</button></span>`) : ''}
       </div>`;
     }).join('') : '<p class="cv-vazio-lista">Sem mensagens.</p>';
     if (rolarFim || rolado) el.scrollTop = el.scrollHeight;
@@ -311,6 +314,7 @@
         else if (t.id === 'cvGerar') await gerar();
         else if (t.id === 'cvDescartar') await descartar();
         else if (t.id === 'cvUsarNovo') renderCompor(true);
+        else if (t.dataset.aval) await avaliarResposta(t.dataset.msg, t.dataset.aval);
         else if (t.id === 'cvAssumir') { await rpc('wa_assumir', { p_conversa_id: c.id }, 'assumir a conversa'); avisar('Conversa é sua agora.'); await atualizar(true); }
         else if (t.id === 'cvResolvido') { await rpc('wa_resolver_humano', { p_conversa_id: c.id }, 'marcar como resolvido'); await atualizar(false); }
         else if (t.id === 'cvCliente') {
@@ -332,6 +336,27 @@
     });
   }
 
+  // 👍/👎 numa resposta da IA. O 👎 pede a resposta ideal, que vira exemplo
+  // de treino do SDR (admin) ou fica registrada para o admin decidir.
+  async function avaliarResposta(id, nota) {
+    const m = mensagens.find(x => x.id === id); if (!m) return;
+    if (nota === 'boa') {
+      await db(supabaseClient.from('sdr_avaliacao').insert({ mensagem_id: id, texto_ia: m.texto || '', nota: 'boa' }), 'avaliar');
+    } else {
+      const ideal = prompt('Como a IA deveria ter respondido? (vira exemplo de treino)', m.texto || '');
+      if (ideal === null) return;
+      await db(supabaseClient.from('sdr_avaliacao').insert({ mensagem_id: id, texto_ia: m.texto || '', nota: 'ruim', comentario: ideal.trim() ? 'Ideal: ' + ideal.trim() : null }), 'avaliar');
+      const idx = mensagens.indexOf(m);
+      const cliente = mensagens.slice(0, idx).reverse().find(x => x.direcao === 'entrada' && x.texto);
+      if (Plataforma.perfil.papel === 'admin' && ideal.trim() && cliente) {
+        await db(supabaseClient.from('sdr_exemplo').insert({ mensagem_cliente: cliente.texto, resposta_ideal: ideal.trim(), origem: 'avaliacao', mensagem_id: id, criado_por: Plataforma.perfil.id }), 'salvar exemplo');
+      }
+    }
+    avaliadas[id] = nota;
+    avisar(nota === 'boa' ? 'Avaliação registrada.' : 'Obrigado: a IA aprende com este exemplo.');
+    renderMensagens(false);
+  }
+
   async function alternarChave() {
     const novo = !autoLiberado;
     if (novo && !confirm('Liberar a IA para responder sozinha? Isso só vale nas conversas em que você escolher "Envia sozinha". Pode desligar de novo a qualquer momento.')) return;
@@ -346,8 +371,13 @@
     el.innerHTML = `<button class="btn${autoLiberado ? '' : ' btn-fantasma'}" id="cvChave" title="Chave geral: sem ela, nenhuma conversa pode ter a IA enviando sozinha">IA automática: ${autoLiberado ? 'liberada' : 'bloqueada'}</button>`;
   }
 
-  async function montar(alvo) {
+  async function montar(destino) {
     clearInterval(timer);
+    // Contêiner próprio a cada abertura: os cliques são ligados nele, e
+    // ligar no #conteudo (que é sempre o mesmo) acumulava um ouvinte por
+    // visita, e um "Enviar" virava dois envios.
+    const alvo = document.createElement('div');
+    destino.replaceChildren(alvo);
     alvoEl = alvo; selecionada = null; mensagens = []; filtro = 'todas';
     alvo.innerHTML = '<p class="iv-carregando">Carregando as conversas…</p>';
     const [perfis, cfg] = await Promise.all([
@@ -394,4 +424,6 @@
   }
 
   Plataforma.registrar('conversas', { titulo: 'Conversas', montar });
+  // O módulo SDR mostra o inbox dentro dele (SDR › Conversas).
+  window.ModConversas = { montar };
 })();
