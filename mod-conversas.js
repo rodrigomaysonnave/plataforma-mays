@@ -351,7 +351,7 @@
     alvoEl = alvo; selecionada = null; mensagens = []; filtro = 'todas';
     alvo.innerHTML = '<p class="iv-carregando">Carregando as conversas…</p>';
     const [perfis, cfg] = await Promise.all([
-      db(supabaseClient.from('perfil').select('id,nome').eq('aprovado', true), 'carregar corretores'),
+      db(supabaseClient.from('perfil_equipe').select('id,nome').eq('aprovado', true), 'carregar corretores'),
       db(supabaseClient.from('configuracao').select('id,sdr_automatico_liberado').limit(1), 'carregar a configuração'),
     ]);
     corretores = perfis;

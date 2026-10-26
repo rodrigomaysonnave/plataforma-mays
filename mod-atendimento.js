@@ -36,7 +36,7 @@
       db(supabaseClient.from('negocio').select('id,contato_id'), 'carregar negócios'),
       db(supabaseClient.from('interacao').select('*').order('quando', { ascending: false }).limit(25), 'carregar interações'),
       db(supabaseClient.from('origem_lead').select('id,nome'), 'carregar origens'),
-      db(supabaseClient.from('perfil').select('id,nome').eq('aprovado', true), 'carregar corretores'),
+      db(supabaseClient.from('perfil_equipe').select('id,nome').eq('aprovado', true), 'carregar corretores'),
       db(supabaseClient.from('etapa_funil').select('id,nome').eq('ativo', true).order('ordem'), 'carregar etapas'),
     ]);
 

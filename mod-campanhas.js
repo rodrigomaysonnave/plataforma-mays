@@ -140,7 +140,7 @@
       if (admin) {
         const [vinculos, equipe] = await Promise.all([
           db(supabaseClient.from('campanha_corretor').select('campanha_id,corretor_id').in('campanha_id', ids), 'vínculos'),
-          db(supabaseClient.from('perfil').select('id,nome').order('nome'), 'equipe'),
+          db(supabaseClient.from('perfil_equipe').select('id,nome').order('nome'), 'equipe'),
         ]);
         const nomePorId = new Map((equipe || []).map(p => [p.id, p.nome || 'sem nome']));
         (vinculos || []).forEach(v => {
@@ -239,7 +239,7 @@
     const fonte = editando ? id : duplicarDe;
 
     const [equipe, imoveis, empreendimentos] = await Promise.all([
-      db(supabaseClient.from('perfil').select('id,nome,papel').eq('ativo', true).order('nome'), 'equipe'),
+      db(supabaseClient.from('perfil_equipe').select('id,nome,papel').eq('ativo', true).order('nome'), 'equipe'),
       Crud.listaApoio('imovel'),
       Crud.listaApoio('empreendimento'),
     ]);

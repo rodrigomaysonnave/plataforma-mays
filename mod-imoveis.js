@@ -76,7 +76,7 @@
       db(pega('origem_captacao'), 'carregar origens'),
       db(supabaseClient.from('proprietario').select('id,nome').eq('ativo',true).order('nome'), 'carregar proprietários'),
       db(supabaseClient.from('empreendimento').select('id,nome,bairro_id,endereco').eq('ativo',true).order('nome'), 'carregar empreendimentos'),
-      db(supabaseClient.from('perfil').select('id,nome').eq('ativo',true).order('nome'), 'carregar corretores'),
+      db(supabaseClient.from('perfil_equipe').select('id,nome').eq('ativo',true).order('nome'), 'carregar corretores'),
       db(supabaseClient.from('configuracao').select('site_url').limit(1), 'carregar configuração'),
     ]);
     apoio = { tipos, subtipos, cidades, bairros, zonas, caracts, origens, props, empreendimentos, corretores,

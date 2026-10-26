@@ -133,25 +133,24 @@ const Plataforma = (() => {
       if (s1 !== s2) { erro.textContent = 'As duas senhas estão diferentes.'; return; }
 
       btn.disabled = true; btn.textContent = 'Criando…';
-      const { data: novo, error: e1 } = await supabaseClient.auth.signUp({
-        email: c.email, password: s1, options: { data: { nome: c.nome } },
+      // O cadastro público está desligado (migração 59): quem cria a conta é
+      // a função `aceitar-convite`, que confere o convite antes, com a chave
+      // de serviço, e já aplica a ficha que o admin preencheu.
+      const { data: r, error: e1 } = await supabaseClient.functions.invoke('aceitar-convite', {
+        body: { segredo, senha: s1 },
       });
-      if (e1) {
-        erro.textContent = /already/i.test(e1.message)
-          ? 'Já existe conta com este e-mail. Use "Entrar".' : e1.message;
+      let motivo = (data => data && data.erro)(r);
+      if (e1 && e1.context && typeof e1.context.json === 'function') {
+        try { const j = await e1.context.json(); motivo = j && j.erro; } catch (e) { /* mantém */ }
+      }
+      if (e1 || !(r && r.ok)) {
+        erro.textContent = motivo || 'Não consegui criar o acesso. Tente de novo.';
         btn.disabled = false; btn.textContent = 'Criar meu acesso';
         return;
       }
-      // O gatilho já criou o perfil. A função copia a ficha que o admin
-      // preencheu e aprova o acesso.
-      const { data: ok } = await supabaseClient.rpc('aceitar_convite', { p_segredo: segredo });
       history.replaceState(null, '', location.pathname);
-      if (!ok) {
-        erro.textContent = 'Conta criada, mas o convite não pôde ser aplicado. Fale com o administrador.';
-        btn.disabled = false; btn.textContent = 'Criar meu acesso';
-        return;
-      }
-      if (novo.session) aposLogin(novo.session.user);
+      const { data: entrou, error: e2 } = await supabaseClient.auth.signInWithPassword({ email: c.email, password: s1 });
+      if (!e2 && entrou && entrou.user) aposLogin(entrou.user);
       else { mostrar('login'); $('loginErro').textContent = 'Acesso criado. Entre com sua senha.'; }
     };
     return true;

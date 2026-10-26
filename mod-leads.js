@@ -134,7 +134,7 @@
         .order('created_at', { ascending: false }), 'carregar leads do site'),
       // `endereco` vem junto para o botão Agendar já preencher o local do encontro.
       db(supabaseClient.from('imovel').select('id,titulo,codigo,endereco'), 'carregar imóveis'),
-      db(supabaseClient.from('perfil').select('id,nome').eq('ativo', true).order('nome'), 'carregar equipe'),
+      db(supabaseClient.from('perfil_equipe').select('id,nome').eq('ativo', true).order('nome'), 'carregar equipe'),
     ]);
     leads = dadosLeads;
     imoveisPorId = new Map(imoveis.map(i => [i.id, i]));
