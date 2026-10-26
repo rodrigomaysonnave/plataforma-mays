@@ -30,6 +30,14 @@
     Number(v) >= 1e6 ? `R$ ${(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})} M`
                      : `R$ ${(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0})} k`;
 
+  // Preço conforme a modalidade: aluguel mora em `valor_aluguel`, venda em
+  // `valor`. Ler só `valor` deixava imóvel de aluguel como "sem valor".
+  const mensal = v => v == null ? null : `R$ ${Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}/mês`;
+  const precoLista = im =>
+    im.finalidade === 'aluguel' ? mensal(im.valor_aluguel)
+    : im.finalidade === 'venda_aluguel' ? [moeda(im.valor), mensal(im.valor_aluguel)].filter(Boolean).join(' · ') || null
+    : moeda(im.valor);
+
   const num = v => v == null || v === '' ? null : Number(v);
 
   // ── SEO ────────────────────────────────────────────────────────────
@@ -52,8 +60,11 @@
     if (dados.area_util)   partes.push(`${Number(dados.area_util).toLocaleString('pt-BR')} m²`);
     else if (dados.area_total) partes.push(`terreno de ${Number(dados.area_total).toLocaleString('pt-BR')} m²`);
 
-    const valor = dados.valor
-      ? ` Por R$ ${Number(dados.valor).toLocaleString('pt-BR', {maximumFractionDigits:0})}.` : '';
+    const rs = v => Number(v).toLocaleString('pt-BR', {maximumFractionDigits:0});
+    const valor = dados.finalidade === 'aluguel'
+      ? (dados.valor_aluguel ? ` Aluguel de R$ ${rs(dados.valor_aluguel)} por mês.` : '')
+      : (dados.valor ? ` Por R$ ${rs(dados.valor)}.` : '')
+        + (dados.finalidade === 'venda_aluguel' && dados.valor_aluguel ? ` Aluguel de R$ ${rs(dados.valor_aluguel)} por mês.` : '');
 
     const desc = `${t} ${fin}${b ? ` no bairro ${b}` : ''}, em ${c}/RS.`
       + (partes.length ? ` ${partes.join(', ')}.` : '')
@@ -127,7 +138,7 @@
         </td>
         <td class="cad-num">${areas || '—'}</td>
         <td class="cad-num">${det || '—'}</td>
-        <td class="cad-valor">${moeda(im.valor) || '<span class="cad-vazio">sem valor</span>'}</td>
+        <td class="cad-valor">${precoLista(im) || '<span class="cad-vazio">sem valor</span>'}</td>
         <td><span class="cad-selo cad-selo-${im.status === 'disponivel' ? 'autorizado' : 'restrito'}">${esc(rotulo(STATUS, im.status))}</span></td>
         <td class="cad-onde">${selosOnde(im)}</td>
       </tr>`;
@@ -438,6 +449,7 @@
         area_util: num(document.getElementById('fAreaUtil').value),
         area_total: num(document.getElementById('fAreaTotal').value),
         valor: num(document.getElementById('fValor').value),
+        valor_aluguel: num(document.getElementById('fValorAluguel').value),
       };
       const sug = sugestaoSeo(dados);
       const tit = document.getElementById('fMetaTitulo');
@@ -457,7 +469,7 @@
         </div>`;
     }
     ['fTipo','fBairro','fCidade','fFinalidade','fDormitorios','fSuites','fVagas',
-     'fAreaUtil','fAreaTotal','fValor','fMetaTitulo','fMetaDescricao','fSlug']
+     'fAreaUtil','fAreaTotal','fValor','fValorAluguel','fMetaTitulo','fMetaDescricao','fSlug']
       .forEach(i => document.getElementById(i).addEventListener('input', atualizarPrevia));
     atualizarPrevia();
 
@@ -481,6 +493,7 @@
         areaUtil: num(g('fAreaUtil')),
         areaTotal: num(g('fAreaTotal')),
         valor: num(g('fValor')),
+        valorAluguel: num(g('fValorAluguel')),
         selo: g('fSelo').trim() || null,
         caracteristicas: [...document.querySelectorAll('#fCaracteristicas input:checked')]
           .map(i => (apoio.caracts.find(c => c.id === i.value) || {}).nome).filter(Boolean),
