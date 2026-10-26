@@ -121,7 +121,12 @@
     const el = document.getElementById('cvTopo');
     const c = conversa();
     if (!el) return;
-    if (!c) { el.innerHTML = ''; return; }
+    if (!c) { el.innerHTML = ''; el.dataset.assin = ''; return; }
+    // A atualização automática roda a cada 8 s: se nada mudou, não mexe,
+    // senão o seletor da IA fecha na mão de quem está escolhendo.
+    const assin = JSON.stringify([c, autoLiberado, Math.floor(Date.now() / 60000)]);
+    if (el.dataset.assin === assin) return;
+    el.dataset.assin = assin;
     const j = janela(c);
     const q = c.qualificacao || {};
     const chips = [];
@@ -192,8 +197,19 @@
     if (!el || !c) return;
     const rascunho = [...mensagens].reverse().find(m => m.status === 'rascunho');
     const idRasc = rascunho ? rascunho.id : null;
-    // Não apaga o que o corretor está digitando: só redesenha quando muda o rascunho.
+    // Não apaga o que o corretor está digitando: só redesenha quando muda o
+    // rascunho, e mesmo assim, se ele já mexeu no texto, só avisa.
     if (!forcar && el.dataset.rasc === String(idRasc) && el.dataset.conv === c.id) return;
+    const ta = document.getElementById('cvTexto');
+    if (!forcar && el.dataset.conv === c.id && ta && ta.dataset.mexeu === '1' && ta.value.trim()) {
+      const st = document.getElementById('cvStatus');
+      if (st && idRasc) { st.textContent = 'A IA escreveu um rascunho novo.'; st.classList.remove('erro'); }
+      if (idRasc && !document.getElementById('cvUsarNovo')) {
+        const b = document.createElement('button'); b.className = 'btn'; b.id = 'cvUsarNovo'; b.textContent = 'Usar o rascunho novo';
+        document.querySelector('.cv-compor-acoes').insertBefore(b, st);
+      }
+      return;
+    }
     el.dataset.rasc = String(idRasc); el.dataset.conv = c.id;
     rascunhoMostrado = idRasc;
 
@@ -204,7 +220,7 @@
     }
     el.innerHTML = `
       ${rascunho ? `<div class="cv-rasc-t"><b>Rascunho da IA</b> <span>Leia e ajuste antes de enviar. Nada saiu ainda.</span></div>` : ''}
-      <textarea id="cvTexto" rows="3" placeholder="${j.ok ? 'Escreva a resposta' : 'Não é possível responder agora'}" ${j.ok ? '' : 'disabled'}>${rascunho ? esc(rascunho.texto || '') : ''}</textarea>
+      <textarea id="cvTexto" rows="3" oninput="this.dataset.mexeu='1'" placeholder="${j.ok ? 'Escreva a resposta' : 'Não é possível responder agora'}" ${j.ok ? '' : 'disabled'}>${rascunho ? esc(rascunho.texto || '') : ''}</textarea>
       <div class="cv-compor-acoes">
         <button class="btn btn-primario" id="cvEnviar" ${j.ok ? '' : 'disabled'}>Enviar</button>
         ${rascunho ? `<button class="btn" id="cvDescartar">Descartar rascunho</button>` : ''}
@@ -275,6 +291,10 @@
     if (!alvoEl || !alvoEl.isConnected) return;
     await carregarLista();
     await carregarMensagens();
+    const c = conversa();
+    if (c && c.nao_lidas > 0 && !document.hidden) {
+      try { await rpc('wa_marcar_lida', { p_conversa_id: c.id }, 'marcar como lida'); c.nao_lidas = 0; } catch (e) { /* já avisou */ }
+    }
     renderLista(); renderTopo(); renderMensagens(rolarFim);
     renderCompor(!!forcarCompor);
   }
@@ -290,6 +310,7 @@
         else if (t.id === 'cvEnviar') await enviar();
         else if (t.id === 'cvGerar') await gerar();
         else if (t.id === 'cvDescartar') await descartar();
+        else if (t.id === 'cvUsarNovo') renderCompor(true);
         else if (t.id === 'cvAssumir') { await rpc('wa_assumir', { p_conversa_id: c.id }, 'assumir a conversa'); avisar('Conversa é sua agora.'); await atualizar(true); }
         else if (t.id === 'cvResolvido') { await rpc('wa_resolver_humano', { p_conversa_id: c.id }, 'marcar como resolvido'); await atualizar(false); }
         else if (t.id === 'cvCliente') {
