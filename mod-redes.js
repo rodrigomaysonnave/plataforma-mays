@@ -489,12 +489,18 @@
               ${s.permissoes_faltando && s.permissoes_faltando.length ? `<p class="rd-erro">Faltam permissões: ${esc(s.permissoes_faltando.join(', '))}</p>` : ''}
               ${s.erro ? `<p class="rd-erro">${esc(s.erro)}</p>` : ''}</div></div>
         </div>
+        ${adm && s.conectado && (s.opcoes || []).length ? `<div class="campo" style="padding:0 20px 14px">
+          <label for="rdConta">Publicar em</label>
+          <div class="rd-linha-campo"><select id="rdConta">${s.opcoes.map(o => `<option value="${esc(o.page_id)}" ${o.page_id === s.page_id ? 'selected' : ''} ${o.ig_id ? '' : 'disabled'}>${esc(o.page_nome)} · ${o.ig_usuario ? '@' + esc(o.ig_usuario) : 'sem Instagram ligado'}</option>`).join('')}</select>
+            <button class="btn" id="rdUsarConta">Usar esta</button></div>
+          <p class="campo-dica">Só aparecem as páginas marcadas na janela da Meta. O Instagram que você quer não está na lista? Ele precisa ser conta profissional e estar ligado a uma página do Facebook. Ligue e clique em Conectar de novo, marcando essa página.</p>
+        </div>` : ''}
         ${adm ? `<div style="padding:0 20px 18px">
           <ol class="sdr-passos" style="padding:0 0 12px 22px">
             <li>Só na primeira vez: no <a href="https://developers.facebook.com/apps/${esc(s.app_id || '')}/fb-login/settings/" target="_blank" rel="noopener">painel do app na Meta</a> (Login do Facebook › Configurações), cole em <b>URIs de redirecionamento do OAuth válidos</b>:
               <div class="rd-linha-campo" style="margin-top:6px"><input type="text" readonly value="${esc(retorno)}" id="rdRetorno"><button class="btn" id="rdCopiar">Copiar</button></div>
               <span class="campo-dica">Se o app ainda não tiver o produto "Login do Facebook", adicione em Adicionar produto.</span></li>
-            <li>Clique em Conectar, entre com o Facebook de administrador da página e marque a página da Maysonnave e o Instagram @maysimoveis, com todas as permissões.</li>
+            <li>Clique em Conectar, entre com o Facebook de administrador da página e marque as páginas e os Instagrams que quer usar, com todas as permissões. Depois escolha acima em qual publicar.</li>
           </ol>
           <button class="btn btn-primario" id="rdConectar">${s.conectado ? 'Conectar de novo' : 'Conectar Facebook e Instagram'}</button>
           ${s.conectado ? '<button class="btn btn-fantasma" id="rdDesconectar">Desconectar</button>' : ''}
@@ -515,6 +521,13 @@
         const r = await funcao({ acao: 'url_conectar', redirect_uri: retorno });
         try { localStorage.setItem('plat_modulo', 'redes'); } catch (e) { /* ok */ }
         location.href = r.url;
+      } catch (e) { avisar(e.message); }
+    };
+    const usar = alvo.querySelector('#rdUsarConta');
+    if (usar) usar.onclick = async () => {
+      try {
+        const r = await funcao({ acao: 'escolher_conta', page_id: alvo.querySelector('#rdConta').value });
+        avisar(`Publicando em ${r.pagina} e @${r.instagram}.`); configurar(alvo);
       } catch (e) { avisar(e.message); }
     };
     const des = alvo.querySelector('#rdDesconectar');
