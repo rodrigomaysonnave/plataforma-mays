@@ -18,6 +18,11 @@
   let alvoEl = null;
   let editando = null;   // id do imóvel aberto, ou 'novo'
 
+  // Filtro e rolagem da lista sobrevivem à ida até a ficha. Sem isso, o
+  // "Voltar à lista" redesenhava tudo do zero e obrigava a filtrar de novo.
+  const filtros = { imBusca: '', imFinalidade: '', imTipo: '', imStatus: '' };
+  let rolagemLista = 0;
+
   const FINALIDADES = [['venda','Venda'],['aluguel','Aluguel'],['venda_aluguel','Venda e aluguel']];
   const SITUACOES   = [['novo','Novo'],['usado','Usado'],['em_construcao','Em construção'],
                        ['na_planta','Na planta'],['reformar','Para reformar']];
@@ -127,8 +132,15 @@
       im.area_total ? `${Number(im.area_total).toLocaleString('pt-BR')} m² terreno` : null,
     ].filter(Boolean).join(' · ');
 
+    // Capa marcada; sem marcação, a primeira da ordem (mesma regra da galeria).
+    const fotos = (im.imovel_foto || []).slice().sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+    const capa = fotos.find(f => f.capa) || fotos[0];
+
     return `
       <tr class="cad-linha" data-id="${im.id}">
+        <td class="cad-capa">${capa
+          ? `<img src="${esc(capa.url_thumb || capa.url)}" alt="" loading="lazy">`
+          : '<span class="cad-capa-vazia">sem foto</span>'}</td>
         <td class="cad-codigo">${esc(im.codigo || '—')}</td>
         <td><span class="cad-fin">${esc(rotulo(FINALIDADES, im.finalidade))}</span></td>
         <td>${esc(t ? t.nome : '—')}</td>
@@ -163,7 +175,10 @@
   }
 
   async function desenharLista() {
-    const todos = await db(supabaseClient.from('imovel').select('*').order('created_at', { ascending: false }), 'carregar imóveis');
+    // Só as colunas da miniatura vêm junto: a foto grande não desce na lista.
+    const todos = await db(supabaseClient.from('imovel')
+      .select('*, imovel_foto(url_thumb,url,capa,ordem)')
+      .order('created_at', { ascending: false }), 'carregar imóveis');
     const lista = filtrar(todos);
     const corpo = document.getElementById('imCorpo');
     const meta  = document.getElementById('imMeta');
@@ -191,17 +206,18 @@
       <div class="cad-tabela-scroll">
         <table class="cad-tabela">
           <thead><tr>
-            <th>Código</th><th>Finalidade</th><th>Tipo</th><th>Imóvel</th>
+            <th></th><th>Código</th><th>Finalidade</th><th>Tipo</th><th>Imóvel</th>
             <th>Áreas</th><th>Detalhes</th><th>Valor</th><th>Situação</th><th>Onde aparece</th>
           </tr></thead>
           <tbody>${lista.map(linha).join('')}</tbody>
         </table>
       </div>`;
     corpo.querySelectorAll('.cad-linha').forEach(tr =>
-      tr.addEventListener('click', () => abrirFicha(tr.dataset.id)));
+      tr.addEventListener('click', () => { rolagemLista = window.scrollY; abrirFicha(tr.dataset.id); }));
   }
 
-  async function montarLista() {
+  // `voltando`: vem da ficha, então devolve também o ponto da rolagem.
+  async function montarLista(voltando) {
     await carregarApoio();
     alvoEl.innerHTML = `
       <div class="secao-topo">
@@ -226,9 +242,15 @@
       <div id="imCorpo"></div>`;
 
     document.getElementById('imNovo').addEventListener('click', () => abrirFicha('novo'));
-    ['imBusca','imFinalidade','imTipo','imStatus'].forEach(id =>
-      document.getElementById(id).addEventListener('input', desenharLista));
+    Object.keys(filtros).forEach(id => {
+      const el = document.getElementById(id);
+      el.value = filtros[id];
+      // Tipo apagado nas Configurações não existe mais no seletor: zera.
+      if (el.value !== filtros[id]) filtros[id] = el.value = '';
+      el.addEventListener('input', () => { filtros[id] = el.value; desenharLista(); });
+    });
     await desenharLista();
+    window.scrollTo(0, voltando ? rolagemLista : 0);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -485,6 +507,8 @@
         subtipo: nomeDe(apoio.subtipos, g('fSubtipo')),
         finalidade: rotulo(FINALIDADES, g('fFinalidade')),
         situacao: g('fSituacao') ? rotulo(SITUACOES, g('fSituacao')) : null,
+        empreendimento: g('fEmpreendimento') ? nomeDe(apoio.empreendimentos, g('fEmpreendimento')) : null,
+        rua: g('fEndereco').trim() || null,
         bairro: nomeDe(apoio.bairros, g('fBairro')),
         cidade: nomeDe(apoio.cidades, g('fCidade')),
         dormitorios: num(g('fDormitorios')),
@@ -644,7 +668,7 @@
         await supabaseClient.from('imovel').delete().eq('id', editando);
       } else { return; }
     }
-    await montarLista();
+    await montarLista(true);
   }
 
   async function excluir(ehRascunho) {
@@ -653,7 +677,7 @@
     avisar(ehRascunho ? 'Rascunho descartado.' : 'Imóvel excluído. Publicando no site…');
     // Rascunho nunca esteve no site, então apagar não muda nada lá.
     if (!ehRascunho) Publicacao.pedir();
-    await montarLista();
+    await montarLista(true);
   }
 
   async function salvar() {
@@ -714,7 +738,7 @@
         .insert(marcadas.map(cid => ({ imovel_id: idSalvo, caracteristica_id: cid }))), 'salvar características');
     }
     await sincronizarSalaGuerra(idSalvo, c('fSalaGuerra'));
-    await montarLista();
+    await montarLista(true);
   }
 
   // Reaproveita a linha se ela já existiu e foi desativada, em vez de

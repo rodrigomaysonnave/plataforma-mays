@@ -494,6 +494,15 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 .cad-linha { cursor: pointer; transition: background .12s; }
 .cad-linha:hover { background: var(--superficie-2); }
 
+.cad-tabela td.cad-capa { padding: 7px 4px 7px 10px; width: 1%; vertical-align: middle; }
+.cad-capa img, .cad-capa-vazia {
+  display: block; width: 84px; height: 60px; border-radius: 4px;
+  object-fit: cover; background: var(--superficie-2);
+}
+.cad-capa-vazia {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--texto-fraco); border: 1px dashed var(--borda);
+}
 .cad-codigo { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: var(--dourado); white-space: nowrap; }
 .cad-fin { font-size: 11px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--borda); color: var(--texto-fraco); white-space: nowrap; }
 .cad-end-rua { font-weight: 600; }
