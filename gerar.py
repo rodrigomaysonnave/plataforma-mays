@@ -1828,11 +1828,24 @@ def pagina_imovel(cfg, im, base, todos=None):
     desc = im.get("meta_descricao") or (im.get("descricao_publica") or titulo)[:158]
     url = f"{base}/imovel/{im['slug']}/"
 
+    # RealEstateListing, não Product: imóvel não tem frete, devolução nem
+    # avaliação de compradores, e como Product o Search Console cobrava
+    # aggregateRating, review, shippingDetails e GTIN. Não se inventa nada
+    # disso: o tipo certo simplesmente não entra nesses relatórios.
+    tipo_nome = (im.get("_tipo") or "").lower()
+    tipo_schema = ("Apartment" if "apart" in tipo_nome else
+                   "House" if "casa" in tipo_nome or "sobrado" in tipo_nome else "Accommodation")
+    if any(t in tipo_nome for t in ("terreno", "lote", "campo", "área", "area")):
+        tipo_schema = "Place"
     jsonld = {
-        "@context": "https://schema.org", "@type": "Product",
-        "name": im.get("titulo") or titulo, "sku": im.get("codigo"),
-        "description": desc, "url": url,
+        "@context": "https://schema.org", "@type": "RealEstateListing",
+        "name": im.get("titulo") or titulo, "description": desc, "url": url,
+        "mainEntity": {"@type": tipo_schema, "name": im.get("titulo") or titulo,
+                       "address": {"@type": "PostalAddress", "addressLocality": "Pelotas",
+                                   "addressRegion": "RS", "addressCountry": "BR"}},
     }
+    if im.get("codigo"):
+        jsonld["identifier"] = im["codigo"]
     if im.get("_capa"):
         jsonld["image"] = base + "/" + im["_capa"].lstrip("./")
     if im.get("valor"):
