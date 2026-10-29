@@ -605,6 +605,28 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   font-size: 10px; font-weight: 700; letter-spacing: .05em;
   background: var(--dourado); color: var(--tinta); padding: 2px 7px; border-radius: 3px;
 }
+.foto-selo-padrao { top: auto; bottom: 44px; background: rgba(76,175,125,.92); color: #fff; }
+
+/* Padronizar: revisão de antes e depois, nada salvo até "Aplicar". */
+.padrao-caixa {
+  margin: 0 0 14px; padding: 14px; border: 1px solid var(--dourado);
+  border-radius: var(--raio-p); background: var(--superficie-2);
+}
+.padrao-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.padrao-topo p { margin: 2px 0 0; }
+.padrao-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.padrao-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.padrao-par {
+  display: block; padding: 8px; cursor: pointer;
+  border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--superficie);
+}
+.padrao-fotos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.padrao-fotos figure { margin: 0; }
+.padrao-fotos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; border-radius: 3px; }
+.padrao-fotos figcaption { font-size: 10.5px; color: var(--texto-fraco); text-align: center; margin-top: 3px; letter-spacing: .05em; text-transform: uppercase; }
+.padrao-par .check { margin-top: 8px; font-size: 12.5px; }
+@media (max-width: 620px) { .padrao-grade { grid-template-columns: minmax(0, 1fr); } }
+
 .foto figcaption { display: flex; gap: 4px; padding: 7px; justify-content: center; flex-wrap: wrap; }
 .foto figcaption .btn { padding: 3px 7px; font-size: 11px; }
 .btn-remover:hover { border-color: var(--vermelho); color: var(--vermelho); }

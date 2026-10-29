@@ -254,6 +254,9 @@ const Fotos = (() => {
   function montar(alvo, dono) {
     let fotos = [];
     const podeBaixar = !!dono.baixavel && ehAdmin();
+    // Padronizar é de foto de imóvel (pasta 'imoveis'), a única que tem
+    // as colunas url_antes/url_thumb_antes (migração 64).
+    const podePadronizar = (dono.pasta || 'imoveis') === 'imoveis' && dono.tabela === 'imovel_foto';
 
     async function carregar() {
       fotos = await db(supabaseClient.from(dono.tabela)
@@ -271,16 +274,20 @@ const Fotos = (() => {
             <input type="file" accept="image/*" multiple hidden id="fotoEntrada">
           </label>
           ${podeBaixar && fotos.length ? `<button class="btn" id="fotosBaixarTodas" title="Só administrador">Baixar todas (.zip)</button>` : ''}
+          ${podePadronizar && fotos.length ? `<button class="btn" id="fotosPadronizar" title="Ajuste automático de luz e cor, sem IA. Mostra o antes e depois antes de salvar.">✦ Padronizar</button>` : ''}
           <span class="fotos-conta">${fotos.length ? `${fotos.length} foto${fotos.length===1?'':'s'}` : 'Nenhuma foto ainda'}</span>
           <span class="fotos-dica">A primeira é a capa. Arraste pra reordenar, ou use as setas.</span>
         </div>
+        <div id="fotosRevisao"></div>
         <div class="fotos-grade" id="fotosGrade">
           ${fotos.map((f, i) => `
             <figure class="foto${f.capa || (i === 0 && !fotos.some(x => x.capa)) ? ' foto-capa' : ''}" data-id="${f.id}" draggable="true">
               <img src="${esc(f.url_thumb || f.url)}" alt="${esc(f.legenda || 'Foto do imóvel')}" loading="lazy">
               ${f.capa || (i === 0 && !fotos.some(x => x.capa)) ? '<span class="foto-selo">Capa</span>' : ''}
+              ${f.url_antes ? '<span class="foto-selo foto-selo-padrao">Padronizada</span>' : ''}
               <figcaption>
                 <button class="btn btn-mini" data-acao="capa" title="Usar como capa">Capa</button>
+                ${f.url_antes ? '<button class="btn btn-mini" data-acao="desfaz" title="Desfazer a padronização">↺</button>' : ''}
                 ${podeBaixar ? '<button class="btn btn-mini" data-acao="baixa" title="Baixar esta foto (admin)">⬇</button>' : ''}
                 <button class="btn btn-mini" data-acao="sobe" title="Mover para a esquerda">←</button>
                 <button class="btn btn-mini" data-acao="desce" title="Mover para a direita">→</button>
@@ -332,6 +339,9 @@ const Fotos = (() => {
         botaoZip.textContent = 'Baixar todas (.zip)';
       });
 
+      const botaoPadrao = alvo.querySelector('#fotosPadronizar');
+      if (botaoPadrao) botaoPadrao.addEventListener('click', () => revisarPadronizacao(botaoPadrao));
+
       alvo.querySelectorAll('.foto').forEach(fig => {
         const id = fig.dataset.id;
         fig.querySelectorAll('[data-acao]').forEach(b => {
@@ -346,7 +356,12 @@ const Fotos = (() => {
               catch (err) { avisar(`Não consegui baixar a foto: ${err.message}`); }
               return;
             }
-            if (acao === 'capa') {
+            if (acao === 'desfaz') {
+              const f = fotos.find(x => x.id === id);
+              await db(supabaseClient.from(dono.tabela).update({
+                url: f.url_antes, url_thumb: f.url_thumb_antes, url_antes: null, url_thumb_antes: null,
+              }).eq('id', id), 'desfazer a padronização');
+            } else if (acao === 'capa') {
               await db(supabaseClient.from(dono.tabela).update({ capa: false }).eq(dono.coluna, dono.id), 'trocar a capa');
               await db(supabaseClient.from(dono.tabela).update({ capa: true }).eq('id', id), 'trocar a capa');
             } else if (acao === 'remove') {
@@ -397,6 +412,84 @@ const Fotos = (() => {
           Publicacao.pedir();
           await carregar();
         });
+      });
+    }
+
+    // Processa todas, mostra o antes e depois, e só grava as marcadas.
+    // Parte sempre da versão de antes (url_antes) quando existe: padronizar
+    // de novo não empilha ajuste em cima de ajuste.
+    async function revisarPadronizacao(botao) {
+      const caixa = alvo.querySelector('#fotosRevisao');
+      botao.disabled = true;
+      const prontas = [];
+      for (const [i, f] of fotos.entries()) {
+        caixa.innerHTML = `<div class="padrao-caixa"><p class="campo-dica">Ajustando ${i + 1} de ${fotos.length}…</p></div>`;
+        try {
+          const r = await Padronizar.processar(f.url_antes || f.url, LARGURA_THUMB);
+          prontas.push({ foto: f, ...r, previa: URL.createObjectURL(r.grande) });
+        } catch (err) {
+          avisar(`Não consegui ajustar a foto ${i + 1}: ${err.message}`);
+        }
+      }
+      botao.disabled = false;
+      const limpar = () => { prontas.forEach(p => URL.revokeObjectURL(p.previa)); caixa.innerHTML = ''; };
+      if (!prontas.length) { caixa.innerHTML = ''; return; }
+
+      caixa.innerHTML = `
+        <div class="padrao-caixa">
+          <div class="padrao-topo">
+            <div>
+              <strong>Antes e depois</strong>
+              <p class="campo-dica">Desmarque as que ficaram piores. Nada foi salvo ainda.</p>
+            </div>
+            <div class="padrao-acoes">
+              <button class="btn" id="padraoCancelar">Cancelar</button>
+              <button class="btn btn-primario" id="padraoAplicar">Aplicar nas marcadas (${prontas.length})</button>
+            </div>
+          </div>
+          <div class="padrao-grade">
+            ${prontas.map((p, i) => `
+              <label class="padrao-par">
+                <div class="padrao-fotos">
+                  <figure><img src="${esc(p.foto.url_thumb_antes || p.foto.url_thumb || p.foto.url)}" alt=""><figcaption>Antes</figcaption></figure>
+                  <figure><img src="${p.previa}" alt=""><figcaption>Depois</figcaption></figure>
+                </div>
+                <span class="check"><input type="checkbox" data-i="${i}" checked> Usar a nova</span>
+              </label>`).join('')}
+          </div>
+        </div>`;
+
+      const marcadas = () => [...caixa.querySelectorAll('.padrao-par input:checked')].map(c => prontas[+c.dataset.i]);
+      const aplicar = caixa.querySelector('#padraoAplicar');
+      caixa.querySelectorAll('.padrao-par input').forEach(c => c.addEventListener('change', () => {
+        const n = marcadas().length;
+        aplicar.textContent = `Aplicar nas marcadas (${n})`;
+        aplicar.disabled = !n;
+      }));
+      caixa.querySelector('#padraoCancelar').addEventListener('click', limpar);
+      aplicar.addEventListener('click', async () => {
+        const lista = marcadas();
+        aplicar.disabled = true;
+        let feitas = 0;
+        for (const p of lista) {
+          aplicar.textContent = `Salvando ${++feitas} de ${lista.length}…`;
+          try {
+            const base = `imoveis/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-padrao`;
+            const [url, url_thumb] = await Promise.all([
+              subir(`${base}.jpg`, p.grande), subir(`${base}_thumb.jpg`, p.thumb)]);
+            await db(supabaseClient.from(dono.tabela).update({
+              url, url_thumb,
+              url_antes: p.foto.url_antes || p.foto.url,
+              url_thumb_antes: p.foto.url_thumb_antes || p.foto.url_thumb,
+            }).eq('id', p.foto.id), 'salvar a foto padronizada');
+          } catch (err) {
+            avisar(`Falhou numa foto: ${err.message}`);
+          }
+        }
+        limpar();
+        avisar(`${lista.length} foto${lista.length === 1 ? '' : 's'} padronizada${lista.length === 1 ? '' : 's'}. Publicando no site…`);
+        Publicacao.pedir();
+        await carregar();
       });
     }
 
