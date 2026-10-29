@@ -265,7 +265,7 @@
     </div>`;
 
   const campo = (rot, dentro, largo) =>
-    `<div class="campo${largo ? ' campo-largo' : ''}">${rot ? `<label>${rot}</label>` : ''}${dentro}</div>`;
+    `<div class="campo${largo === 'duplo' ? ' campo-duplo' : largo ? ' campo-largo' : ''}">${rot ? `<label>${rot}</label>` : ''}${dentro}</div>`;
 
   const txt = (id, v, ph = '') => `<input type="text" id="${id}" value="${esc(v ?? '')}" placeholder="${ph}">`;
   const nmr = (id, v, ph = '', passo = '1') =>
@@ -346,17 +346,17 @@
              <input type="email" id="propEmail" placeholder="E-mail (opcional)">
              <button class="btn btn-primario" id="propSalvar" type="button">Salvar proprietário</button>
              <button class="btn" id="propCancelar" type="button">Cancelar</button>
-           </div>`, true) +
+           </div>`, 'duplo') +
         campo('Telefone do proprietário',
           `<div class="linha-com-botao">
              <input type="tel" id="fPropTelefone" placeholder="(53) 99999-9999">
              <a class="btn" id="propWhats" target="_blank" rel="noopener">WhatsApp</a>
-           </div>`, true) +
+           </div>`, 'duplo') +
         campo('E-mail do proprietário',
           `<div class="linha-com-botao">
              <input type="email" id="fPropEmail" placeholder="nome@exemplo.com">
              <a class="btn" id="propEmailBtn">Enviar e-mail</a>
-           </div>`, true) +
+           </div>`, 'duplo') +
         campo('Empreendimento', `<select id="fEmpreendimento">${opcoes(apoio.empreendimentos, im.empreendimento_id, 'Nenhum (imóvel avulso)')}</select>`) +
         campo('Agenciador',
           `<select id="fAgenciador">${opcoes(apoio.corretores, im.agenciador_id, 'Sem agenciador')}</select>

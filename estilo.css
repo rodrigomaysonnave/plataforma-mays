@@ -178,6 +178,8 @@ input.campo-invalido:focus, select.campo-invalido:focus, textarea.campo-invalido
 }
 .cliente-novo-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .cliente-novo-grade .campo-largo { grid-column: 1 / -1; }
+/* Meio caminho: dois campos de largura, para input com botão ao lado. */
+.ficha-grade .campo-duplo { grid-column: span 2; }
 .cliente-novo-grade .campo { margin-bottom: 10px; }
 .cliente-novo-erro {
   font-size: 12.5px; color: var(--vermelho);
@@ -572,6 +574,7 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   #conteudo .secao-acoes input[type="search"] { width: 100%; }
   #conteudo .secao-acoes select { flex: 1 1 46%; min-width: 0; }
   .ficha-grade { grid-template-columns: minmax(0, 1fr); }
+  .ficha-grade .campo-duplo { grid-column: auto; }
 }
 
 /* ── Linha do tempo (interação + agenda + negócio, por cliente) ─────── */
