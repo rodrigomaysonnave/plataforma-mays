@@ -216,6 +216,14 @@ const Plataforma = (() => {
     // pessoa estava e onde ela confere se deu certo.
     if (await tentarRetornoDoGoogle()) return irPara('corretores', 'agenda');
 
+    // Link do aviso ao corretor (e-mail): ?conversa=<id> abre direto nela.
+    const conversaPedida = new URLSearchParams(location.search).get('conversa');
+    if (conversaPedida && /^[0-9a-f-]{36}$/i.test(conversaPedida)) {
+      history.replaceState(null, '', location.pathname);
+      window.abrirConversaPedida = conversaPedida;
+      return irPara('sdr', 'conversas');
+    }
+
     let inicial = 'configuracoes';
     try { inicial = localStorage.getItem('plat_modulo') || inicial; } catch (e) {}
     if (!document.querySelector(`.menu-item[data-modulo="${inicial}"]`)) inicial = 'configuracoes';

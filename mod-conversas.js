@@ -415,6 +415,14 @@
       </div>`;
     ligar(); renderChave(); renderLista();
 
+    // Veio pelo link do aviso (app.js guarda o id pedido).
+    const pedida = window.abrirConversaPedida;
+    window.abrirConversaPedida = null;
+    if (pedida) {
+      if (conversas.some(c => c.id === pedida)) await abrir(pedida);
+      else avisar('Essa conversa não está mais na lista.');
+    }
+
     // Atualiza sozinho enquanto a tela estiver aberta.
     timer = setInterval(() => {
       if (!alvoEl || !alvoEl.isConnected) { clearInterval(timer); return; }
