@@ -90,7 +90,7 @@
       db(pega('zona'), 'carregar zonas'),
       db(pega('caracteristica'), 'carregar características'),
       db(pega('origem_captacao'), 'carregar origens'),
-      db(supabaseClient.from('proprietario').select('id,nome').eq('ativo',true).order('nome'), 'carregar proprietários'),
+      db(supabaseClient.from('proprietario').select('id,nome,telefone,email').eq('ativo',true).order('nome'), 'carregar proprietários'),
       db(supabaseClient.from('empreendimento').select('id,nome,bairro_id,endereco').eq('ativo',true).order('nome'), 'carregar empreendimentos'),
       db(supabaseClient.from('perfil_equipe').select('id,nome').eq('ativo',true).order('nome'), 'carregar corretores'),
       db(supabaseClient.from('configuracao').select('site_url').limit(1), 'carregar configuração'),
@@ -346,6 +346,16 @@
              <input type="email" id="propEmail" placeholder="E-mail (opcional)">
              <button class="btn btn-primario" id="propSalvar" type="button">Salvar proprietário</button>
              <button class="btn" id="propCancelar" type="button">Cancelar</button>
+           </div>`, true) +
+        campo('Telefone do proprietário',
+          `<div class="linha-com-botao">
+             <input type="tel" id="fPropTelefone" placeholder="(53) 99999-9999">
+             <a class="btn" id="propWhats" target="_blank" rel="noopener">WhatsApp</a>
+           </div>`, true) +
+        campo('E-mail do proprietário',
+          `<div class="linha-com-botao">
+             <input type="email" id="fPropEmail" placeholder="nome@exemplo.com">
+             <a class="btn" id="propEmailBtn">Enviar e-mail</a>
            </div>`, true) +
         campo('Empreendimento', `<select id="fEmpreendimento">${opcoes(apoio.empreendimentos, im.empreendimento_id, 'Nenhum (imóvel avulso)')}</select>`) +
         campo('Agenciador',
@@ -636,6 +646,29 @@
   function ligarProprietario() {
     const form = document.getElementById('propForm');
     const sel  = document.getElementById('fProprietario');
+    const tel  = document.getElementById('fPropTelefone');
+    const mail = document.getElementById('fPropEmail');
+
+    // Contato do proprietário mora na tabela proprietario, não no imóvel.
+    // A ficha só mostra e deixa corrigir; salvar o imóvel grava lá.
+    const preencherContato = () => {
+      const p = apoio.props.find(x => x.id === sel.value);
+      tel.value = p?.telefone ?? '';
+      mail.value = p?.email ?? '';
+      tel.disabled = mail.disabled = !p;
+      atualizarBotoesContato();
+    };
+    sel.addEventListener('change', preencherContato);
+    ['fPropTelefone','fPropEmail','fEndereco','fNumero'].forEach(i =>
+      document.getElementById(i).addEventListener('input', atualizarBotoesContato));
+    document.getElementById('propWhats').addEventListener('click', e => {
+      if (e.currentTarget.getAttribute('aria-disabled') === 'true') { e.preventDefault(); avisar('Informe o telefone do proprietário.'); }
+    });
+    document.getElementById('propEmailBtn').addEventListener('click', e => {
+      if (e.currentTarget.getAttribute('aria-disabled') === 'true') { e.preventDefault(); avisar('Informe o e-mail do proprietário.'); }
+    });
+    preencherContato();
+
     document.getElementById('propNovo').addEventListener('click', () => {
       form.hidden = !form.hidden;
       if (!form.hidden) document.getElementById('propNome').focus();
@@ -648,14 +681,50 @@
         nome,
         telefone: document.getElementById('propTelefone').value.trim() || null,
         email: document.getElementById('propEmail').value.trim() || null,
-      }).select('id,nome'), 'cadastrar o proprietário');
+      }).select('id,nome,telefone,email'), 'cadastrar o proprietário');
       apoio.props.push(r[0]);
       apoio.props.sort((a, b) => a.nome.localeCompare(b.nome));
       sel.innerHTML = opcoes(apoio.props, r[0].id, 'Nenhum');
+      preencherContato();
       form.hidden = true;
       ['propNome','propTelefone','propEmail'].forEach(i => document.getElementById(i).value = '');
       avisar(`Proprietário "${r[0].nome}" cadastrado e selecionado.`);
     });
+  }
+
+  // Os botões já levam a mensagem com o endereço do imóvel, para o
+  // proprietário saber de qual imóvel se trata sem precisar perguntar.
+  function atualizarBotoesContato() {
+    const sel = document.getElementById('fProprietario');
+    const p = apoio.props.find(x => x.id === sel.value);
+    const nome = (p?.nome || '').split(' ')[0];
+    const end = [document.getElementById('fEndereco').value.trim(), document.getElementById('fNumero').value.trim()]
+      .filter(Boolean).join(', ');
+    const sobre = end ? ` sobre o imóvel da ${end}` : ' sobre o seu imóvel';
+
+    const w = document.getElementById('propWhats');
+    const n = waNumero(document.getElementById('fPropTelefone').value);
+    if (n.length >= 12) {
+      const texto = `Olá${nome ? ' ' + nome : ''}, tudo bem? Aqui é da Maysonnave Imóveis,${sobre}.`;
+      w.href = `https://wa.me/${n}?text=${encodeURIComponent(texto)}`;
+      w.removeAttribute('aria-disabled');
+    } else { w.removeAttribute('href'); w.setAttribute('aria-disabled', 'true'); }
+
+    const m = document.getElementById('propEmailBtn');
+    const email = document.getElementById('fPropEmail').value.trim();
+    if (/^\S+@\S+\.\S+$/.test(email)) {
+      const assunto = end ? `Imóvel ${end}` : 'Seu imóvel';
+      const corpo = `Olá${nome ? ' ' + nome : ''},\n\nAqui é da Maysonnave Imóveis,${sobre}.\n\n`;
+      m.href = `mailto:${email}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+      m.removeAttribute('aria-disabled');
+    } else { m.removeAttribute('href'); m.setAttribute('aria-disabled', 'true'); }
+  }
+
+  // Mesmo formato do resto da plataforma: 55 + DDD + número, sem símbolo.
+  function waNumero(tel) {
+    let n = String(tel || '').replace(/\D/g, '');
+    if (n.length > 11 && n.startsWith('55')) n = n.slice(2);
+    return n ? '55' + n : '';
   }
 
   // Sair de um rascunho apaga ele: registro pela metade só polui a lista.
@@ -728,6 +797,16 @@
 
     const idSalvo = editando;
     await db(supabaseClient.from('imovel').update(dados).eq('id', editando), 'salvar o imóvel');
+
+    // Telefone ou e-mail corrigidos aqui valem para o cadastro do proprietário.
+    const prop = apoio.props.find(x => x.id === dados.proprietario_id);
+    if (prop) {
+      const telefone = v('fPropTelefone').trim() || null, email = v('fPropEmail').trim() || null;
+      if (telefone !== (prop.telefone || null) || email !== (prop.email || null)) {
+        await db(supabaseClient.from('proprietario').update({ telefone, email }).eq('id', prop.id), 'salvar o contato do proprietário');
+        Object.assign(prop, { telefone, email });
+      }
+    }
     avisar('Imóvel salvo. Publicando no site…');
     Publicacao.pedir();
 
