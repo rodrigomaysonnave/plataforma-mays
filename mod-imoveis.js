@@ -20,7 +20,9 @@
 
   // Filtro e rolagem da lista sobrevivem à ida até a ficha. Sem isso, o
   // "Voltar à lista" redesenhava tudo do zero e obrigava a filtrar de novo.
-  const filtros = { imBusca: '', imFinalidade: '', imTipo: '', imStatus: '' };
+  // Vendido sai da lista por padrão: é histórico, não estoque. Continua a
+  // um clique no seletor de situação ("Vendido" ou "Toda situação").
+  const filtros = { imBusca: '', imFinalidade: '', imTipo: '', imStatus: 'sem_vendidos' };
   let rolagemLista = 0;
 
   const FINALIDADES = [['venda','Venda'],['aluguel','Aluguel'],['venda_aluguel','Venda e aluguel']];
@@ -164,7 +166,7 @@
     return lista.filter(im => {
       if (fin && im.finalidade !== fin) return false;
       if (tp  && im.tipo_imovel_id !== tp) return false;
-      if (st  && im.status !== st) return false;
+      if (st === 'sem_vendidos' ? im.status === 'vendido' : st && im.status !== st) return false;
       if (q) {
         const b = apoio.bairros.find(x => x.id === im.bairro_id);
         const alvo = [im.codigo, im.titulo, im.endereco, b && b.nome].filter(Boolean).join(' ').toLowerCase();
@@ -183,9 +185,13 @@
     const corpo = document.getElementById('imCorpo');
     const meta  = document.getElementById('imMeta');
 
+    const st = document.getElementById('imStatus')?.value || '';
+    const vendidos = todos.filter(im => im.status === 'vendido').length;
     meta.textContent = lista.length === todos.length
       ? `${todos.length} imóvel${todos.length === 1 ? '' : 'is'} no catálogo`
       : `${lista.length} de ${todos.length} imóveis`;
+    if (st === 'sem_vendidos' && vendidos)
+      meta.textContent += ` · ${vendidos} vendido${vendidos === 1 ? '' : 's'} oculto${vendidos === 1 ? '' : 's'}`;
 
     if (!todos.length) {
       corpo.innerHTML = `
@@ -231,7 +237,8 @@
             ${FINALIDADES.map(([v,r]) => `<option value="${v}">${r}</option>`).join('')}</select>
           <select id="imTipo"><option value="">Todo tipo</option>
             ${apoio.tipos.map(t => `<option value="${t.id}">${esc(t.nome)}</option>`).join('')}</select>
-          <select id="imStatus"><option value="">Toda situação</option>
+          <select id="imStatus"><option value="sem_vendidos">Sem vendidos</option>
+            <option value="">Toda situação</option>
             ${STATUS.map(([v,r]) => `<option value="${v}">${r}</option>`).join('')}</select>
           <button class="btn btn-primario" id="imNovo">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
