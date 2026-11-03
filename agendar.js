@@ -120,6 +120,19 @@
     }
   }
 
+  // Grava e espelha. Separado da janela porque a "Próxima ação" do negócio
+  // marca compromisso sem abrir janela nenhuma, e as duas portas têm que
+  // seguir a mesma ordem: casa primeiro, Google depois. `antes` roda entre
+  // gravar e espelhar (a janela fecha ali, sem esperar o Google).
+  async function gravar(dados, antes) {
+    const salvo = await db(supabaseClient.from('compromisso')
+      .insert(dados).select('*').single(), 'agendar');
+    if (antes) antes();
+    avisar('Agendado.');
+    await espelhar(salvo);
+    return salvo;
+  }
+
   // ── A janela ────────────────────────────────────────────────────────
   async function agendar(ctx) {
     ctx = ctx || {};
@@ -241,12 +254,7 @@
           convidado_email: convidar ? email : null,
         };
 
-        const salvo = await db(supabaseClient.from('compromisso')
-          .insert(dados).select('*').single(), 'agendar');
-
-        fechar();
-        avisar('Agendado.');
-        await espelhar(salvo);
+        const salvo = await gravar(dados, fechar);
         if (ctx.aoSalvar) await ctx.aoSalvar(salvo);
       } catch (e) {
         // db() já avisa. Aqui só devolve o botão, senão a janela fica
@@ -259,6 +267,9 @@
   }
 
   Plataforma.agendar = agendar;
+  Plataforma.gravarCompromisso = gravar;
+  Plataforma.proximaHoraCheia = proximaHoraCheia;
+  Plataforma.paraCampoDataHora = paraCampo;
 
   // Texto curto para o histórico do lead, igual em todos os módulos que
   // chamam. Fica aqui para não virar quatro versões diferentes da mesma

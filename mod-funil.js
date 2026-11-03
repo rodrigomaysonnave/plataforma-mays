@@ -24,6 +24,16 @@
   const TEMP_COR   = { frio: 'var(--texto-fraco)', morno: 'var(--amarelo)', quente: 'var(--vermelho)' };
   const TEMP_LABEL = { frio: 'Frio', morno: 'Morno', quente: 'Quente' };
 
+  // Próxima ação do negócio: cada uma vira compromisso na Agenda, ligado ao
+  // negócio, e fica no histórico da ficha. Negócio sem próxima ação marcada
+  // é negócio esquecido.
+  const TIPOS_ACAO = [['ligacao', 'Ligação'], ['visita', 'Visita'], ['reuniao', 'Reunião'],
+                      ['outro', 'Outro']];
+  const ROTULO_TIPO = { ligacao: 'Ligação', visita: 'Visita', reuniao: 'Reunião',
+                        vistoria: 'Vistoria', outro: 'Outro' };
+  const quandoCurto = iso => new Date(iso).toLocaleString('pt-BR',
+    { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
   const vgv = v => !v ? 'R$ 0' :
     v >= 1e6 ? `R$ ${(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})} M`
              : `R$ ${(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0})} k`;
@@ -226,9 +236,142 @@
           <p class="campo-dica">Só faz sentido quando o negócio cai.</p></div>
         <div class="campo campo-largo"><label for="negObs">Observações</label>
           <textarea id="negObs" rows="3">${esc(n.obs ?? '')}</textarea></div>
+        <div class="campo campo-largo">
+          <div class="acoes-cabeca"><label>Próximas ações</label>
+            <button class="btn btn-mini" type="button" id="negAcaoNova">+ Ação</button></div>
+          <div class="cliente-novo" id="negAcaoPainel" hidden>
+            <div class="cliente-novo-titulo">Nova ação</div>
+            <div class="cliente-novo-grade acao-grade">
+              <div class="campo campo-largo"><label for="negAcaoTexto">O que fazer</label>
+                <input type="text" id="negAcaoTexto" autocomplete="off" placeholder="Ligar para mandar a proposta"></div>
+              <div class="campo"><label for="negAcaoTipo">Tipo</label>
+                <select id="negAcaoTipo">${TIPOS_ACAO.map(t =>
+                  `<option value="${t[0]}"${t[0] === 'ligacao' ? ' selected' : ''}>${t[1]}</option>`).join('')}</select></div>
+              <div class="campo"><label for="negAcaoQuando">Data e hora</label>
+                <input type="datetime-local" id="negAcaoQuando"></div>
+            </div>
+            <p class="campo-dica" style="margin:0 0 10px">Vai para a Agenda e para o seu Google, com lembrete 1 hora antes.</p>
+            <div class="cliente-novo-acoes">
+              <button class="btn btn-mini" type="button" id="negAcaoCancelar">Cancelar</button>
+              <button class="btn btn-primario btn-mini" type="button" id="negAcaoSalvar">Agendar ação</button>
+            </div>
+          </div>
+          <div id="negAcoes" class="acoes-lista"></div></div>
       </div></div>`;
 
     document.getElementById('negVoltar').addEventListener('click', desenhar);
+
+    // Mesmos campos do botão Salvar, num lugar só: quem cria o negócio a
+    // partir de Agendar ou de "+ Ação" grava exatamente o que está na tela.
+    const dadosDaTela = contatoId => {
+      const v = i => document.getElementById(i).value;
+      return {
+        contato_id: contatoId, imovel_id: v('negImovel') || null,
+        empreendimento_id: v('negEmpreendimento') || null,
+        etapa_id: v('negEtapa') || null, valor: v('negValor') === '' ? null : Number(v('negValor')),
+        motivo_perda_id: v('negMotivo') || null, obs: v('negObs').trim() || null,
+        temperatura: v('negTemp') || null,
+      };
+    };
+    const contatoDaTela = () => {
+      const nomeDigitado = document.getElementById('negContatoBusca').value.trim();
+      const achado = contatos.find(c => c.nome.trim().toLowerCase() === nomeDigitado.toLowerCase());
+      return achado ? achado.id : (nomeDigitado === nomeContatoAtual ? n.contato_id : null);
+    };
+
+    // ── Próximas ações ────────────────────────────────────────────────
+    // Pendentes primeiro (a mais próxima no topo), depois o histórico do que
+    // já foi feito, mais recente primeiro. Atrasada fica em vermelho: é o
+    // que precisa de atenção hoje.
+    async function desenharAcoes() {
+      const caixa = document.getElementById('negAcoes');
+      if (!caixa) return;
+      if (id === 'novo') {
+        caixa.innerHTML = '<p class="campo-dica">Nenhuma ação ainda. "+ Ação" salva o negócio e já agenda.</p>';
+        return;
+      }
+      const lista = await db(supabaseClient.from('compromisso')
+        .select('id,titulo,tipo,situacao,inicio').eq('negocio_id', id)
+        .order('inicio', { ascending: true }), 'carregar as ações');
+      const pend = lista.filter(c => c.situacao === 'marcado' || c.situacao === 'remarcado');
+      const hist = lista.filter(c => !pend.includes(c)).reverse();
+      if (!lista.length) {
+        caixa.innerHTML = '<p class="campo-dica">Nenhuma ação marcada. Negócio sem próximo passo esfria.</p>';
+        return;
+      }
+      const agora = Date.now();
+      const linha = c => {
+        const aberta = pend.includes(c);
+        const atrasada = aberta && new Date(c.inicio).getTime() < agora;
+        const selo = !aberta
+          ? (c.situacao === 'realizado' ? '<span class="cad-selo cad-selo-vitrine">FEITA</span>'
+                                        : '<span class="cad-selo cad-selo-restrito">CANCELADA</span>')
+          : atrasada ? '<span class="cad-selo cad-selo-restrito">ATRASADA</span>'
+                     : '<span class="cad-selo cad-selo-mural">PENDENTE</span>';
+        return `<div class="acao-item${aberta ? '' : ' acao-feita'}">
+          <div class="acao-quando">${esc(quandoCurto(c.inicio))}</div>
+          <div class="acao-texto">${selo}<span class="acao-tipo">${esc(ROTULO_TIPO[c.tipo] || 'Ação')}</span> ${esc(c.titulo)}</div>
+          ${aberta ? `<button class="btn btn-mini" type="button" data-feita="${c.id}">Feita</button>` : ''}
+        </div>`;
+      };
+      caixa.innerHTML = pend.map(linha).join('') +
+        (hist.length ? `<div class="acoes-hist-titulo">Histórico</div>` + hist.map(linha).join('') : '');
+      caixa.querySelectorAll('[data-feita]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true;
+        await db(supabaseClient.from('compromisso')
+          .update({ situacao: 'realizado' }).eq('id', b.dataset.feita), 'marcar como feita');
+        avisar('Ação feita.');
+        await desenharAcoes();
+      }));
+    }
+    desenharAcoes();
+
+    const painelAcao = document.getElementById('negAcaoPainel');
+    document.getElementById('negAcaoNova').addEventListener('click', () => {
+      if (!painelAcao.hidden) { painelAcao.hidden = true; return; }
+      document.getElementById('negAcaoTexto').value = '';
+      document.getElementById('negAcaoQuando').value = Plataforma.paraCampoDataHora(Plataforma.proximaHoraCheia());
+      painelAcao.hidden = false;
+      document.getElementById('negAcaoTexto').focus();
+    });
+    document.getElementById('negAcaoCancelar').addEventListener('click', () => { painelAcao.hidden = true; });
+
+    document.getElementById('negAcaoSalvar').addEventListener('click', async () => {
+      const botao = document.getElementById('negAcaoSalvar');
+      const texto = document.getElementById('negAcaoTexto').value.trim();
+      const quando = document.getElementById('negAcaoQuando').value;
+      if (!texto) { avisar('Escreva o que deve ser feito.'); document.getElementById('negAcaoTexto').focus(); return; }
+      const dtInicio = new Date(quando);
+      if (!quando || isNaN(dtInicio)) { avisar('Informe a data e a hora.'); return; }
+      const contatoId = contatoDaTela();
+      if (!contatoId) { avisar('Escolha o cliente antes de agendar a ação.'); return; }
+
+      // Mesma trava contra clique duplo da janela de agendar.
+      if (botao.dataset.salvando) return;
+      botao.dataset.salvando = '1'; botao.disabled = true; botao.textContent = 'Agendando…';
+      try {
+        let negocioId = id;
+        if (id === 'novo') {
+          const salvo = await db(supabaseClient.from('negocio')
+            .insert(dadosDaTela(contatoId)).select('id').single(), 'salvar o negócio');
+          negocioId = salvo.id;
+        }
+        await Plataforma.gravarCompromisso({
+          titulo: texto, tipo: document.getElementById('negAcaoTipo').value, situacao: 'marcado',
+          inicio: dtInicio.toISOString(), fim: new Date(dtInicio.getTime() + 30 * 60000).toISOString(),
+          contato_id: contatoId,
+          imovel_id: document.getElementById('negImovel').value || null,
+          negocio_id: negocioId,
+          corretor_id: (Plataforma.perfil || {}).id || null,
+          lembrete_min: 60,
+        });
+        if (id === 'novo') { await abrirNegocio(negocioId); return; }
+        painelAcao.hidden = true;
+        await desenharAcoes();
+      } finally {
+        delete botao.dataset.salvando; botao.disabled = false; botao.textContent = 'Agendar ação';
+      }
+    });
 
     const selBtn = document.getElementById('negSelecao');
     if (selBtn) selBtn.addEventListener('click', () => {
@@ -336,14 +479,8 @@
       const empId = document.getElementById('negEmpreendimento').value || null;
 
       if (id === 'novo') {
-        const v = i => document.getElementById(i).value;
-        const dados = {
-          contato_id: contatoId, imovel_id: imovelId, empreendimento_id: empId,
-          etapa_id: v('negEtapa') || null, valor: v('negValor') === '' ? null : Number(v('negValor')),
-          motivo_perda_id: v('negMotivo') || null, obs: v('negObs').trim() || null,
-        };
         const salvo = await db(supabaseClient.from('negocio')
-          .insert(dados).select('id').single(), 'salvar o negócio');
+          .insert(dadosDaTela(contatoId)).select('id').single(), 'salvar o negócio');
         avisar('Negócio criado.');
         await abrirNegocio(salvo.id);
         document.getElementById('negAgendar').click();

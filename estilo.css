@@ -1994,3 +1994,26 @@ span.rd-chip { cursor: default; }
 
 /* Botão de contato sem telefone/e-mail válido: visível, mas apagado. */
 .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+
+/* Próximas ações do negócio (funil) */
+.acoes-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.acoes-cabeca label { margin: 0; }
+.acoes-lista { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.acao-item {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--borda); border-radius: var(--raio);
+  background: var(--superficie-2); padding: 8px 12px;
+}
+.acao-quando { font-size: 12.5px; color: var(--texto-fraco); white-space: nowrap; min-width: 118px; }
+.acao-texto { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.acao-tipo { color: var(--texto-fraco); margin-right: 4px; }
+.acao-feita { opacity: .6; }
+.acao-grade { grid-template-columns: 1fr 1fr; }
+.acoes-hist-titulo { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-fraco); margin: 8px 0 0; }
+@media (max-width: 620px) {
+  .acao-item { flex-wrap: wrap; gap: 6px 10px; }
+  .acao-quando { min-width: 0; }
+  .acao-texto { flex-basis: 100%; order: 3; }
+  .acao-item .btn { margin-left: auto; }
+  .acao-grade { grid-template-columns: 1fr; }
+}
