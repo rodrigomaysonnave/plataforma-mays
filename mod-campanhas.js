@@ -261,6 +261,15 @@
     const modelo = (n, valor, dica) => `
       <div class="campo campo-largo"><label for="${n}">Modelo ${n.slice(-1)}</label>
         <textarea id="${n}" rows="3" placeholder="${esc(dica)}">${esc(valor ?? '')}</textarea></div>`;
+    const campoImagem = n => `
+      <div class="campo campo-largo"><label>Imagem do WhatsApp ${n}</label>
+        <div class="cp-imagem" id="cpImagem${n}">
+          <input type="file" id="cpImagemArq${n}" accept="image/jpeg,image/png" hidden>
+          <span id="cpImagemVazio${n}">Clique para escolher</span>
+        </div>
+        <p class="campo-dica">JPG ou PNG.${n < 3 ? ' Vale para todos os modelos daqui.' : ''} O WhatsApp por link
+           só aceita texto, então o clique no botão já deixa a imagem copiada: é só colar
+           na conversa.</p></div>`;
 
     alvoEl.innerHTML = `
       <div class="secao-topo">
@@ -328,17 +337,28 @@
           ${modelo('cpMsg1', c.msg_template_1, '{saudacao}, {nome}! Aqui é o {corretor}, da Maysonnave Imóveis.')}
           ${modelo('cpMsg2', c.msg_template_2, 'Outra forma de dizer a mesma coisa')}
           ${modelo('cpMsg3', c.msg_template_3, 'Uma terceira, para o rodízio ficar completo')}
+          ${campoImagem(1)}
         </div>
       </div>
 
       <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>Segunda mensagem</h3>
           <p>O conteúdo do imóvel, mandado depois que a pessoa respondeu que quer receber.
-             Tem rodízio próprio. Sem nenhum modelo aqui, o botão nem aparece.</p></div>
+             Tem rodízio próprio. Sem modelo e sem imagem aqui, o botão nem aparece.</p></div>
         <div class="ficha-grade">
           ${modelo('cpB1', c.msg2_template_1, 'Segue o material do imóvel, {nome}')}
           ${modelo('cpB2', c.msg2_template_2, '')}
           ${modelo('cpB3', c.msg2_template_3, '')}
+          ${campoImagem(2)}
+        </div>
+      </div>
+
+      <div class="ficha-secao">
+        <div class="ficha-secao-topo"><h3>Terceira mensagem</h3>
+          <p>O WhatsApp 3 abre a conversa em branco, sem texto e sem registrar envio.
+             A imagem daqui já vai copiada.</p></div>
+        <div class="ficha-grade">
+          ${campoImagem(3)}
         </div>
       </div>
 
@@ -362,7 +382,7 @@
       </div>
 
       <div class="ficha-secao">
-        <div class="ficha-secao-topo"><h3>Landing page e imagem</h3></div>
+        <div class="ficha-secao-topo"><h3>Landing page</h3></div>
         <div class="ficha-grade">
           <div class="campo campo-largo"><label for="cpLp">Endereço da LP</label>
             <input type="url" id="cpLp" value="${esc(c.lp_url ?? '')}" placeholder="https://…">
@@ -370,17 +390,6 @@
                própria página avisa quando ela abre.</p></div>
           <div class="campo campo-largo"><label for="cpTextoLp">Texto que acompanha o link</label>
             <textarea id="cpTextoLp" rows="2" placeholder="${esc(TEXTO_LP_PADRAO)}">${esc(c.texto_link_lp ?? '')}</textarea></div>
-          <div class="campo campo-largo"><label>Imagem de cada mensagem</label>
-            <div class="cp-imagens">${[1, 2, 3].map(n => `
-              <div>
-                <div class="cp-imagem-rotulo">WhatsApp ${n}</div>
-                <div class="cp-imagem" id="cpImagem${n}">
-                  <input type="file" id="cpImagemArq${n}" accept="image/jpeg,image/png" hidden>
-                  <span id="cpImagemVazio${n}">Clique para escolher</span>
-                </div>
-              </div>`).join('')}</div>
-            <p class="campo-dica">JPG ou PNG. O WhatsApp por link só aceita texto, então o
-               clique no botão já deixa a imagem copiada: é só colar na conversa.</p></div>
         </div>
       </div>
 
