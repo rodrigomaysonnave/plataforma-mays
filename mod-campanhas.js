@@ -38,7 +38,6 @@
   let leadsImportados = [];
   let imagens = {};        // formulário: url da imagem de cada WhatsApp, por número
   let pngs = {};           // campanha aberta: promessa do PNG já convertido, por número
-  let ultimaImagem = null; // o que o botão "Copiar imagem" copia de novo
 
   const IMAGENS = ['imagem_primeira_msg', 'imagem_segunda_msg', 'imagem_terceira_msg'];
 
@@ -268,8 +267,7 @@
           <span id="cpImagemVazio${n}">Clique para escolher</span>
         </div>
         <p class="campo-dica">JPG ou PNG.${n < 3 ? ' Vale para todos os modelos daqui.' : ''} O WhatsApp por link
-           só aceita texto, então o clique no botão já deixa a imagem copiada: é só colar
-           na conversa.</p></div>`;
+           só aceita texto: o corretor clica em Copiar imagem ${n} e cola na conversa.</p></div>`;
 
     alvoEl.innerHTML = `
       <div class="secao-topo">
@@ -355,8 +353,7 @@
 
       <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>Terceira mensagem</h3>
-          <p>O WhatsApp 3 abre a conversa em branco, sem texto e sem registrar envio.
-             A imagem daqui já vai copiada.</p></div>
+          <p>O WhatsApp 3 abre a conversa em branco, sem texto e sem registrar envio.</p></div>
         <div class="ficha-grade">
           ${campoImagem(3)}
         </div>
@@ -929,7 +926,8 @@
 
       <div class="cp-botoes">
         <a class="btn btn-mini" href="tel:${esc(lead.telefone.replace(/\D/g, ''))}">Ligar</a>
-        ${IMAGENS.some(col => aberta[col]) ? '<button class="btn btn-mini" data-copiar-img title="Copia de novo a imagem do último WhatsApp aberto">Copiar imagem</button>' : ''}
+        ${IMAGENS.map((col, i) => aberta[col]
+          ? `<button class="btn btn-mini" data-copiar-img="${i + 1}" title="Copia a imagem do WhatsApp ${i + 1} para colar na conversa">Copiar imagem ${i + 1}</button>` : '').join('')}
         <button class="btn btn-mini btn-primario" data-whats="1">WhatsApp 1</button>
         ${aberta.templates2.length || aberta.imagem_segunda_msg ? '<button class="btn btn-mini" data-whats="2">WhatsApp 2</button>' : ''}
         <button class="btn btn-mini" data-whats="3" title="Abre a conversa em branco. Não marca etapa nem registra envio">WhatsApp 3</button>
@@ -971,8 +969,8 @@
     if (lp) lp.addEventListener('click', () => enviarLp(lead.id));
     const yt = painel.querySelector('[data-enviar-yt]');
     if (yt) yt.addEventListener('click', () => enviarYoutube(lead.id));
-    const ci = painel.querySelector('[data-copiar-img]');
-    if (ci) ci.addEventListener('click', () => copiarImagem(ultimaImagem));
+    painel.querySelectorAll('[data-copiar-img]').forEach(b =>
+      b.addEventListener('click', () => copiarImagem(b.dataset.copiarImg)));
     const sug = document.getElementById('cpSugerir');
     if (sug) sug.addEventListener('click', () => sugerirMensagem(lead.id));
 
@@ -1052,11 +1050,7 @@
     // WhatsApp 3 abre a conversa e para por aí: sem texto, sem rodízio, sem
     // registro e sem mexer na etapa. É para quando o corretor quer só olhar o
     // perfil ou escrever à mão, por isso é o único que não deixa rastro.
-    if (qual === '3') {
-      await copiarImagem(qual);
-      abrirWhats(`https://wa.me/${waNumero(lead.telefone)}`);
-      return;
-    }
+    if (qual === '3') { abrirWhats(`https://wa.me/${waNumero(lead.telefone)}`); return; }
 
     const lista = qual === '2' ? aberta.templates2 : aberta.templates;
     let texto = '';
@@ -1065,7 +1059,6 @@
       texto = preencher(lista[i % lista.length], lead);
     }
     const url = `https://wa.me/${waNumero(lead.telefone)}` + (texto ? `?text=${encodeURIComponent(texto)}` : '');
-    await copiarImagem(qual);
     if (!abrirWhats(url)) return;
 
     await registrarEnvio(lead, texto
@@ -1152,11 +1145,10 @@
   }
 
   // O link do WhatsApp só aceita texto, então a imagem vai pela área de
-  // transferência, no mesmo clique que abre a conversa. A ordem importa: o
-  // navegador recusa copiar de uma aba sem foco, então a cópia termina antes
-  // de a aba do WhatsApp abrir. Por isso o PNG sai pronto de prepararImagens,
-  // para o clique não esperar o download. No Safari a cópia pode falhar
-  // assim; o botão "Copiar imagem" fica de reserva para o clique separado.
+  // transferência. Fica em botão separado de propósito: copiar antes de abrir
+  // no mesmo clique fez o envio parar de registrar histórico e etapa, e no
+  // Safari as duas coisas disputam a mesma permissão de clique. O PNG sai
+  // pronto de prepararImagens para a cópia não esperar o download.
   async function converterPng(url) {
     const resposta = await fetch(url);
     const bruto = await resposta.blob();
@@ -1169,24 +1161,21 @@
 
   function prepararImagens() {
     pngs = {};
-    ultimaImagem = null;
     IMAGENS.forEach((col, i) => {
       if (!aberta[col]) return;
       const qual = String(i + 1);
       pngs[qual] = converterPng(aberta[col]);
       pngs[qual].catch(() => {});   // quem avisa do erro é a hora de copiar
-      if (!ultimaImagem) ultimaImagem = qual;
     });
   }
 
   async function copiarImagem(qual) {
     if (!pngs[qual]) return;
-    ultimaImagem = qual;
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngs[qual] })]);
       avisar('Imagem copiada. Cole na conversa do WhatsApp.');
     } catch (e) {
-      avisar('Não consegui copiar a imagem: ' + e.message + '. Use o botão Copiar imagem.');
+      avisar('Não consegui copiar a imagem: ' + e.message);
     }
   }
 
