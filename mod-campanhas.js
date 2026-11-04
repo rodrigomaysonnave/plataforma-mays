@@ -863,12 +863,19 @@
     return '55' + d;
   }
 
-  // No celular, abrir aba nova para um link que passa para o aplicativo deixa
-  // uma aba em branco: o sistema intercepta e a aba nunca é navegada. Na
-  // própria aba isso não acontece, e o código que roda depois continua vivo
-  // porque a página não é descarregada.
+  // No celular o link wa.me depende do sistema desviar para o aplicativo, e
+  // quando ele não desvia o WhatsApp Web toma o lugar da Plataforma: a página
+  // morre antes de gravar histórico e etapa. O endereço whatsapp:// vai direto
+  // para o aplicativo e a página continua viva. A detecção é pelo aparelho, não
+  // pela largura: celular deitado e tablet passam de 768 px.
+  const NO_CELULAR = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   function abrirWhats(url) {
-    if (window.innerWidth < 768) { window.location.href = url; return true; }
+    if (NO_CELULAR) {
+      window.location.href = url.replace('https://wa.me/', 'whatsapp://send?phone=').replace('?text=', '&text=');
+      return true;
+    }
     const w = window.open(url, '_blank');
     if (!w) avisar('O navegador bloqueou a janela do WhatsApp. Libere as janelas para este endereço.');
     return !!w;
