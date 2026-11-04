@@ -36,7 +36,11 @@
   let crmSelecionado = null;
   let rodizio1 = 0, rodizio2 = 0;
   let leadsImportados = [];
-  let imagemUrl = null;
+  let imagens = {};        // formulário: url da imagem de cada WhatsApp, por número
+  let pngs = {};           // campanha aberta: promessa do PNG já convertido, por número
+  let ultimaImagem = null; // o que o botão "Copiar imagem" copia de novo
+
+  const IMAGENS = ['imagem_primeira_msg', 'imagem_segunda_msg', 'imagem_terceira_msg'];
 
   const ETAPAS = {
     contatado:       'Contatado',
@@ -234,7 +238,7 @@
 
   async function renderFormulario(id, duplicarDe) {
     leadsImportados = [];
-    imagemUrl = null;
+    imagens = {};
     const editando = id !== 'novo';
     const fonte = editando ? id : duplicarDe;
 
@@ -249,7 +253,7 @@
       c = (await db(supabaseClient.from('campanha').select('*').eq('id', fonte).limit(1), 'abrir campanha'))[0] || c;
       const v = await db(supabaseClient.from('campanha_corretor').select('corretor_id').eq('campanha_id', fonte), 'corretores');
       marcados = (v || []).map(x => x.corretor_id);
-      imagemUrl = c.imagem_primeira_msg || null;
+      IMAGENS.forEach((col, i) => { imagens[i + 1] = c[col] || null; });
       if (duplicarDe) c = { ...c, id: null, nome: c.nome ? c.nome + ' (cópia)' : '', status: 'ativa' };
     }
 
@@ -366,13 +370,17 @@
                própria página avisa quando ela abre.</p></div>
           <div class="campo campo-largo"><label for="cpTextoLp">Texto que acompanha o link</label>
             <textarea id="cpTextoLp" rows="2" placeholder="${esc(TEXTO_LP_PADRAO)}">${esc(c.texto_link_lp ?? '')}</textarea></div>
-          <div class="campo campo-largo"><label>Imagem da primeira mensagem</label>
-            <div class="cp-imagem" id="cpImagem">
-              <input type="file" id="cpImagemArq" accept="image/*" hidden>
-              <span id="cpImagemVazio">Clique para escolher</span>
-            </div>
-            <p class="campo-dica">O WhatsApp por link só aceita texto. A imagem vai pela área
-               de transferência: o corretor clica em copiar e cola na conversa.</p></div>
+          <div class="campo campo-largo"><label>Imagem de cada mensagem</label>
+            <div class="cp-imagens">${[1, 2, 3].map(n => `
+              <div>
+                <div class="cp-imagem-rotulo">WhatsApp ${n}</div>
+                <div class="cp-imagem" id="cpImagem${n}">
+                  <input type="file" id="cpImagemArq${n}" accept="image/jpeg,image/png" hidden>
+                  <span id="cpImagemVazio${n}">Clique para escolher</span>
+                </div>
+              </div>`).join('')}</div>
+            <p class="campo-dica">JPG ou PNG. O WhatsApp por link só aceita texto, então o
+               clique no botão já deixa a imagem copiada: é só colar na conversa.</p></div>
         </div>
       </div>
 
@@ -401,26 +409,26 @@
         </div>
       </div>`;
 
-    mostrarImagem();
+    [1, 2, 3].forEach(mostrarImagem);
     ligarArquivo();
 
     document.getElementById('cpVoltar').addEventListener('click', () => renderLista());
     document.getElementById('cpSalvar').addEventListener('click', () => salvarCampanha(editando ? id : null));
   }
 
-  function mostrarImagem() {
-    const zona = document.getElementById('cpImagem');
+  function mostrarImagem(n) {
+    const zona = document.getElementById('cpImagem' + n);
     if (!zona) return;
     zona.querySelectorAll('img,.cp-imagem-x').forEach(e => e.remove());
-    const vazio = document.getElementById('cpImagemVazio');
-    if (!imagemUrl) { vazio.style.display = ''; return; }
+    const vazio = document.getElementById('cpImagemVazio' + n);
+    if (!imagens[n]) { vazio.style.display = ''; return; }
     vazio.style.display = 'none';
     const img = document.createElement('img');
-    img.src = imagemUrl;
+    img.src = imagens[n];
     zona.appendChild(img);
     const x = document.createElement('button');
     x.className = 'cp-imagem-x'; x.type = 'button'; x.textContent = '×';
-    x.onclick = e => { e.stopPropagation(); e.preventDefault(); imagemUrl = null; mostrarImagem(); };
+    x.onclick = e => { e.stopPropagation(); e.preventDefault(); imagens[n] = null; mostrarImagem(n); };
     zona.appendChild(x);
   }
 
@@ -435,19 +443,23 @@
       if (ev === 'drop' && e.dataTransfer.files[0]) lerArquivo(e.dataTransfer.files[0]);
     }));
 
-    const zi = document.getElementById('cpImagem');
-    const ai = document.getElementById('cpImagemArq');
-    zi.addEventListener('click', () => ai.click());
-    ai.addEventListener('change', async () => {
-      const f = ai.files[0];
-      if (!f) return;
-      document.getElementById('cpImagemVazio').textContent = 'Enviando…';
-      try {
-        const r = await Fotos.enviarUma(f, 'campanhas');
-        imagemUrl = r.url;
-      } catch (e) { avisar('Não consegui enviar a imagem: ' + e.message); }
-      document.getElementById('cpImagemVazio').textContent = 'Clique para escolher';
-      mostrarImagem();
+    [1, 2, 3].forEach(n => {
+      const zi = document.getElementById('cpImagem' + n);
+      const ai = document.getElementById('cpImagemArq' + n);
+      const vazio = document.getElementById('cpImagemVazio' + n);
+      zi.addEventListener('click', () => ai.click());
+      ai.addEventListener('click', e => e.stopPropagation());
+      ai.addEventListener('change', async () => {
+        const f = ai.files[0];
+        if (!f) return;
+        vazio.textContent = 'Enviando…';
+        try {
+          const r = await Fotos.enviarUma(f, 'campanhas');
+          imagens[n] = r.url;
+        } catch (e) { avisar('Não consegui enviar a imagem: ' + e.message); }
+        vazio.textContent = 'Clique para escolher';
+        mostrarImagem(n);
+      });
     });
   }
 
@@ -572,7 +584,8 @@
       youtube_url: v('cpYoutube') || null, texto_youtube: v('cpTextoYoutube') || null,
       msg_template_1: v('cpMsg1') || null, msg_template_2: v('cpMsg2') || null, msg_template_3: v('cpMsg3') || null,
       msg2_template_1: v('cpB1') || null, msg2_template_2: v('cpB2') || null, msg2_template_3: v('cpB3') || null,
-      imagem_primeira_msg: imagemUrl, contexto_agente: v('cpBriefing') || null,
+      imagem_primeira_msg: imagens[1] || null, imagem_segunda_msg: imagens[2] || null,
+      imagem_terceira_msg: imagens[3] || null, contexto_agente: v('cpBriefing') || null,
       whatsapp_link: v('cpWhats') || null,
       email_assunto: v('cpEmailAssunto') || null, email_template: v('cpEmailCorpo') || null,
     };
@@ -665,6 +678,7 @@
       templates: [c.msg_template_1, c.msg_template_2, c.msg_template_3].filter(t => t && t.trim()),
       templates2: [c.msg2_template_1, c.msg2_template_2, c.msg2_template_3].filter(t => t && t.trim()),
     };
+    prepararImagens();
 
     visitasLp = leads.length ? await carregarVisitas(leads.map(l => l.id)) : new Map();
     renderPagina();
@@ -906,9 +920,9 @@
 
       <div class="cp-botoes">
         <a class="btn btn-mini" href="tel:${esc(lead.telefone.replace(/\D/g, ''))}">Ligar</a>
-        ${aberta.imagem_primeira_msg ? '<button class="btn btn-mini" data-copiar-img>Copiar imagem</button>' : ''}
+        ${IMAGENS.some(col => aberta[col]) ? '<button class="btn btn-mini" data-copiar-img title="Copia de novo a imagem do último WhatsApp aberto">Copiar imagem</button>' : ''}
         <button class="btn btn-mini btn-primario" data-whats="1">WhatsApp 1</button>
-        ${aberta.templates2.length ? '<button class="btn btn-mini" data-whats="2">WhatsApp 2</button>' : ''}
+        ${aberta.templates2.length || aberta.imagem_segunda_msg ? '<button class="btn btn-mini" data-whats="2">WhatsApp 2</button>' : ''}
         <button class="btn btn-mini" data-whats="3" title="Abre a conversa em branco. Não marca etapa nem registra envio">WhatsApp 3</button>
         ${aberta.lp_url ? '<button class="btn btn-mini" data-enviar-lp>Enviar LP</button>' : ''}
         ${aberta.youtube_url ? '<button class="btn btn-mini" data-enviar-yt title="Manda o vídeo do imóvel e marca Contatado 2">YouTube</button>' : ''}
@@ -949,7 +963,7 @@
     const yt = painel.querySelector('[data-enviar-yt]');
     if (yt) yt.addEventListener('click', () => enviarYoutube(lead.id));
     const ci = painel.querySelector('[data-copiar-img]');
-    if (ci) ci.addEventListener('click', copiarImagem);
+    if (ci) ci.addEventListener('click', () => copiarImagem(ultimaImagem));
     const sug = document.getElementById('cpSugerir');
     if (sug) sug.addEventListener('click', () => sugerirMensagem(lead.id));
 
@@ -1029,7 +1043,11 @@
     // WhatsApp 3 abre a conversa e para por aí: sem texto, sem rodízio, sem
     // registro e sem mexer na etapa. É para quando o corretor quer só olhar o
     // perfil ou escrever à mão, por isso é o único que não deixa rastro.
-    if (qual === '3') { abrirWhats(`https://wa.me/${waNumero(lead.telefone)}`); return; }
+    if (qual === '3') {
+      await copiarImagem(qual);
+      abrirWhats(`https://wa.me/${waNumero(lead.telefone)}`);
+      return;
+    }
 
     const lista = qual === '2' ? aberta.templates2 : aberta.templates;
     let texto = '';
@@ -1038,6 +1056,7 @@
       texto = preencher(lista[i % lista.length], lead);
     }
     const url = `https://wa.me/${waNumero(lead.telefone)}` + (texto ? `?text=${encodeURIComponent(texto)}` : '');
+    await copiarImagem(qual);
     if (!abrirWhats(url)) return;
 
     await registrarEnvio(lead, texto
@@ -1124,22 +1143,41 @@
   }
 
   // O link do WhatsApp só aceita texto, então a imagem vai pela área de
-  // transferência. Fica em botão separado de propósito: abrir o WhatsApp e
-  // escrever na área de transferência disputam a mesma permissão de clique
-  // do navegador, e no Safari uma das duas falha se forem no mesmo clique.
-  async function copiarImagem() {
+  // transferência, no mesmo clique que abre a conversa. A ordem importa: o
+  // navegador recusa copiar de uma aba sem foco, então a cópia termina antes
+  // de a aba do WhatsApp abrir. Por isso o PNG sai pronto de prepararImagens,
+  // para o clique não esperar o download. No Safari a cópia pode falhar
+  // assim; o botão "Copiar imagem" fica de reserva para o clique separado.
+  async function converterPng(url) {
+    const resposta = await fetch(url);
+    const bruto = await resposta.blob();
+    const img = await createImageBitmap(bruto);
+    const tela = document.createElement('canvas');
+    tela.width = img.width; tela.height = img.height;
+    tela.getContext('2d').drawImage(img, 0, 0);
+    return new Promise(ok => tela.toBlob(ok, 'image/png'));
+  }
+
+  function prepararImagens() {
+    pngs = {};
+    ultimaImagem = null;
+    IMAGENS.forEach((col, i) => {
+      if (!aberta[col]) return;
+      const qual = String(i + 1);
+      pngs[qual] = converterPng(aberta[col]);
+      pngs[qual].catch(() => {});   // quem avisa do erro é a hora de copiar
+      if (!ultimaImagem) ultimaImagem = qual;
+    });
+  }
+
+  async function copiarImagem(qual) {
+    if (!pngs[qual]) return;
+    ultimaImagem = qual;
     try {
-      const resposta = await fetch(aberta.imagem_primeira_msg);
-      const bruto = await resposta.blob();
-      const img = await createImageBitmap(bruto);
-      const tela = document.createElement('canvas');
-      tela.width = img.width; tela.height = img.height;
-      tela.getContext('2d').drawImage(img, 0, 0);
-      const png = await new Promise(ok => tela.toBlob(ok, 'image/png'));
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngs[qual] })]);
       avisar('Imagem copiada. Cole na conversa do WhatsApp.');
     } catch (e) {
-      avisar('Não consegui copiar a imagem: ' + e.message);
+      avisar('Não consegui copiar a imagem: ' + e.message + '. Use o botão Copiar imagem.');
     }
   }
 

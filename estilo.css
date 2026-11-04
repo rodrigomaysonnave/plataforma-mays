@@ -921,6 +921,9 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 }
 .cp-solta:hover, .cp-solta.sobre { border-color: var(--dourado); color: var(--texto); }
 
+.cp-imagens { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 720px) { .cp-imagens { grid-template-columns: minmax(0, 1fr); } }
+.cp-imagem-rotulo { margin-bottom: 6px; color: var(--texto-fraco); font-size: 12px; }
 .cp-imagem {
   position: relative; min-height: 110px; display: flex; align-items: center;
   justify-content: center; cursor: pointer; overflow: hidden;
