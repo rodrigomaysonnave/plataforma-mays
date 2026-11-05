@@ -34,7 +34,7 @@
   let buscaLead = '', etapaFiltro = 'todos';
   let vistaCamp = 'leads';
   let crmSelecionado = null;
-  let rodizio1 = 0, rodizio2 = 0;
+  let rodizio1 = 0, rodizio2 = 0, rodizio3 = 0;
   let leadsImportados = [];
   let imagens = {};        // formulário: url da imagem de cada WhatsApp, por número
   let pngs = {};           // campanha aberta: promessa do PNG já convertido, por número
@@ -266,7 +266,7 @@
           <input type="file" id="cpImagemArq${n}" accept="image/jpeg,image/png" hidden>
           <span id="cpImagemVazio${n}">Clique para escolher</span>
         </div>
-        <p class="campo-dica">JPG ou PNG.${n < 3 ? ' Vale para todos os modelos daqui.' : ''} O WhatsApp por link
+        <p class="campo-dica">JPG ou PNG. Vale para todos os modelos daqui. O WhatsApp por link
            só aceita texto: o corretor clica em Copiar imagem ${n} e cola na conversa.</p></div>`;
 
     alvoEl.innerHTML = `
@@ -353,8 +353,12 @@
 
       <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>Terceira mensagem</h3>
-          <p>O WhatsApp 3 abre a conversa em branco, sem texto e sem registrar envio.</p></div>
+          <p>Tem rodízio próprio. Registra o envio no histórico e não muda a etapa do lead.
+             Sem nenhum modelo aqui, o WhatsApp 3 abre a conversa em branco.</p></div>
         <div class="ficha-grade">
+          ${modelo('cpC1', c.msg3_template_1, 'Escreva aqui a terceira mensagem, {nome}')}
+          ${modelo('cpC2', c.msg3_template_2, '')}
+          ${modelo('cpC3', c.msg3_template_3, '')}
           ${campoImagem(3)}
         </div>
       </div>
@@ -590,6 +594,7 @@
       youtube_url: v('cpYoutube') || null, texto_youtube: v('cpTextoYoutube') || null,
       msg_template_1: v('cpMsg1') || null, msg_template_2: v('cpMsg2') || null, msg_template_3: v('cpMsg3') || null,
       msg2_template_1: v('cpB1') || null, msg2_template_2: v('cpB2') || null, msg2_template_3: v('cpB3') || null,
+      msg3_template_1: v('cpC1') || null, msg3_template_2: v('cpC2') || null, msg3_template_3: v('cpC3') || null,
       imagem_primeira_msg: imagens[1] || null, imagem_segunda_msg: imagens[2] || null,
       imagem_terceira_msg: imagens[3] || null, contexto_agente: v('cpBriefing') || null,
       whatsapp_link: v('cpWhats') || null,
@@ -652,7 +657,7 @@
   // ══ 3. CAMPANHA ABERTA ══════════════════════════════════════════════
 
   async function abrirCampanha(id) {
-    rodizio1 = rodizio2 = 0;
+    rodizio1 = rodizio2 = rodizio3 = 0;
     leadAtivoId = null; buscaLead = ''; etapaFiltro = 'todos';
     vistaCamp = 'leads'; crmSelecionado = null;
 
@@ -683,6 +688,7 @@
       ...c, vinculoNome,
       templates: [c.msg_template_1, c.msg_template_2, c.msg_template_3].filter(t => t && t.trim()),
       templates2: [c.msg2_template_1, c.msg2_template_2, c.msg2_template_3].filter(t => t && t.trim()),
+      templates3: [c.msg3_template_1, c.msg3_template_2, c.msg3_template_3].filter(t => t && t.trim()),
     };
     prepararImagens();
 
@@ -937,7 +943,7 @@
           ? `<button class="btn btn-mini" data-copiar-img="${i + 1}" title="Copia a imagem do WhatsApp ${i + 1} para colar na conversa">Copiar imagem ${i + 1}</button>` : '').join('')}
         <button class="btn btn-mini btn-primario" data-whats="1">WhatsApp 1</button>
         ${aberta.templates2.length || aberta.imagem_segunda_msg ? '<button class="btn btn-mini" data-whats="2">WhatsApp 2</button>' : ''}
-        <button class="btn btn-mini" data-whats="3" title="Abre a conversa em branco. Não marca etapa nem registra envio">WhatsApp 3</button>
+        <button class="btn btn-mini" data-whats="3" title="${aberta.templates3.length ? 'Manda a terceira mensagem. Registra o envio e não muda a etapa' : 'Abre a conversa em branco. Não marca etapa nem registra envio'}">WhatsApp 3</button>
         ${aberta.lp_url ? '<button class="btn btn-mini" data-enviar-lp>Enviar LP</button>' : ''}
         ${aberta.youtube_url ? '<button class="btn btn-mini" data-enviar-yt title="Manda o vídeo do imóvel e marca Contatado 2">YouTube</button>' : ''}
         ${aberta.contexto_agente && !SEM_AGENTE.includes(lead.classificacao)
@@ -1054,15 +1060,15 @@
     const lead = leads.find(l => l.id === leadId);
     if (!lead) return;
 
-    // WhatsApp 3 abre a conversa e para por aí: sem texto, sem rodízio, sem
+    // WhatsApp 3 sem modelo abre a conversa e para por aí: sem texto, sem
     // registro e sem mexer na etapa. É para quando o corretor quer só olhar o
     // perfil ou escrever à mão, por isso é o único que não deixa rastro.
-    if (qual === '3') { abrirWhats(`https://wa.me/${waNumero(lead.telefone)}`); return; }
+    if (qual === '3' && !aberta.templates3.length) { abrirWhats(`https://wa.me/${waNumero(lead.telefone)}`); return; }
 
-    const lista = qual === '2' ? aberta.templates2 : aberta.templates;
+    const lista = qual === '3' ? aberta.templates3 : qual === '2' ? aberta.templates2 : aberta.templates;
     let texto = '';
     if (lista.length) {
-      const i = qual === '2' ? rodizio2++ : rodizio1++;
+      const i = qual === '3' ? rodizio3++ : qual === '2' ? rodizio2++ : rodizio1++;
       texto = preencher(lista[i % lista.length], lead);
     }
     const url = `https://wa.me/${waNumero(lead.telefone)}` + (texto ? `?text=${encodeURIComponent(texto)}` : '');
@@ -1074,7 +1080,7 @@
 
     if (qual === '2') {
       if (PROMOVIVEIS.includes(lead.classificacao || null)) return classificar(leadId, 'atendendo', true);
-    } else if (!lead.classificacao) {
+    } else if (qual === '1' && !lead.classificacao) {
       return classificar(leadId, 'contatado', true);
     }
     renderDetalhe();
