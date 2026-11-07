@@ -17,6 +17,7 @@
 
   const SITE = 'https://maysimoveis.com';
   const PERIODOS = [[1, 'Hoje'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']];
+  const DIAS_SEM_VISITA = 15;
 
   // O que cada origem quer dizer, na língua de quem lê o painel
   const EXPLICA = {
@@ -39,7 +40,7 @@
 
   let dias = 30;
   try { dias = Number(localStorage.getItem('plat_visitas_dias')) || 30; } catch (e) { /* padrão */ }
-  let dados = null, grupoPag = 'Todas', alvoEl = null;
+  let dados = null, semVisita = null, grupoPag = 'Todas', alvoEl = null;
 
   const num = n => Number(n || 0).toLocaleString('pt-BR');
   const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
@@ -47,6 +48,7 @@
   const diaCurto = iso => diaLocal(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   const diaLongo = iso => diaLocal(iso).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
   const chamaram = n => n === 1 ? '1 chamou' : `${num(n)} chamaram`;
+  const dinheiro = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
   const semSufixo = t => String(t || '').replace(/\s*[·|]\s*Maysonnave Im[oó]veis\s*$/i, '');
 
   function quando(iso) {
@@ -187,6 +189,37 @@
       </table></div>`;
   }
 
+  // Não segue o período da tela: o prazo é fixo e a conta parte do imóvel (sql/73)
+  function blocoSemVisita(s) {
+    if (!s) return '';
+    const lista = s.imoveis;
+    if (!lista.length) return `
+      <section class="ficha-secao iv-bloco">
+        <div class="ficha-secao-topo"><h3>Imóveis sem visita</h3></div>
+        <div class="iv-corpo"><p class="iv-vazio-p">Todos os imóveis do site tiveram visita nos últimos ${s.limite} dias.</p></div>
+      </section>`;
+    const preco = i => i.valor ? dinheiro(i.valor) : i.valor_aluguel ? `${dinheiro(i.valor_aluguel)}/mês` : '·';
+    const nunca = lista.filter(i => !i.ultima).length;
+    return `
+      <section class="ficha-secao iv-bloco iv-sem-visita">
+        <div class="ficha-secao-topo"><h3>${num(lista.length)} de ${num(s.total_no_site)} imóveis sem visita há mais de ${s.limite} dias</h3>
+          <p>${nunca ? `${nunca === 1 ? '1 nunca foi visto' : `${num(nunca)} nunca foram vistos`} desde o início da medição. ` : ''}Esta lista não muda com o período escolhido acima.</p></div>
+        <div class="iv-corpo">
+          <div class="cad-tabela-scroll"><table class="cad-tabela iv-tabela">
+            <thead><tr><th>Imóvel</th><th class="iv-dir">Dias</th><th>Última</th><th class="iv-dir iv-so-largo">Valor</th><th class="iv-dir iv-so-largo">Pessoas no total</th></tr></thead>
+            <tbody>${lista.map(i => `
+              <tr>
+                <td class="iv-pag"><a href="${SITE}/imovel/${esc(i.slug)}/" target="_blank" rel="noopener">${esc(i.codigo)} · ${esc(i.titulo || '')}</a></td>
+                <td class="iv-dir iv-n iv-dias-parado">${num(i.dias)}</td>
+                <td class="iv-n" style="white-space:nowrap">${i.ultima ? esc(diaCurto(i.ultima)) : '<span class="iv-nunca">Nunca</span>'}</td>
+                <td class="iv-dir iv-n iv-so-largo" style="white-space:nowrap">${esc(preco(i))}</td>
+                <td class="iv-dir iv-n iv-so-largo">${num(i.pessoas)}</td>
+              </tr>`).join('')}</tbody>
+          </table></div>
+        </div>
+      </section>`;
+  }
+
   function blocoUltimas(ultimas) {
     if (!ultimas.length) return '<p class="iv-vazio-p">Nenhuma visita no período.</p>';
     return `<div class="cad-tabela-scroll"><table class="cad-tabela iv-tabela">
@@ -276,6 +309,8 @@
           <span class="iv-var">${num(r.visitas_com_contato)} de ${num(r.visitas)}</span></div>
       </div>
 
+      ${blocoSemVisita(semVisita)}
+
       <section class="ficha-secao iv-bloco">
         <div class="ficha-secao-topo"><h3>${d.dias === 1 ? 'Visitas por hora' : 'Visitas por dia'}</h3>
           <p>Passe o mouse ou toque numa coluna para ver páginas e contatos daquele ${d.dias === 1 ? 'horário' : 'dia'}.</p></div>
@@ -347,7 +382,11 @@
   async function carregar() {
     if (!alvoEl) return;
     alvoEl.querySelectorAll('.iv-periodo, #ivAtualizar').forEach(b => { b.disabled = true; });
-    dados = await db(supabaseClient.rpc('painel_visitas', { p_dias: dias }), 'carregar as visitas do site');
+    // Se a lista falhar, o resto do painel continua de pé
+    [dados, semVisita] = await Promise.all([
+      db(supabaseClient.rpc('painel_visitas', { p_dias: dias }), 'carregar as visitas do site'),
+      db(supabaseClient.rpc('imoveis_sem_visita', { p_dias: DIAS_SEM_VISITA }), 'carregar os imóveis sem visita').catch(() => null),
+    ]);
     if (alvoEl && alvoEl.isConnected) render();
   }
 

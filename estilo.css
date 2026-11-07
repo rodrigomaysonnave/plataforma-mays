@@ -1634,6 +1634,15 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
 .iv-desce { color: var(--vermelho); }
 
 .iv-bloco { margin-bottom: 16px; }
+.iv-sem-visita { border: 1px solid var(--vermelho); }
+.iv-sem-visita h3 { color: var(--vermelho); }
+.iv-dias-parado { font-weight: 700; color: var(--vermelho); }
+.iv-nunca { font-weight: 700; color: var(--vermelho); }
+@media (max-width: 800px) {
+  .iv-so-largo { display: none; }
+  .iv-sem-visita .iv-pag { min-width: 0; }
+  .iv-sem-visita .iv-corpo { padding: 12px; }
+}
 .iv-corpo { padding: 16px 20px; min-width: 0; }
 .iv-duas { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
 .iv-duas > .ficha-secao { min-width: 0; }
