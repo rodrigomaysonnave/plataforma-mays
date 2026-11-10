@@ -24,6 +24,14 @@ const Plataforma = (() => {
 
   const $ = id => document.getElementById(id);
 
+  // Data no fuso do aparelho, em AAAA-MM-DD. `toISOString()` devolve a data
+  // de Londres: das 21h à meia-noite daqui ela já é "amanhã", e a agenda de
+  // hoje, os vencimentos e as metas saíam com um dia de diferença. Todo
+  // módulo que precisa de "hoje" usa estas duas, nunca toISOString().
+  const dataLocal = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const hoje = () => dataLocal();
+
   let avisoTimer = null;
   function avisar(texto) {
     let el = document.querySelector('.aviso-salvo');
@@ -129,7 +137,7 @@ const Plataforma = (() => {
       const s1 = $('conviteSenha').value, s2 = $('conviteSenha2').value;
       const erro = $('conviteErro'), btn = $('btnAceitar');
       erro.textContent = '';
-      if (s1.length < 6) { erro.textContent = 'A senha precisa de pelo menos 6 caracteres.'; return; }
+      if (s1.length < 8) { erro.textContent = 'A senha precisa de pelo menos 8 caracteres.'; return; }
       if (s1 !== s2) { erro.textContent = 'As duas senhas estão diferentes.'; return; }
 
       btn.disabled = true; btn.textContent = 'Criando…';
@@ -291,7 +299,7 @@ const Plataforma = (() => {
     const s1 = $('novaSenha1').value, s2 = $('novaSenha2').value;
     const erro = $('novaSenhaErro'), btn = $('btnSalvarNovaSenha');
     erro.textContent = '';
-    if (s1.length < 6) { erro.textContent = 'A senha precisa de pelo menos 6 caracteres.'; return; }
+    if (s1.length < 8) { erro.textContent = 'A senha precisa de pelo menos 8 caracteres.'; return; }
     if (s1 !== s2) { erro.textContent = 'As duas senhas estão diferentes.'; return; }
 
     btn.disabled = true; btn.textContent = 'Salvando…';
@@ -428,5 +436,5 @@ const Plataforma = (() => {
     return n.length >= 10 && n.length <= 13;
   };
 
-  return { registrar, irPara, db, esc, avisar, $, atualizarSino, emailValido, telefoneValido, get perfil() { return perfil; } };
+  return { registrar, irPara, db, esc, avisar, $, hoje, dataLocal, atualizarSino, emailValido, telefoneValido, get perfil() { return perfil; } };
 })();

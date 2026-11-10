@@ -415,7 +415,7 @@
           <div class="campo campo-largo"><label for="cdEmail">E-mail</label>
             <input type="email" id="cdEmail" placeholder="nome@exemplo.com"></div>
           <div class="campo"><label for="cdSenha">Senha</label>
-            <input type="text" id="cdSenha" placeholder="pelo menos 6 caracteres"></div>
+            <input type="text" id="cdSenha" placeholder="pelo menos 8 caracteres"></div>
           <div class="campo"><label for="cdPapel">Papel</label>
             <select id="cdPapel">${PAPEIS.map(([v, r]) =>
               `<option value="${v}"${v === 'corretor' ? ' selected' : ''}>${r}</option>`).join('')}</select></div>
@@ -435,7 +435,7 @@
       const papel = document.getElementById('cdPapel').value;
       if (!nome) { avisar('Falta o nome.'); return; }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { avisar('E-mail inválido.'); return; }
-      if (senha.length < 6) { avisar('A senha precisa de pelo menos 6 caracteres.'); return; }
+      if (senha.length < 8) { avisar('A senha precisa de pelo menos 8 caracteres.'); return; }
       try {
         await chamarAdminUsuarios('criar', { nome, email, senha, papel });
         avisar(`${nome} criado e já aprovado.`);
@@ -702,7 +702,7 @@
           <p>Definir aqui muda a senha na hora, sem precisar do link por e-mail.</p></div>
         <div class="ficha-grade">
           <div class="campo"><label for="crSenhaNova">Nova senha</label>
-            <input type="text" id="crSenhaNova" placeholder="pelo menos 6 caracteres" autocomplete="new-password"></div>
+            <input type="text" id="crSenhaNova" placeholder="pelo menos 8 caracteres" autocomplete="new-password"></div>
           <div class="campo" style="align-self:flex-end">
             <button class="btn btn-mini" id="crDefinirSenha">Definir senha</button>
           </div>
@@ -736,7 +736,7 @@
 
     document.getElementById('crDefinirSenha').addEventListener('click', async () => {
       const senha = document.getElementById('crSenhaNova').value;
-      if (senha.length < 6) { avisar('A senha precisa de pelo menos 6 caracteres.'); return; }
+      if (senha.length < 8) { avisar('A senha precisa de pelo menos 8 caracteres.'); return; }
       if (!confirm(`Trocar a senha de ${c.nome} agora? A senha antiga para de funcionar na hora.`)) return;
       try {
         await chamarAdminUsuarios('redefinir_senha', { id, senha });

@@ -21,7 +21,7 @@
 
 (() => {
   'use strict';
-  const { db, esc, avisar } = Plataforma;
+  const { db, esc, avisar, hoje } = Plataforma;
 
   // ── Estado ──────────────────────────────────────────────────────────
   let alvoEl = null;
@@ -74,7 +74,6 @@
   const TEXTO_LP_PADRAO = 'Nesse site tem as informações e as imagens do imóvel\n{link}';
   const TEXTO_YT_PADRAO = 'Gravei um vídeo do imóvel, {nome}. Dá uma olhada\n{video}';
 
-  const hoje = () => new Date().toISOString().slice(0, 10);
   const dataBr = v => v ? new Date(v.length <= 10 ? v + 'T12:00:00' : v).toLocaleDateString('pt-BR') : '—';
   const dataHora = v => v ? new Date(v).toLocaleDateString('pt-BR') + ' ' +
     new Date(v).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';

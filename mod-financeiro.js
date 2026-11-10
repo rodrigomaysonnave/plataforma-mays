@@ -19,7 +19,7 @@
 
 (() => {
   'use strict';
-  const { db, esc, avisar } = Plataforma;
+  const { db, esc, avisar, hoje, dataLocal } = Plataforma;
 
   let alvoEl = null, vista = 'visao';
 
@@ -32,7 +32,6 @@
       : brl(n);
   };
   const dataBr = v => v ? new Date(v + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-  const hoje = () => new Date().toISOString().slice(0, 10);
   const mesAtual = () => hoje().slice(0, 7);
 
   const PERIODOS = [
@@ -112,7 +111,7 @@
     const meses = [];
     for (let i = 0; i < 6; i++) {
       const dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() + i);
-      const chave = dt.toISOString().slice(0, 7);
+      const chave = dataLocal(dt).slice(0, 7);
       meses.push({
         rotulo: dt.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
         receita: soma(l => receita(l) && (l.vencimento || '').slice(0, 7) === chave),
@@ -227,7 +226,7 @@
     // Próximos sete dias: é a janela em que dá pra fazer alguma coisa a
     // respeito. Trinta dias vira paisagem e ninguém age.
     const limite7 = new Date(); limite7.setDate(limite7.getDate() + 7);
-    const semana = aVencer.filter(l => l.vencimento && l.vencimento <= limite7.toISOString().slice(0, 10));
+    const semana = aVencer.filter(l => l.vencimento && l.vencimento <= dataLocal(limite7));
 
     const verbo   = eReceita ? 'recebimento' : 'pagamento';
     const feito   = eReceita ? 'Recebido'    : 'Pago';

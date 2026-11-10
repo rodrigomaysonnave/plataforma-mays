@@ -11,10 +11,9 @@
 
 (() => {
   'use strict';
-  const { db, esc } = Plataforma;
+  const { db, esc, hoje } = Plataforma;
 
   const DIAS_PARADO = 7;
-  const hoje = () => new Date().toISOString().slice(0, 10);
   const hora = iso => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const vgv = v => !v ? 'R$ 0' :
     v >= 1e6 ? `R$ ${(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2})} M`
@@ -22,11 +21,15 @@
 
   async function montar(alvo) {
     const d = hoje();
-    const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    // `inicio` é data com hora: a janela de hoje vai da meia-noite daqui até
+    // a meia-noite seguinte. Comparar com o texto "AAAA-MM-DD" usava a
+    // meia-noite de Londres e escondia os compromissos depois das 21h.
+    const iniDia = new Date(); iniDia.setHours(0, 0, 0, 0);
+    const fimDia = new Date(iniDia); fimDia.setDate(fimDia.getDate() + 1);
 
     const [compromissos, tarefas, negocios, etapas, imoveis, contatos] = await Promise.all([
       db(supabaseClient.from('compromisso').select('*')
-         .gte('inicio', d).lt('inicio', amanha).eq('situacao', 'marcado').order('inicio'), 'carregar agenda'),
+         .gte('inicio', iniDia.toISOString()).lt('inicio', fimDia.toISOString()).eq('situacao', 'marcado').order('inicio'), 'carregar agenda'),
       db(supabaseClient.from('tarefa').select('*').eq('feita', false).order('prazo'), 'carregar tarefas'),
       db(supabaseClient.from('negocio').select('*'), 'carregar negócios'),
       db(supabaseClient.from('etapa_funil').select('*'), 'carregar etapas'),
