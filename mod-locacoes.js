@@ -102,9 +102,10 @@
   }
 
   // Destino de cada item da cobrança (migração 82): ajuste do proprietário
-  // entra na taxa e no repasse; conta (condomínio, IPTU) a imobiliária paga;
+  // entra na taxa e no repasse; reembolso vai ao proprietário sem taxa; conta (condomínio, IPTU) a imobiliária paga;
   // tarifa bancária fica com a imobiliária. Os dois últimos saem do repasse.
-  const DESTINOS = [['proprietario', 'Vai para o proprietário'], ['conta', 'Imobiliária paga a conta'], ['imobiliaria', 'Fica com a imobiliária']];
+  const DESTINOS = [['proprietario', 'Vai para o proprietário (com taxa)'], ['reembolso', 'Vai para o proprietário (sem taxa)'],
+                    ['conta', 'Imobiliária paga a conta'], ['imobiliaria', 'Fica com a imobiliária']];
   const destinoDe = i => i.destino || 'proprietario';
   const extrasDe = cb => (cb.itens || []).reduce((s, i) => s + Number(i.valor || 0), 0);
   const ajustesDe = cb => (cb.itens || []).filter(i => destinoDe(i) === 'proprietario').reduce((s, i) => s + Number(i.valor || 0), 0);
@@ -496,7 +497,7 @@
     const fr = Number(r.percentual) / 100;
     const linhas = [
       ['Aluguel', Number(cb.aluguel) * fr],
-      ...(cb.itens || []).filter(i => destinoDe(i) === 'proprietario').map(i => [i.descricao || 'Ajuste', Number(i.valor) * fr]),
+      ...(cb.itens || []).filter(i => ['proprietario', 'reembolso'].includes(destinoDe(i))).map(i => [i.descricao || 'Ajuste', Number(i.valor) * fr]),
       ...(Number(cb.multa) ? [['Multa por atraso', Number(cb.multa) * fr]] : []),
       ...(Number(cb.juros) ? [['Juros por atraso', Number(cb.juros) * fr]] : []),
       [cb.intermediacao ? 'Intermediação (1º aluguel)' : `Taxa de administração (${c.taxa_adm_pct}%)`, -Number(r.taxa)],
