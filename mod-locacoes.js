@@ -2,7 +2,7 @@
 // MÓDULO: LOCAÇÕES
 //
 // Administração de aluguéis, no lugar do Pleno (que acabou em 11/2026).
-// Banco: migração 80. Acesso: admin ou quem tiver a função "gestão
+// Banco: migrações 80 e 82 (itens fixos e destino de cada item). Acesso: admin ou quem tiver a função "gestão
 // imobiliária" (perfil.gestao_locacao). A trava está no banco.
 //
 // Quatro vistas: Painel (o que pede ação), Mês a mês (cobrar, receber,
@@ -101,7 +101,13 @@
     return f;
   }
 
+  // Destino de cada item da cobrança (migração 82): ajuste do proprietário
+  // entra na taxa e no repasse; conta (condomínio, IPTU) a imobiliária paga;
+  // tarifa bancária fica com a imobiliária. Os dois últimos saem do repasse.
+  const DESTINOS = [['proprietario', 'Vai para o proprietário'], ['conta', 'Imobiliária paga a conta'], ['imobiliaria', 'Fica com a imobiliária']];
+  const destinoDe = i => i.destino || 'proprietario';
   const extrasDe = cb => (cb.itens || []).reduce((s, i) => s + Number(i.valor || 0), 0);
+  const ajustesDe = cb => (cb.itens || []).filter(i => destinoDe(i) === 'proprietario').reduce((s, i) => s + Number(i.valor || 0), 0);
   const totalDe = cb => Number(cb.aluguel || 0) + extrasDe(cb);
 
   // Multa e juros pela regra do contrato: multa fixa e juros por dia.
@@ -115,7 +121,7 @@
   }
 
   function taxaDe(cb, ct) {
-    const base = totalDe(cb);
+    const base = Number(cb.aluguel || 0) + ajustesDe(cb);
     if (cb.intermediacao) return Math.round(base * Number(ct.taxa_intermediacao_pct || 0)) / 100;
     if (ct.taxa_adm_fixa != null) return Number(ct.taxa_adm_fixa);
     return Math.round(base * Number(ct.taxa_adm_pct || 0)) / 100;
@@ -369,6 +375,8 @@
             ${cb.pago_em ? `<button class="btn btn-mini" data-desfazer="${cb.id}">Desfazer</button>` : ''}
           </td>
         </tr>
+        ${cb.pago_em ? (cb.itens || []).filter(i => destinoDe(i) === 'conta').map(i => `<tr class="lo-repasse"><td></td>
+            <td colspan="4"><div class="cad-end-sub">Conta a pagar com este recebimento: ${esc(i.descricao || 'Conta')} ${brl(i.valor)}</div></td></tr>`).join('') : ''}
         ${reps.map(r => {
           const p = D.pessoa(r.pessoa_id);
           return `<tr class="lo-repasse"><td></td>
@@ -488,7 +496,7 @@
     const fr = Number(r.percentual) / 100;
     const linhas = [
       ['Aluguel', Number(cb.aluguel) * fr],
-      ...(cb.itens || []).map(i => [i.descricao || 'Ajuste', Number(i.valor) * fr]),
+      ...(cb.itens || []).filter(i => destinoDe(i) === 'proprietario').map(i => [i.descricao || 'Ajuste', Number(i.valor) * fr]),
       ...(Number(cb.multa) ? [['Multa por atraso', Number(cb.multa) * fr]] : []),
       ...(Number(cb.juros) ? [['Juros por atraso', Number(cb.juros) * fr]] : []),
       [cb.intermediacao ? 'Intermediação (1º aluguel)' : `Taxa de administração (${c.taxa_adm_pct}%)`, -Number(r.taxa)],
@@ -546,18 +554,19 @@
       </div></div>
       <div class="ficha-secao">
         <div class="ficha-secao-topo"><h3>Ajustes do mês</h3>
-          <p>Valor negativo é desconto (ex.: proporcional de dias). Positivo é acréscimo (ex.: condomínio cobrado junto).</p></div>
+          <p>Valor negativo é desconto (ex.: proporcional de dias). Positivo é acréscimo (ex.: condomínio cobrado junto). O destino diz para onde vai o dinheiro.</p></div>
         <div style="padding:14px 20px" id="lcItens"></div>
         ${travada ? '' : `<div style="padding:0 20px 16px;display:flex;gap:8px;flex-wrap:wrap">
           <input type="text" id="lcItDesc" placeholder="Descrição" style="flex:2;min-width:160px">
           <input type="number" step="0.01" id="lcItVal" placeholder="Valor" style="flex:1;min-width:100px">
+          <select id="lcItDest">${opts(DESTINOS, 'proprietario')}</select>
           <button class="btn" id="lcItAdd">Adicionar</button></div>`}
         <p class="rel-nota" style="padding:0 20px 16px" id="lcTotal"></p>
       </div>`;
 
     const desenharItens = () => {
       document.getElementById('lcItens').innerHTML = itens.length ? `<ul class="ini-lista">${itens.map((i, k) => `
-        <li><span class="ini-txt">${esc(i.descricao || 'Ajuste')}</span><span class="ini-sub">${brl(i.valor)}</span>
+        <li><span class="ini-txt">${esc(i.descricao || 'Ajuste')}<div class="cad-end-sub">${esc(rot(DESTINOS, destinoDe(i)))}</div></span><span class="ini-sub">${brl(i.valor)}</span>
           ${travada ? '' : `<button class="btn btn-mini btn-remover" data-tira="${k}">Tirar</button>`}</li>`).join('')}</ul>`
         : '<p class="ini-vazio">Sem ajustes.</p>';
       const al = Number(document.getElementById('lcAluguel').value || 0);
@@ -571,7 +580,7 @@
     document.getElementById('lcItAdd').addEventListener('click', () => {
       const v = num(document.getElementById('lcItVal').value);
       if (v == null) return avisar('Informe o valor do ajuste.');
-      itens.push({ descricao: document.getElementById('lcItDesc').value.trim() || 'Ajuste', valor: v });
+      itens.push({ descricao: document.getElementById('lcItDesc').value.trim() || 'Ajuste', valor: v, destino: document.getElementById('lcItDest').value });
       document.getElementById('lcItDesc').value = ''; document.getElementById('lcItVal').value = '';
       desenharItens();
     });
@@ -624,7 +633,7 @@
     const novo = id === 'novo';
     const c = novo ? { situacao: 'ativo', finalidade: 'residencial', dia_vencimento: 5, referencia: 'vencido', indice: 'IPCA',
       multa_atraso_pct: 10, juros_mes_pct: 1, multa_rescisoria_alugueis: 3, taxa_adm_pct: 10, taxa_intermediacao_pct: 100,
-      aviso_dias: 30, encargos: [] } : D.contrato(id);
+      aviso_dias: 30, encargos: [], itens_fixos: [] } : D.contrato(id);
     const enc = Object.fromEntries((c.encargos || []).map(e => [e.nome, e.quem]));
     const partes = novo ? [] : D.partesDe(c.id);
     const docs = novo ? [] : D.docs.filter(x => x.contrato_id === c.id);
@@ -706,6 +715,18 @@
       <div class="ficha-secao"><div class="ficha-secao-topo"><h3>Encargos</h3><p>Quem paga cada conta do imóvel.</p></div>
         <div class="ficha-grade">${ENCARGOS.map((e, k) => campo(e, `<select data-enc="${esc(e)}">${opts(QUEM, enc[e] || '')}</select>`)).join('')}</div></div>
 
+      <div class="ficha-secao"><div class="ficha-secao-topo"><h3>Cobrado todo mês junto com o aluguel</h3>
+        <p>Entra sozinho em cada cobrança gerada. Valor que muda (condomínio variável) se lança no mês, na cobrança.</p></div>
+        <div style="padding:12px 20px">
+          <div id="lfFixos"></div>
+          <div class="lo-add">
+            <input type="text" id="lfFxDesc" placeholder="Condomínio, IPTU, Tarifa bancária" style="flex:2;min-width:160px">
+            <input type="number" step="0.01" id="lfFxVal" placeholder="Valor" style="width:110px">
+            <select id="lfFxDest">${opts(DESTINOS, 'conta')}</select>
+            <button class="btn" id="lfFxAdd">Adicionar</button>
+          </div>
+        </div></div>
+
       <div class="ficha-secao"><div class="ficha-secao-topo"><h3>Garantia</h3></div><div class="ficha-grade">
         ${campo('Tipo', `<select id="lfGTipo"><option value="">Não informado</option>${opts(GARANTIAS, c.garantia_tipo)}</select>`)}
         ${campo('Valor (caução, cobertura)', inp('lfGVal', 'garantia_valor', 'number', 'step="0.01"'))}
@@ -742,6 +763,23 @@
       </div></div>`;
 
     const g = i => document.getElementById(i);
+    let fixos = [...(c.itens_fixos || [])];
+    const desenharFixos = () => {
+      g('lfFixos').innerHTML = fixos.length ? `<ul class="ini-lista lo-lista">${fixos.map((i, k) => `
+        <li><span class="ini-txt">${esc(i.descricao)}<div class="cad-end-sub">${esc(rot(DESTINOS, destinoDe(i)))}</div></span>
+          <span class="ini-sub">${brl(i.valor)}</span>
+          <button class="btn btn-mini btn-remover" data-tira-fixo="${k}">Tirar</button></li>`).join('')}</ul>
+        <p class="campo-dica">Salve o contrato para valer nas próximas cobranças.</p>` : '<p class="ini-vazio">Só o aluguel.</p>';
+      document.querySelectorAll('[data-tira-fixo]').forEach(b => b.addEventListener('click', () => { fixos.splice(Number(b.dataset.tiraFixo), 1); desenharFixos(); }));
+    };
+    desenharFixos();
+    g('lfFxAdd').addEventListener('click', () => {
+      const v = num(g('lfFxVal').value);
+      if (v == null || !g('lfFxDesc').value.trim()) return avisar('Informe a descrição e o valor.');
+      fixos.push({ descricao: g('lfFxDesc').value.trim(), valor: v, destino: g('lfFxDest').value });
+      g('lfFxDesc').value = ''; g('lfFxVal').value = '';
+      desenharFixos();
+    });
     g('lfVoltar').addEventListener('click', () => Plataforma.irPara('locacoes', 'contratos'));
     g('lfSalvar').addEventListener('click', async () => {
       const dados = {
@@ -757,6 +795,7 @@
         dia_repasse: num(g('lfDiaRep').value), parceiro: g('lfParc').value.trim() || null, parceiro_pct: num(g('lfParcPct').value),
         aluguel_garantido: g('lfGar').checked,
         encargos: [...document.querySelectorAll('[data-enc]')].filter(s => s.value).map(s => ({ nome: s.dataset.enc, quem: s.value })),
+        itens_fixos: fixos,
         garantia_tipo: g('lfGTipo').value || null, garantia_valor: num(g('lfGVal').value),
         garantia_quem_guarda: g('lfGQuem').value.trim() || null, garantia_empresa: g('lfGEmp').value.trim() || null,
         garantia_apolice: g('lfGApo').value.trim() || null, garantia_vigencia_fim: g('lfGVig').value || null,
