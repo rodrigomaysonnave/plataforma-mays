@@ -2047,3 +2047,18 @@ span.rd-chip { cursor: default; }
 .an-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; padding: 14px 20px 18px; }
 .an-fotos a { color: var(--texto-fraco); font-size: 12px; text-decoration: none; }
 .an-fotos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--raio-p); display: block; margin-bottom: 4px; }
+
+/* ── Locações ─────────────────────────────────────────────────────── */
+.lo-repasse td { padding-top: 4px; padding-bottom: 10px; border-top: none; }
+.lo-repasse .cad-end-sub { white-space: normal; }
+.lo-receber { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; justify-content: flex-end; white-space: normal; }
+.lo-receber label { display: flex; flex-direction: column; font-size: 11px; color: var(--texto-fraco); text-align: left; }
+.lo-receber input { width: 118px; }
+.lo-receber input[type="date"] { width: 140px; }
+.cr-gestao { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--texto-fraco); margin-left: 8px; white-space: nowrap; }
+.lo-lista .ini-txt { white-space: normal; overflow: visible; text-overflow: clip; }
+.lo-lista li { align-items: flex-start; }
+.lo-add { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.lo-add select, .lo-add input { width: auto; flex: 1 1 150px; min-width: 0; }
+.lo-add input[type="number"] { flex: 0 0 90px; }
+.lo-lista select { width: auto; flex: 0 0 auto; }

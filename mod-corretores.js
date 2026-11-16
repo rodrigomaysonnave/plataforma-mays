@@ -23,6 +23,8 @@
     ['agenciador', 'Agenciador', 'Capta imóvel e acompanha o proprietário. Não conduz a venda.'],
     ['parceiro', 'Parceiro', 'Acesso restrito ao que for compartilhado com ele.'],
   ];
+  // Função extra, independente do papel: quem marca "Locações" na equipe
+  // entra no módulo de administração de aluguéis. Admin já entra sempre.
 
   const data = v => v ? new Date(v).toLocaleDateString('pt-BR') : '—';
   const ESTADO_CIVIL = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)', 'União estável'];
@@ -66,6 +68,8 @@
           <select data-papel ${souEu ? 'disabled title="Você não pode mudar o próprio papel"' : ''}>
             ${PAPEIS.map(([v, r]) => `<option value="${v}"${p.papel === v ? ' selected' : ''}>${r}</option>`).join('')}
           </select>
+          ${tipo === 'ativo' ? `<label class="cr-gestao" title="Gestão imobiliária: acessa o módulo Locações (contratos, cobranças e repasses)">
+            <input type="checkbox" data-gestao ${p.papel === 'admin' || p.gestao_locacao ? 'checked' : ''} ${p.papel === 'admin' ? 'disabled' : ''}> Locações</label>` : ''}
         </td>
         <td class="cad-num">${data(p.created_at)}</td>
         <td class="cad-onde">${
@@ -157,6 +161,7 @@
           <ul class="ini-lista">
             ${PAPEIS.map(([, r, d]) => `<li><span class="ini-hora">${esc(r.slice(0, 13))}</span>
               <span class="ini-txt">${esc(d)}</span></li>`).join('')}
+            <li><span class="ini-hora">Locações</span><span class="ini-txt">Marcação extra, para qualquer papel: gestão imobiliária (contratos de aluguel, cobranças e repasses).</span></li>
           </ul>
           <p class="campo-dica" style="margin-top:14px">Desativar não apaga: a pessoa perde o
           acesso e tudo o que ela cadastrou continua no lugar, com o nome dela.</p>
@@ -230,6 +235,15 @@
       tr.addEventListener('click', e => {
         if (e.target.closest('button, select')) return;
         montarFicha(alvoEl, tr.dataset.id);
+      });
+    });
+
+    alvo.querySelectorAll('[data-gestao]').forEach(cb => {
+      cb.addEventListener('click', e => e.stopPropagation());
+      cb.addEventListener('change', async () => {
+        const id = cb.closest('tr').dataset.id;
+        await db(supabaseClient.from('perfil').update({ gestao_locacao: cb.checked }).eq('id', id), 'mudar a gestão imobiliária');
+        avisar(cb.checked ? 'Agora acessa Locações.' : 'Não acessa mais Locações.');
       });
     });
 
