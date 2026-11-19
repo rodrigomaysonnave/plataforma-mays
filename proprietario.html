@@ -57,6 +57,12 @@
   .termo-texto h4:first-child { margin-top: 0; }
   .termo-texto p { margin-bottom: 6px; }
   .termo-data { color: var(--tinta-3); margin-top: 12px; }
+  .assina { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 18px; }
+  .assina label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .assina input { width: 100%; font: inherit; padding: 11px 12px; border: 1px solid var(--linha); border-radius: 8px; background: var(--superficie); color: var(--tinta); }
+  .assina input:focus { outline: 2px solid var(--marca); outline-offset: 1px; }
+  .assina small { display: block; color: var(--tinta-3); font-size: 12.5px; margin-top: 3px; }
+  @media (min-width: 620px) { .assina { grid-template-columns: 3fr 2fr; } }
   .aceite { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; font-weight: 600; cursor: pointer; }
   .aceite input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--marca); flex-shrink: 0; }
   .acoes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
@@ -178,6 +184,11 @@
         <h3>Termo de autorização</h3>
         <p class="resumo">Sem exclusividade. Comissão de ${esc(d.comissao)}, cobrada só se o negócio sair com a nossa intermediação. Vale por 6 meses e você pode tirar o anúncio quando quiser.</p>
         <details><summary>Ler o termo completo</summary><div class="termo-texto">${d.termo}</div></details>
+        <div class="assina">
+          <div><label for="assNome">Seu nome completo</label><input id="assNome" autocomplete="name" maxlength="160"></div>
+          <div><label for="assDoc">CPF (ou CNPJ)</label><input id="assDoc" inputmode="numeric" autocomplete="off" maxlength="18" placeholder="000.000.000-00"></div>
+        </div>
+        <small style="display:block;color:var(--tinta-3);font-size:12.5px;margin-top:6px">Nome e CPF valem como a sua assinatura neste termo.</small>
         <label class="aceite"><input type="checkbox" id="aceite"> Li e aceito o termo de autorização</label>
         <div class="acoes">
           <button class="btn btn-primario" id="aprovar" disabled>Aprovar e autorizar</button>
@@ -202,19 +213,33 @@
       grande.src = f.url; grande.alt = f.legenda || im.titulo;
       tela.querySelectorAll('[data-foto]').forEach(x => x.classList.toggle('ativa', x === b));
     }));
-    $('aceite').addEventListener('change', e => { $('aprovar').disabled = !e.target.checked; });
+    // Aprovar só libera com aceite, nome completo e CPF/CNPJ com os dígitos certos.
+    const digitos = () => $('assDoc').value.replace(/\D/g, '');
+    const pronto = () => $('aceite').checked && digitos().length >= 11 &&
+      $('assNome').value.trim().split(/\s+/).filter(x => x.length > 1).length >= 2;
+    const liberar = () => { $('aprovar').disabled = !pronto(); };
+    $('assDoc').addEventListener('input', e => {
+      const d = digitos().slice(0, 14);
+      e.target.value = d.length <= 11
+        ? d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+        : d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, '$1.$2.$3/$4-$5');
+      liberar();
+    });
+    $('assNome').addEventListener('input', liberar);
+    $('aceite').addEventListener('change', liberar);
 
     $('aprovar').addEventListener('click', async () => {
       const b = $('aprovar');
       b.disabled = true; b.textContent = 'Aprovando…'; $('erro').textContent = '';
       try {
-        const r = await chamar('aprovacao-proprietario', { acao: 'aprovar', token, aceite: true });
+        const r = await chamar('aprovacao-proprietario', { acao: 'aprovar', token, aceite: true,
+          nome: $('assNome').value.trim(), documento: digitos() });
         if (r.estado === 'aprovado') return estado('✓', 'Aprovado. Seu anúncio está sendo publicado.',
           'Em alguns minutos ele entra no site. Você recebe um e-mail com o link assim que estiver no ar, junto com a cópia do termo que aceitou.');
         mostrarEstado(r);
       } catch (e) {
         $('erro').textContent = e.message;
-        b.disabled = !$('aceite').checked; b.textContent = 'Aprovar e autorizar';
+        b.disabled = !pronto(); b.textContent = 'Aprovar e autorizar';
       }
     });
 
