@@ -1366,6 +1366,73 @@ button.cfg-selo-seg.inativo { background: var(--superficie-2); color: var(--text
   50% { transform: scale(1.18); }
 }
 
+/* ── Pendências: painel do sino e topo do Início (pendencias.js) ─────
+   Fixo e posicionado pelo JS a partir do sino, para nunca vazar da tela
+   no celular. Vermelho é gente ou dinheiro esperando; o resto é dourado. */
+.sino-painel {
+  position: fixed; z-index: 60; width: min(380px, calc(100vw - 32px));
+  max-height: calc(100vh - 90px); overflow-y: auto;
+  background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio);
+  background-image: var(--verniz-forte); box-shadow: var(--bisel-forte), var(--sombra-alta);
+  padding: 10px; display: flex; flex-direction: column; gap: 6px;
+}
+.sino-cab {
+  display: flex; align-items: center; gap: 8px; padding: 4px 6px 6px;
+  font-size: 13.5px; font-weight: 700;
+}
+.sino-lista { display: flex; flex-direction: column; gap: 6px; }
+.sino-vazio { font-size: 13px; color: var(--texto-fraco); padding: 10px 8px; margin: 0; }
+.sino-ver {
+  background: transparent; border: none; border-top: 1px solid var(--borda);
+  color: var(--dourado); font-weight: 600; font-size: 13px; text-align: left;
+  padding: 11px 8px 5px; cursor: pointer; margin-top: 2px;
+}
+.sino-ver:hover { text-decoration: underline; }
+
+.pend-total {
+  font-size: 11px; font-weight: 700; color: #fff; background: var(--vermelho);
+  border-radius: 10px; padding: 1px 8px; font-variant-numeric: tabular-nums;
+}
+
+.sino-item, .pend-cartao {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0;
+  text-align: left; cursor: pointer; color: var(--texto);
+  background: var(--superficie-2); border: 1px solid var(--borda);
+  border-left: 4px solid var(--dourado); border-radius: var(--raio-p);
+  padding: 10px 12px; transition: border-color .12s, transform .12s;
+}
+.sino-item:hover, .pend-cartao:hover { border-color: var(--dourado); transform: translateY(-1px); }
+.pend-urgente { border-left-color: var(--vermelho); }
+.pend-urgente:hover { border-color: var(--vermelho); }
+.pend-n {
+  font-size: 22px; font-weight: 800; line-height: 1; min-width: 30px; text-align: center;
+  color: var(--dourado); font-variant-numeric: tabular-nums; flex-shrink: 0;
+}
+.pend-urgente .pend-n { color: var(--vermelho); }
+.pend-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pend-txt b { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.pend-txt small { font-size: 11.5px; color: var(--texto-fraco); }
+.pend-seta { font-size: 20px; color: var(--texto-fraco); flex-shrink: 0; }
+
+.pend-inicio { margin-bottom: 20px; }
+.pend-inicio h3 {
+  font-size: 14px; font-weight: 700; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.pend-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.pend-cartao { padding: 14px 16px; background-image: var(--verniz); box-shadow: var(--bisel), var(--sombra-cartao); }
+.pend-cartao .pend-n { font-size: 28px; min-width: 38px; }
+.pend-cartao .pend-txt b { font-size: 13.5px; }
+.pend-em-dia {
+  display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--texto-fraco);
+  border: 1px solid var(--borda); border-left: 4px solid var(--verde);
+  border-radius: var(--raio-p); padding: 12px 14px; background: var(--superficie);
+}
+.pend-ok { color: var(--verde); font-weight: 800; }
+@media (max-width: 620px) {
+  .pend-grade { grid-template-columns: minmax(0, 1fr); }
+}
+
 .cad-msg {
   max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--texto-fraco); font-size: 12.5px;

@@ -80,19 +80,21 @@
   }
 
   // ── Lista ──────────────────────────────────────────────────────────
-  function precisaDeVoce(c) { return c.precisa_humano || c.nao_lidas > 0; }
+  // Mesmo critério do sino (pendencias.js): a IA pediu ajuda, ou chegou
+  // mensagem numa conversa em que a IA não está respondendo sozinha.
+  function precisaDeVoce(c) { return c.precisa_humano || (c.nao_lidas > 0 && c.sdr_modo !== 'automatico'); }
 
   function renderLista() {
     const box = document.getElementById('cvLista');
     if (!box) return;
     const filtradas = conversas.filter(c =>
       filtro === 'todas' ? true :
-      filtro === 'preciso' ? (c.precisa_humano || (c.nao_lidas > 0 && c.sdr_modo !== 'automatico')) :
+      filtro === 'preciso' ? precisaDeVoce(c) :
       filtro === 'ia' ? c.sdr_modo !== 'desligado' : true);
     const precisam = conversas.filter(c => c.precisa_humano).length;
 
     document.getElementById('cvFiltros').innerHTML = [
-      ['todas', 'Todas', conversas.length], ['preciso', 'Preciso responder', conversas.filter(c => c.precisa_humano || c.nao_lidas > 0).length],
+      ['todas', 'Todas', conversas.length], ['preciso', 'Preciso responder', conversas.filter(precisaDeVoce).length],
       ['ia', 'Com a IA', conversas.filter(c => c.sdr_modo !== 'desligado').length],
     ].map(([k, t, n]) => `<button class="cv-filtro${filtro === k ? ' ativo' : ''}" data-f="${k}">${t}<span>${n}</span></button>`).join('');
 

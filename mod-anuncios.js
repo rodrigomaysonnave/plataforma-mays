@@ -229,6 +229,7 @@
       analisado_por: Plataforma.perfil.id, analisado_em: new Date().toISOString(),
     }).eq('id', a.id), 'recusar o anúncio');
     avisar('Anúncio recusado.');
+    Plataforma.atualizarSino();
     await lista();
   }
 
@@ -237,6 +238,7 @@
     if (fotos.length) await db(supabaseClient.storage.from(BUCKET).remove(fotos.map(f => f.caminho)), 'apagar as fotos');
     await db(supabaseClient.from('anuncio_proprietario').delete().eq('id', a.id), 'apagar o cadastro');
     avisar('Cadastro apagado.');
+    Plataforma.atualizarSino();
     await lista();
   }
 

@@ -74,6 +74,9 @@ const Plataforma = (() => {
     $('trilhaAtual').textContent = subAtivo ? `${rotulo} › ${subAtivo.textContent.trim()}` : rotulo;
     document.title = `${rotulo} · Plataforma Mays`;
     try { localStorage.setItem('plat_modulo', nome); } catch (e) { /* sem persistência, tudo bem */ }
+    // Trocar de tela costuma vir logo depois de resolver alguma coisa
+    // (aprovar um anúncio, responder um lead): o sino acompanha na hora.
+    atualizarSino();
 
     const alvo = $('conteudo');
     const mod = modulos[nome];
@@ -318,28 +321,14 @@ const Plataforma = (() => {
   }
 
   // ── Sino de notificação ──────────────────────────────────────────────
-  // Conta lead pendente, não lead total: o número precisa dizer "isto pede
-  // ação", senão vira decoração que ninguém mais olha depois da primeira
-  // semana. Reconsultado ao entrar, ao trocar de módulo, e sozinho a cada
-  // dois minutos — sem depender de recarregar a página pra saber que chegou
-  // gente nova enquanto ele trabalhava em outra tela.
+  // O que ele conta e mostra mora em pendencias.js (a mesma lista do topo
+  // do Início). Aqui fica só o quando: ao entrar, a cada troca de módulo e
+  // sozinho a cada dois minutos, sem depender de recarregar a página pra
+  // saber que chegou coisa nova enquanto se trabalhava em outra tela.
   let sinoTimer = null;
-  async function atualizarSino() {
-    const botao = $('topoSino');
-    if (!botao || !perfil) return;
-    try {
-      // `excluido_em` é a lixeira da migração 39: o lead excluído continua
-      // no banco pra o Meta não reinserir, mas não pode voltar a contar aqui.
-      const { count } = await supabaseClient.from('lead_site')
-        .select('id', { count: 'exact', head: true })
-        .eq('atendido', false).is('excluido_em', null);
-      const n = count || 0;
-      const rot = $('topoSinoN');
-      rot.hidden = n === 0;
-      rot.textContent = n > 99 ? '99+' : String(n);
-      botao.classList.toggle('tem-pendente', n > 0);
-      botao.title = n ? `${n} lead${n > 1 ? 's' : ''} aguardando resposta` : 'Nenhum lead pendente';
-    } catch (e) { /* falha de rede não pode travar o resto da tela */ }
+  function atualizarSino() {
+    // `const` global não vira propriedade de window: conferir com typeof.
+    if (perfil && typeof Pendencias !== 'undefined') Pendencias.atualizarSino();
   }
 
   // ── Recolher a barra lateral ───────────────────────────────────────
@@ -396,7 +385,6 @@ const Plataforma = (() => {
     supabaseClient.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') mostrar('novaSenha');
     });
-    $('topoSino').addEventListener('click', () => irPara('leads'));
 
     $('menu').addEventListener('click', e => {
       const sub = e.target.closest('.menu-sub');

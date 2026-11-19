@@ -2,8 +2,9 @@
 // MÓDULO: INÍCIO
 //
 // Não é painel de vaidade. Mostra o que exige ação hoje e o que está travando,
-// na ordem em que se trabalha: compromissos de hoje, tarefas vencidas,
-// negócios parados, cadastro incompleto.
+// na ordem em que se trabalha: pendências do sistema inteiro (as mesmas do
+// sino), compromissos de hoje, tarefas vencidas, negócios parados,
+// cadastro incompleto.
 //
 // Números redondos que ninguém usa (total de imóveis, total de clientes) ficam
 // no rodapé, não no topo. O topo é para o que precisa de decisão.
@@ -65,6 +66,8 @@
         </div>
       </div>
 
+      <div id="iniPendencias"></div>
+
       <div class="painel-numeros">
         <div class="num${compromissos.length ? ' num-destaque' : ''}"><span class="num-v">${compromissos.length}</span><span class="num-r">Compromissos hoje</span></div>
         <div class="num${vencidas.length ? ' num-alerta' : ''}"><span class="num-v">${vencidas.length}</span><span class="num-r">Tarefas vencidas</span></div>
@@ -101,6 +104,11 @@
         ${imoveis.filter(i => i.publicar_no_site).length} publicados ·
         ${contatos.length} clientes
       </div>`;
+
+    // Primeira coisa da tela: tudo o que está esperando alguém agir, de
+    // qualquer módulo. É a mesma lista do sino (pendencias.js).
+    const pend = document.getElementById('iniPendencias');
+    if (pend && typeof Pendencias !== 'undefined') await Pendencias.blocoInicio(pend);
   }
 
   Plataforma.registrar('inicio', { titulo: 'Início', montar });
