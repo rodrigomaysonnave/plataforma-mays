@@ -32,6 +32,14 @@ const Pendencias = (() => {
       dica: 'Esperando a sua análise',
       consulta: () => contar('anuncio_proprietario').eq('situacao', 'em_analise') },
 
+    // Migração 86. Com um pedido só, abre direto a ficha do imóvel.
+    { chave: 'ajustes', admin: true, urgente: true,
+      ir: p => p.n === 1 && p.primeiro ? ['imoveis', p.primeiro.imovel_id] : ['imoveis'],
+      rotulo: n => plural(n, 'Proprietário pediu ajuste no anúncio', 'Proprietários pediram ajuste no anúncio'),
+      dica: 'Corrija a ficha e envie de novo para ele aprovar',
+      consulta: () => supabaseClient.from('aprovacao_proprietario').select('imovel_id', { count: 'exact' })
+        .eq('situacao', 'ajuste').is('resolvido_em', null).limit(1) },
+
     { chave: 'leads', urgente: true, ir: ['leads'],
       rotulo: n => plural(n, 'Lead do site sem resposta', 'Leads do site sem resposta'),
       dica: 'Quanto antes, maior a chance',
@@ -100,14 +108,14 @@ const Pendencias = (() => {
     const fontes = FONTES.filter(f => admin || !f.admin);
     const contagens = await Promise.all(fontes.map(async f => {
       try {
-        const { count, error } = await f.consulta();
+        const { count, data, error } = await f.consulta();
         // Uma fonte que falha (rede, tabela sem acesso) some da lista em vez
         // de derrubar as outras.
-        if (error) { console.warn('pendência', f.chave, error.message); return 0; }
-        return count || 0;
-      } catch (e) { console.warn('pendência', f.chave, e); return 0; }
+        if (error) { console.warn('pendência', f.chave, error.message); return { n: 0 }; }
+        return { n: count || 0, primeiro: data && data[0] };
+      } catch (e) { console.warn('pendência', f.chave, e); return { n: 0 }; }
     }));
-    return fontes.map((f, i) => ({ ...f, n: contagens[i] })).filter(p => p.n > 0);
+    return fontes.map((f, i) => ({ ...f, ...contagens[i] })).filter(p => p.n > 0);
   }
 
   function carregar() {
@@ -130,7 +138,8 @@ const Pendencias = (() => {
     caixa.querySelectorAll('[data-pend]').forEach(b => b.addEventListener('click', () => {
       const p = lista[Number(b.dataset.pend)];
       if (depois) depois();
-      irPara(p.ir[0], p.ir[1]);
+      const [modulo, arg] = typeof p.ir === 'function' ? p.ir(p) : p.ir;
+      irPara(modulo, arg);
     }));
   }
 

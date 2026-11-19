@@ -2129,3 +2129,25 @@ span.rd-chip { cursor: default; }
 .lo-add select, .lo-add input { width: auto; flex: 1 1 150px; min-width: 0; }
 .lo-add input[type="number"] { flex: 0 0 90px; }
 .lo-lista select { width: auto; flex: 0 0 auto; }
+
+/* ── Aprovação do proprietário na ficha do imóvel (aprovacao.js) ───── */
+.apr-bloco { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.apr-caixa {
+  border: 1px solid var(--borda); border-left: 4px solid var(--dourado);
+  border-radius: var(--raio-p); padding: 12px 14px; background: var(--superficie-2);
+}
+.apr-caixa > b { font-size: 13.5px; }
+.apr-caixa p { font-size: 13px; color: var(--texto-fraco); margin-top: 4px; line-height: 1.5; overflow-wrap: anywhere; }
+.apr-ok { border-left-color: var(--verde); }
+.apr-ok > b { color: var(--verde); }
+.apr-alerta { border-left-color: var(--vermelho); }
+.apr-alerta > b { color: var(--vermelho); }
+.apr-espera > b { color: var(--dourado); }
+.apr-neutro { border-left-color: var(--borda); }
+.apr-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.apr-termo, .apr-historico { margin-top: 8px; font-size: 12.5px; color: var(--texto-fraco); }
+.apr-termo summary, .apr-historico summary { cursor: pointer; color: var(--dourado); font-weight: 600; }
+.apr-termo > div { margin-top: 8px; max-height: 320px; overflow-y: auto; padding: 10px 12px; background: var(--superficie); border-radius: var(--raio-p); }
+.apr-termo h4 { font-size: 12.5px; margin: 10px 0 3px; color: var(--texto); }
+.apr-termo p { margin-bottom: 5px; }
+.apr-historico ul { margin: 8px 0 0 18px; display: flex; flex-direction: column; gap: 6px; }

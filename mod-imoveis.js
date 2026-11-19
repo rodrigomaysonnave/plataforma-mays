@@ -17,6 +17,10 @@
   let apoio = null;      // listas de configuração, carregadas uma vez
   let alvoEl = null;
   let editando = null;   // id do imóvel aberto, ou 'novo'
+  // Como "Publicar no site" e "Autorização" estavam ao abrir a ficha. O
+  // proprietário pode aprovar pelo e-mail com a ficha aberta aqui (migração
+  // 86); salvar a tela antiga não pode desfazer a aprovação dele.
+  let pubAoAbrir = null;
 
   // Filtro e rolagem da lista sobrevivem à ida até a ficha. Sem isso, o
   // "Voltar à lista" redesenhava tudo do zero e obrigava a filtrar de novo.
@@ -296,6 +300,7 @@
     await carregarApoio();
     const im = (await db(supabaseClient.from('imovel').select('*').eq('id', id).limit(1), 'abrir imóvel'))[0];
     const novo = !!im.rascunho;
+    pubAoAbrir = { site: !!im.publicar_no_site, autoriz: !!im.autorizacao_venda };
 
     const marcadas = (await db(supabaseClient.from('imovel_caracteristica')
       .select('caracteristica_id').eq('imovel_id', id), 'carregar características')).map(x => x.caracteristica_id);
@@ -461,6 +466,10 @@
         </div>`
       )}
 
+      ${Plataforma.perfil && Plataforma.perfil.papel === 'admin' ? secao('Aprovação do proprietário',
+        'O proprietário recebe o anúncio por e-mail e aprova. A aprovação vale como autorização de venda e publica o imóvel no site.',
+        '<div class="apr-bloco" id="imAprovacao"></div>') : ''}
+
       ${secao('Situação e captação', '',
         campo('Situação comercial', `<select id="fStatus">${STATUS.map(([v,r]) => `<option value="${v}"${im.status===v?' selected':''}>${r}</option>`).join('')}</select>`) +
         campo('Origem da captação', `<select id="fOrigem">${opcoes(apoio.origens, im.origem_captacao_id)}</select>`) +
@@ -622,6 +631,7 @@
     document.getElementById('imExcluir').addEventListener('click', () => excluir(novo));
     ligarProprietario();
     ligarVerNoSite();
+    if (typeof Aprovacao !== 'undefined') Aprovacao.montar(document.getElementById('imAprovacao'), id);
   }
 
   // Diz a verdade sobre o estado em vez de abrir uma página que não existe.
@@ -802,6 +812,11 @@
       rascunho: false,
     };
 
+    // Só grava publicação e autorização se você mexeu nelas nesta tela.
+    // Sem mexer, vale o que está no banco (pode ter vindo da aprovação do
+    // proprietário enquanto a ficha estava aberta).
+    if (pubAoAbrir && site === pubAoAbrir.site) delete dados.publicar_no_site;
+    if (pubAoAbrir && autoriz === pubAoAbrir.autoriz) delete dados.autorizacao_venda;
     const idSalvo = editando;
     await db(supabaseClient.from('imovel').update(dados).eq('id', editando), 'salvar o imóvel');
 

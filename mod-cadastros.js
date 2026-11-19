@@ -72,7 +72,7 @@
     busca: ['nome','telefone','email','cpf_cnpj'],
     ordem: { campo: 'nome', asc: true },
     obrigatorios: ['nome'],
-    padrao: { ativo: true },
+    padrao: { ativo: true, recebe_relatorio: true },
     vinculos: {
       titulo: 'Imóveis deste proprietário',
       descricao: 'Clique para abrir a ficha do imóvel.',
@@ -93,6 +93,8 @@
       { campo: 'email', rotulo: 'E-mail', tipo: 'email' },
       { campo: 'cpf_cnpj', rotulo: 'CPF ou CNPJ' },
       { campo: 'ativo', rotulo: 'Ativo', tipo: 'bool', dica: 'Desmarcado, some dos seletores mas continua no que já foi cadastrado.' },
+      { campo: 'recebe_relatorio', rotulo: 'Recebe o relatório mensal', tipo: 'bool',
+        dica: 'Todo dia 1º, por e-mail, o resumo do mês de cada imóvel publicado dele. Precisa de e-mail cadastrado. Ele mesmo pode sair pelo link do e-mail.' },
       { campo: 'obs', rotulo: 'Observações', tipo: 'texto', largo: true, secao: 'Notas internas' },
     ],
   });

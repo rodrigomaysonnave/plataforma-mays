@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Aprovar anúncio · Maysonnave Imóveis</title>
+<!--
+  Página do PROPRIETÁRIO (migração 86). Sem login: o link do e-mail traz
+  o token no #, que nunca vai para servidor nenhum nem aparece em log.
+    #t=<token>     aprovar o anúncio ou pedir ajuste
+    #sair=<token>  deixar de receber o relatório mensal
+  Tudo passa pelas funções aprovacao-proprietario e relatorio-mensal; esta
+  página não lê tabela nenhuma. Visual do site público (maysimoveis.com),
+  não da Plataforma: quem abre é cliente, não a equipe.
+-->
+<style>
+  :root {
+    --tinta: #241C14; --tinta-2: #5C4E42; --tinta-3: #6F6155;
+    --fundo: #FAF8F5; --superficie: #fff; --linha: #E3DAD0;
+    --marca: #7D5F41; --marca-clara: #9B7B5A; --verde: #2F7A4F; --vermelho: #B3412F;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--fundo); }
+  body { background: var(--fundo); color: var(--tinta); font: 15px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--marca); }
+  .topo { background: var(--tinta); color: #fff; padding: 14px 16px; }
+  .topo div { max-width: 760px; margin: 0 auto; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #D9C7B2; font-weight: 700; }
+  main { max-width: 760px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(26px, 6vw, 36px); line-height: 1.2; margin-bottom: 12px; }
+  .intro { color: var(--tinta-2); font-size: 16px; max-width: 60ch; }
+  .cartao { background: var(--superficie); border: 1px solid var(--linha); border-radius: 12px; margin-top: 24px; overflow: hidden; }
+  .galeria-principal { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #eee; }
+  .miniaturas { display: flex; gap: 6px; padding: 8px; overflow-x: auto; scrollbar-width: thin; }
+  .miniaturas button { flex: 0 0 auto; border: 2px solid transparent; border-radius: 6px; padding: 0; background: none; cursor: pointer; }
+  .miniaturas button.ativa { border-color: var(--marca); }
+  .miniaturas img { display: block; width: 76px; height: 57px; object-fit: cover; border-radius: 4px; }
+  .ficha { padding: 18px 18px 22px; }
+  .codigo { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--marca-clara); font-weight: 700; }
+  .ficha h2 { font-family: Georgia, serif; font-weight: 400; font-size: 23px; line-height: 1.25; margin: 4px 0 2px; }
+  .local { color: var(--tinta-3); }
+  .precos { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 14px 0 4px; }
+  .preco b { display: block; font-size: 22px; }
+  .preco span { font-size: 12px; color: var(--tinta-3); text-transform: uppercase; letter-spacing: .06em; }
+  .extras { font-size: 13.5px; color: var(--tinta-2); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .chips span { background: var(--fundo); border: 1px solid var(--linha); border-radius: 20px; padding: 3px 11px; font-size: 13px; }
+  .descricao { margin-top: 16px; white-space: pre-line; color: var(--tinta-2); }
+  .termo { padding: 18px; }
+  .termo h3 { font-size: 16px; margin-bottom: 6px; }
+  .termo .resumo { color: var(--tinta-2); }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--marca); font-weight: 600; }
+  .termo-texto { margin-top: 12px; padding: 14px 16px; background: var(--fundo); border: 1px solid var(--linha); border-radius: 8px; font-size: 13.5px; max-height: 420px; overflow-y: auto; }
+  .termo-texto h4 { font-size: 13.5px; margin: 14px 0 4px; }
+  .termo-texto h4:first-child { margin-top: 0; }
+  .termo-texto p { margin-bottom: 6px; }
+  .termo-data { color: var(--tinta-3); margin-top: 12px; }
+  .aceite { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; font-weight: 600; cursor: pointer; }
+  .aceite input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--marca); flex-shrink: 0; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .btn { font: inherit; font-weight: 700; border-radius: 8px; padding: 13px 20px; cursor: pointer; border: 1px solid var(--tinta); }
+  .btn-primario { background: var(--tinta); color: #fff; }
+  .btn-primario:disabled { opacity: .45; cursor: not-allowed; }
+  .btn-secundario { background: var(--superficie); color: var(--tinta); }
+  .btn:focus-visible, summary:focus-visible { outline: 3px solid var(--marca-clara); outline-offset: 2px; }
+  .ajuste { margin-top: 16px; }
+  .ajuste label { display: block; font-weight: 600; margin-bottom: 6px; }
+  textarea { width: 100%; min-height: 110px; font: inherit; padding: 10px 12px; border: 1px solid var(--linha); border-radius: 8px; background: var(--superficie); color: var(--tinta); resize: vertical; }
+  .erro { color: var(--vermelho); font-weight: 600; margin-top: 12px; min-height: 1em; }
+  .rodape { margin-top: 22px; font-size: 13px; color: var(--tinta-3); }
+  .estado { text-align: left; margin-top: 8px; }
+  .estado .icone { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; margin-bottom: 16px; background: #E7F2EB; color: var(--verde); }
+  .estado .icone.neutro { background: #F1ECE6; color: var(--marca); }
+  .estado p { color: var(--tinta-2); font-size: 16px; max-width: 58ch; margin-top: 8px; }
+  .estado .acoes { margin-top: 22px; }
+  .carregando { color: var(--tinta-3); margin-top: 40px; }
+  @media (min-width: 720px) {
+    .ficha, .termo { padding: 22px 26px 26px; }
+  }
+</style>
+</head>
+<body>
+<header class="topo"><div>Maysonnave Imóveis</div></header>
+<main id="tela"><p class="carregando">Carregando…</p></main>
+
+<script>
+(() => {
+  'use strict';
+  const FUNCOES = 'https://gwhwesvmqvxakvjtsrdn.supabase.co/functions/v1/';
+  const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3aHdlc3ZtcXZ4YWt2anRzcmRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MjI3MjMsImV4cCI6MjEwMjE5ODcyM30.-8YOH8sLts-lK-u6ALcbnlQHhVOsgZrKQWg5B3DhjRE';
+  const tela = document.getElementById('tela');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const brl = v => v == null || v === '' ? '' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  const dataBr = iso => new Date(iso).toLocaleDateString('pt-BR');
+  let zap = null;
+
+  async function chamar(funcao, corpo) {
+    const r = await fetch(FUNCOES + funcao, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', apikey: ANON, Authorization: 'Bearer ' + ANON },
+      body: JSON.stringify(corpo),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok && !d.estado) throw new Error(d.erro || 'Não consegui falar com o servidor. Tente de novo em alguns minutos.');
+    return d;
+  }
+
+  const linkZap = () => zap
+    ? ` ou chame a gente no <a href="https://wa.me/${esc(zap)}" target="_blank" rel="noopener">WhatsApp</a>` : '';
+
+  function estado(icone, titulo, texto, neutro, extra = '') {
+    tela.innerHTML = `<section class="estado">
+      <div class="icone${neutro ? ' neutro' : ''}" aria-hidden="true">${icone}</div>
+      <h1>${titulo}</h1><p>${texto}</p>${extra}</section>`;
+    window.scrollTo(0, 0);
+  }
+
+  const MENSAGENS = {
+    vencido: ['!', 'Este link venceu', () => `Os links de aprovação valem 30 dias. Responda o e-mail que recebeu${linkZap()} para receber um novo.`],
+    cancelado: ['!', 'Existe um link mais novo', () => `Este anúncio foi atualizado depois deste e-mail. Use o link do e-mail mais recente${linkZap()}.`],
+    ajuste: ['✓', 'Pedido de ajuste enviado', () => 'A gente corrige e manda um novo link para você aprovar.'],
+    removido: ['!', 'Anúncio não encontrado', () => `Este anúncio não está mais no nosso cadastro. Responda o e-mail${linkZap()} se achar que é um engano.`],
+  };
+
+  function mostrarEstado(d) {
+    if (d.estado === 'aprovado') {
+      return estado('✓', 'Este anúncio já foi aprovado',
+        d.url_site ? 'Ele já está no ar.' : 'Ele está sendo publicado. Você recebe um e-mail com o link assim que estiver no ar.', false,
+        d.url_site ? `<div class="acoes"><a class="btn btn-primario" href="${esc(d.url_site)}">Ver o anúncio no site</a></div>` : '');
+    }
+    const m = MENSAGENS[d.estado] || ['!', 'Link não encontrado', () => `Confira se o endereço do e-mail abriu inteiro${linkZap()}.`];
+    estado(m[0], m[1], m[2](), m[0] !== '✓');
+  }
+
+  // ── Aprovação ─────────────────────────────────────────────────────
+  function anuncio(im) {
+    const fotos = im.fotos || [];
+    const vende = im.finalidade !== 'aluguel', aluga = im.finalidade === 'aluguel' || im.finalidade === 'venda_aluguel';
+    const precos = [
+      vende && im.valor ? `<div class="preco"><span>Venda</span><b>${brl(im.valor)}</b></div>` : '',
+      aluga && im.valor_aluguel ? `<div class="preco"><span>Aluguel</span><b>${brl(im.valor_aluguel)}</b></div>` : '',
+    ].join('');
+    const extras = [im.condominio && `Condomínio ${brl(im.condominio)}`, im.iptu && `IPTU ${brl(im.iptu)}`,
+      im.aceita_financiamento && 'Aceita financiamento', im.aceita_permuta && 'Aceita permuta'].filter(Boolean).join(' · ');
+    const area = im.area_util || im.area_total;
+    const chips = [
+      im.dormitorios && `${im.dormitorios} dormitório${im.dormitorios > 1 ? 's' : ''}`,
+      im.suites && `${im.suites} suíte${im.suites > 1 ? 's' : ''}`,
+      im.banheiros && `${im.banheiros} banheiro${im.banheiros > 1 ? 's' : ''}`,
+      im.vagas && `${im.vagas} vaga${im.vagas > 1 ? 's' : ''}`,
+      area && `${Number(area).toLocaleString('pt-BR')} m²`,
+      ...(im.caracteristicas || []),
+    ].filter(Boolean);
+    return `<article class="cartao">
+      ${fotos.length ? `<img class="galeria-principal" id="fotoGrande" src="${esc(fotos[0].url)}" alt="${esc(fotos[0].legenda || im.titulo)}">
+        ${fotos.length > 1 ? `<div class="miniaturas" role="list">${fotos.map((f, i) => `
+          <button type="button" role="listitem" class="${i ? '' : 'ativa'}" data-foto="${i}" aria-label="Foto ${i + 1}${f.legenda ? ': ' + esc(f.legenda) : ''}">
+            <img src="${esc(f.thumb)}" alt="" loading="lazy"></button>`).join('')}</div>` : ''}` : ''}
+      <div class="ficha">
+        <div class="codigo">${esc(im.codigo)}</div>
+        <h2>${esc(im.titulo)}</h2>
+        <div class="local">${esc([im.bairro, im.cidade].filter(Boolean).join(', '))}</div>
+        ${precos ? `<div class="precos">${precos}</div>` : ''}
+        ${extras ? `<div class="extras">${esc(extras)}</div>` : ''}
+        ${chips.length ? `<div class="chips">${chips.map(c => `<span>${esc(c)}</span>`).join('')}</div>` : ''}
+        ${im.descricao ? `<p class="descricao">${esc(im.descricao)}</p>` : ''}
+      </div></article>`;
+  }
+
+  function montarAprovacao(d, token) {
+    const im = d.imovel;
+    tela.innerHTML = `
+      <h1>Confira o seu anúncio antes de ir ao ar</h1>
+      <p class="intro">Olá${d.nome ? ', ' + esc(d.nome) : ''}. É assim que o ${esc(im.titulo)} vai aparecer em maysimoveis.com. Se estiver tudo certo, aprove. Se algo precisar mudar, peça o ajuste e a gente corrige.</p>
+      ${anuncio(im)}
+      <section class="cartao termo">
+        <h3>Termo de autorização</h3>
+        <p class="resumo">Sem exclusividade. Comissão de ${esc(d.comissao)}, cobrada só se o negócio sair com a nossa intermediação. Vale por 6 meses e você pode tirar o anúncio quando quiser.</p>
+        <details><summary>Ler o termo completo</summary><div class="termo-texto">${d.termo}</div></details>
+        <label class="aceite"><input type="checkbox" id="aceite"> Li e aceito o termo de autorização</label>
+        <div class="acoes">
+          <button class="btn btn-primario" id="aprovar" disabled>Aprovar e autorizar</button>
+          <button class="btn btn-secundario" id="pedirAjuste">Pedir ajuste</button>
+        </div>
+        <div class="ajuste" id="ajuste" hidden>
+          <label for="comentario">O que você quer mudar?</label>
+          <textarea id="comentario" maxlength="2000" placeholder="Ex.: trocar a foto de capa, corrigir a área para 85 m², baixar o preço para R$ 480 mil"></textarea>
+          <div class="acoes">
+            <button class="btn btn-primario" id="enviarAjuste">Enviar pedido de ajuste</button>
+            <button class="btn btn-secundario" id="cancelarAjuste">Cancelar</button>
+          </div>
+        </div>
+        <p class="erro" id="erro" role="alert"></p>
+      </section>
+      <p class="rodape">Este link vale até ${dataBr(d.expira_em)}. Dúvidas? Responda o e-mail que recebeu${linkZap()}.</p>`;
+
+    const $ = id => document.getElementById(id);
+    const grande = $('fotoGrande');
+    tela.querySelectorAll('[data-foto]').forEach(b => b.addEventListener('click', () => {
+      const f = im.fotos[Number(b.dataset.foto)];
+      grande.src = f.url; grande.alt = f.legenda || im.titulo;
+      tela.querySelectorAll('[data-foto]').forEach(x => x.classList.toggle('ativa', x === b));
+    }));
+    $('aceite').addEventListener('change', e => { $('aprovar').disabled = !e.target.checked; });
+
+    $('aprovar').addEventListener('click', async () => {
+      const b = $('aprovar');
+      b.disabled = true; b.textContent = 'Aprovando…'; $('erro').textContent = '';
+      try {
+        const r = await chamar('aprovacao-proprietario', { acao: 'aprovar', token, aceite: true });
+        if (r.estado === 'aprovado') return estado('✓', 'Aprovado. Seu anúncio está sendo publicado.',
+          'Em alguns minutos ele entra no site. Você recebe um e-mail com o link assim que estiver no ar, junto com a cópia do termo que aceitou.');
+        mostrarEstado(r);
+      } catch (e) {
+        $('erro').textContent = e.message;
+        b.disabled = !$('aceite').checked; b.textContent = 'Aprovar e autorizar';
+      }
+    });
+
+    $('pedirAjuste').addEventListener('click', () => { $('ajuste').hidden = false; $('comentario').focus(); });
+    $('cancelarAjuste').addEventListener('click', () => { $('ajuste').hidden = true; $('erro').textContent = ''; });
+    $('enviarAjuste').addEventListener('click', async () => {
+      const b = $('enviarAjuste'), texto = $('comentario').value.trim();
+      $('erro').textContent = '';
+      if (texto.length < 3) { $('erro').textContent = 'Conte o que você quer mudar.'; $('comentario').focus(); return; }
+      b.disabled = true; b.textContent = 'Enviando…';
+      try {
+        mostrarEstado(await chamar('aprovacao-proprietario', { acao: 'ajuste', token, comentario: texto }));
+      } catch (e) {
+        $('erro').textContent = e.message;
+        b.disabled = false; b.textContent = 'Enviar pedido de ajuste';
+      }
+    });
+  }
+
+  // ── Relatório: sair e voltar ──────────────────────────────────────
+  async function sairDoRelatorio(token, voltar) {
+    try {
+      const r = await chamar('relatorio-mensal', { acao: voltar ? 'voltar' : 'sair', token });
+      if (voltar) return estado('✓', 'Você volta a receber o relatório', 'Todo dia 1º chega no seu e-mail o resumo do mês do seu anúncio.');
+      estado('✓', `Pronto${r.nome ? ', ' + esc(r.nome) : ''}. Você não recebe mais o relatório mensal.`,
+        'O seu anúncio continua no ar normalmente. Mudou de ideia?', false,
+        '<div class="acoes"><button class="btn btn-secundario" id="voltar">Voltar a receber</button></div>');
+      document.getElementById('voltar').addEventListener('click', () => sairDoRelatorio(token, true));
+    } catch (e) {
+      estado('!', 'Não deu certo', esc(e.message), true);
+    }
+  }
+
+  async function iniciar() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (h.get('sair')) return sairDoRelatorio(h.get('sair'));
+    const token = h.get('t');
+    if (!token) return mostrarEstado({ estado: 'invalido' });
+    try {
+      const d = await chamar('aprovacao-proprietario', { acao: 'abrir', token });
+      zap = d.whatsapp || null;
+      if (d.estado === 'enviado') montarAprovacao(d, token); else mostrarEstado(d);
+    } catch (e) {
+      mostrarEstado({ estado: 'invalido' });
+    }
+  }
+  iniciar();
+})();
+</script>
+</body>
+</html>

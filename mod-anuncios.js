@@ -95,7 +95,8 @@
       ${analisando ? `
       <section class="ficha-secao an-decisao">
         <div class="an-decisao-txt"><b>Aprovar cria o proprietário e um imóvel em rascunho.</b>
-          Ele não vai para o site. Revise a ficha e registre a autorização de venda antes de publicar.</div>
+          Ele não vai para o site ainda. Revise fotos, texto e preço na ficha, salve e clique em
+          "Enviar ao proprietário para aprovar". Quando ele aprovar pelo e-mail, o imóvel vai ao ar sozinho.</div>
         <div class="an-acoes">
           <button class="btn btn-primario" id="anAprovar">Aprovar e criar imóvel</button>
           <button class="btn btn-remover" id="anRecusar">Recusar</button>
@@ -161,6 +162,8 @@
         const ja = a.cpf ? await db(supabaseClient.from('proprietario').select('id').eq('cpf_cnpj', a.cpf).limit(1), 'procurar o proprietário') : [];
         proprietarioId = ja[0] ? ja[0].id : (await db(supabaseClient.from('proprietario').insert({
           nome: nomeDe(a), telefone: a.whatsapp, email: a.email, cpf_cnpj: a.cpf, created_by: eu.id,
+          // Ele respondeu no /anunciar se quer o relatório mensal: "não" vale.
+          recebe_relatorio: a.aceita_relatorio !== false,
           obs: [a.nascimento && `Nascimento: ${a.nascimento.split('-').reverse().join('/')}`,
                 a.endereco_residencial && `Residência: ${a.endereco_residencial}`, 'Cadastrado pelo site.'].filter(Boolean).join('\n'),
         }).select('id').single(), 'criar o proprietário')).id;
@@ -212,7 +215,7 @@
       await db(supabaseClient.from('anuncio_proprietario').update({
         situacao: 'aprovado', analisado_por: eu.id, analisado_em: new Date().toISOString(),
       }).eq('id', a.id), 'concluir a aprovação');
-      avisar('Imóvel criado em rascunho. Revise a ficha antes de publicar.');
+      avisar('Imóvel criado em rascunho. Revise a ficha e envie ao proprietário para aprovar.');
       Plataforma.irPara('imoveis', imovelId);
     } catch (e) {
       console.error(e);
