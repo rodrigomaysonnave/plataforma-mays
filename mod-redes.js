@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════
-// MÓDULO: REDES SOCIAIS (Instagram e Facebook)
+// MÓDULO: REDES SOCIAIS (Instagram, Facebook e TikTok)
 //
 // Páginas:
 //   Calendário · o mês com cada post colorido pelo estado; o que espera
@@ -9,7 +9,10 @@
 //                e prévia do Instagram e do Facebook;
 //   Resultados · alcance, interações, funil até o site e o WhatsApp,
 //                melhores horários calculados com os próprios posts;
-//   Configurar · conexão com a Meta, assinatura, hashtags.
+//   Configurar · conexão com a Meta e com o TikTok, assinatura, hashtags.
+//
+// TikTok: o vídeo vai para a caixa de rascunhos do app (o TikTok só deixa
+// app auditado publicar direto). Ver o cabeçalho da função `redes`.
 //
 // Quem publica é a função `redes`, chamada pelo pg_cron a cada 5 min. Sem
 // conexão com a Meta, tudo funciona menos a publicação: os agendados esperam.
@@ -31,7 +34,9 @@
     cancelado:  { rot: 'Cancelado',    cls: 'rd-st-cancelado' },
   };
   const FORMATOS = [['imagem', 'Foto'], ['carrossel', 'Carrossel'], ['reels', 'Reels (vídeo)'], ['texto', 'Só texto (Facebook)']];
-  const ICONE = { instagram: '◎', facebook: 'ƒ' };
+  const ICONE = { instagram: '◎', facebook: 'ƒ', tiktok: '♪' };
+  const NOME = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
+  const ttConectado = () => !!(statusCache && statusCache.tiktok && statusCache.tiktok.conectado);
   const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -101,7 +106,7 @@
     const rascunhos = semData.filter(p => p.status === 'rascunho' || (p.status === 'aprovado' && !p.agendado_para));
     const falhas = semData.filter(p => p.status === 'falhou');
 
-    alvo.innerHTML = topo('Redes sociais', 'Instagram e Facebook: planejar, aprovar, publicar e medir.',
+    alvo.innerHTML = topo('Redes sociais', 'Instagram, Facebook e TikTok: planejar, aprovar, publicar e medir.',
       `<button class="btn" data-ir-sub="resultados">Resultados</button><button class="btn btn-primario" data-novo="">+ Novo post</button>`) + `
       ${avisoConexao()}
       ${falhas.length ? `<div class="cv-alerta">${falhas.length} post${falhas.length > 1 ? 's' : ''} não ${falhas.length > 1 ? 'foram publicados' : 'foi publicado'}. Abra para ver o motivo.</div>` : ''}
@@ -184,7 +189,7 @@
             <div class="campo campo-largo"><label for="rdTitulo">Título (só para a equipe)</label>
               <input type="text" id="rdTitulo" value="${esc(p.titulo === 'Post sem título' ? '' : p.titulo)}" placeholder="Ex.: Royal 902 · vista do Laranjal" ${dis}></div>
             <div class="campo"><label>Onde publicar</label><div class="sdr-horas">
-              ${['instagram', 'facebook'].map(r => `<label class="sdr-chip"><input type="checkbox" class="rdRede" value="${r}" ${p.redes.includes(r) ? 'checked' : ''} ${dis}><span>${ICONE[r]} ${r === 'instagram' ? 'Instagram' : 'Facebook'}</span></label>`).join('')}
+              ${['instagram', 'facebook', 'tiktok'].map(r => `<label class="sdr-chip"><input type="checkbox" class="rdRede" value="${r}" ${p.redes.includes(r) ? 'checked' : ''} ${dis}><span>${ICONE[r]} ${NOME[r]}</span></label>`).join('')}
             </div></div>
             <div class="campo"><label for="rdFormato">Formato</label><select id="rdFormato" ${dis}>
               ${FORMATOS.map(([v, r]) => `<option value="${v}" ${p.formato === v ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
@@ -258,6 +263,7 @@
         [!rs.includes('instagram') || (fmt !== 'texto' && midias.length > 0), 'Instagram precisa de foto ou vídeo (não aceita "Só texto")'],
         [fmt !== 'carrossel' || (midias.length >= 2 && midias.length <= 10), 'Carrossel com 2 a 10 itens'],
         [fmt !== 'reels' || vids.length >= 1, 'Reels precisa de um vídeo'],
+        [!rs.includes('tiktok') || (fmt === 'reels' && vids.length >= 1), 'TikTok: por enquanto só vídeo (formato Reels com um vídeo)'],
         [!rs.includes('instagram') || imgs.every(m => !m.w || (m.w / m.h >= 0.8 && m.w / m.h <= 1.91)), 'Fotos no formato aceito pelo Instagram (entre 4:5 em pé e 1,91:1 deitada)'],
       ];
       $('rdChecks').innerHTML = checks.map(([ok, t]) => `<li class="${ok ? 'ok' : 'falta'}">${ok ? '✓' : '✗'} ${esc(t)}</li>`).join('');
@@ -278,7 +284,10 @@
         ${rs.includes('facebook') ? `<div class="rd-pv"><div class="rd-pv-cab"><span class="rd-pv-av">M</span><b>${esc((statusCache && statusCache.pagina) || 'Maysonnave imóveis')}</b></div>
           <div class="rd-pv-txt rd-pv-fb">${esc(leg).slice(0, 400).replace(/\n/g, '<br>')}${leg.length > 400 ? ' <span class="rd-pv-mais">Ver mais</span>' : ''}${$('rdLink').value ? `<br><span class="rd-pv-link">${esc($('rdLink').value)}</span>` : ''}</div>
           ${$('rdFormato').value !== 'texto' ? `<div class="rd-pv-midia">${midiaHtml}</div>` : ''}
-          <p class="campo-dica">Prévia do Facebook (aproximada).</p></div>` : ''}`;
+          <p class="campo-dica">Prévia do Facebook (aproximada).</p></div>` : ''}
+        ${rs.includes('tiktok') ? `<div class="rd-pv rd-pv-tt"><div class="rd-pv-cab"><span class="rd-pv-av">♪</span><b>${esc((statusCache && statusCache.tiktok && statusCache.tiktok.nome) || 'TikTok')}</b></div>
+          <div class="rd-pv-txt">O vídeo vai para a <b>caixa de rascunhos do TikTok</b>. No celular, toque na notificação, cole a legenda, escolha a música e publique.</div>
+          <p class="campo-dica">O TikTok não recebe a legenda por este caminho: ela fica com botão de copiar no post depois de enviado.</p></div>` : ''}`;
     }
     function acoes() {
       const okConf = conferencia();
@@ -287,7 +296,7 @@
       if (podeEditar && !adm && ['rascunho', 'falhou'].includes(p.status)) b.push(`<button class="btn btn-primario" id="rdRevisao" ${okConf ? '' : 'disabled'}>Enviar para aprovação</button>`);
       if (adm && !travado) {
         b.push(`<button class="btn btn-primario" id="rdAgendar" ${okConf ? '' : 'disabled'}>Aprovar e agendar</button>`);
-        if (statusCache && statusCache.conectado && p.id) b.push(`<button class="btn" id="rdAgora" ${okConf ? '' : 'disabled'}>Publicar agora</button>`);
+        if (statusCache && (statusCache.conectado || ttConectado()) && p.id) b.push(`<button class="btn" id="rdAgora" ${okConf ? '' : 'disabled'}>Publicar agora</button>`);
       }
       if (podeEditar && ['aprovado', 'agendado', 'revisao'].includes(p.status)) b.push(`<button class="btn btn-fantasma" id="rdVoltar">Voltar para rascunho</button>`);
       if (p.id && !travado && (adm || meu)) b.push(`<button class="btn btn-fantasma" id="rdExcluir">Excluir</button>`);
@@ -321,9 +330,9 @@
       on('rdAgendar', async () => { if (await salvar('agendado', 'Aprovado e agendado.')) editor(container); });
       on('rdVoltar', async () => { if (await salvar('rascunho', 'Voltou para rascunho.')) editor(container); });
       on('rdAgora', async () => {
-        if (!confirm('Publicar agora no ' + redes().join(' e ') + '?')) return;
+        if (!confirm('Publicar agora no ' + redes().map(r => NOME[r]).join(' e ') + '?')) return;
         if (!(await salvar('aprovado', 'Salvo.'))) return;
-        try { const r = await funcao({ acao: 'publicar_agora', post_id: p.id }); avisar(r.estado === 'publicado' ? 'Publicado!' : r.estado === 'processando' ? 'Vídeo em processamento na Meta. Publica em alguns minutos.' : 'Não publicou: ' + (r.erro || r.estado)); }
+        try { const r = await funcao({ acao: 'publicar_agora', post_id: p.id }); avisar(r.estado === 'publicado' ? (redes().includes('tiktok') ? 'Enviado! O vídeo está na caixa de rascunhos do TikTok.' : 'Publicado!') : r.estado === 'processando' ? 'Vídeo em processamento na Meta. Publica em alguns minutos.' : 'Não publicou: ' + (r.erro || r.estado)); }
         catch (e) { avisar('Não publicou: ' + e.message); }
         editor(container);
       });
@@ -335,6 +344,7 @@
     alvo.querySelectorAll('#rdFormato, .rdRede').forEach(el => el.addEventListener('change', atualizar));
     alvo.addEventListener('click', ev => {
       const b = ev.target.closest('button'); if (!b) return;
+      if (b.dataset.copiarLegenda !== undefined) { navigator.clipboard.writeText(p.legenda || '').then(() => avisar('Legenda copiada. Cole no TikTok.')); return; }
       if (b.dataset.tirar !== undefined) { midias.splice(Number(b.dataset.tirar), 1); desenharMidias(); atualizar(); }
       else if (b.dataset.mover !== undefined) {
         const i = Number(b.dataset.mover), j = i + Number(b.dataset.dir);
@@ -413,11 +423,16 @@
   function blocoPublicado(p, metricas) {
     const res = p.resultado || {};
     const m = Object.fromEntries((metricas || []).map(x => [x.rede, x]));
+    const TT_ESTADO = { na_caixa: 'Na caixa de rascunhos do TikTok. Abra o app no celular para publicar.',
+      publicado: 'Publicado no TikTok (ainda sem link público: pode estar em análise ou não ser público).',
+      publico: 'Publicado no TikTok.', falhou: 'O TikTok não aceitou o vídeo.' };
     const linha = r => {
-      const x = m[r] || {};
-      return `<div class="rd-pub"><b>${ICONE[r]} ${r === 'instagram' ? 'Instagram' : 'Facebook'}</b>
-        ${res[r] && res[r].permalink ? `<a href="${esc(res[r].permalink)}" target="_blank" rel="noopener">ver publicação ›</a>` : res[r] && res[r].erro ? `<span class="rd-erro">${esc(res[r].erro)}</span>` : ''}
-        <span>${['alcance', 'curtidas', 'comentarios', 'salvos', 'compartilhamentos'].map(k => `${k}: <b>${x[k] ?? '—'}</b>`).join(' · ')}</span></div>`;
+      const x = m[r] || {}, rr = res[r] || {};
+      const nums = r === 'tiktok' ? ['visualizacoes', 'curtidas', 'comentarios', 'compartilhamentos'] : ['alcance', 'curtidas', 'comentarios', 'salvos', 'compartilhamentos'];
+      return `<div class="rd-pub"><b>${ICONE[r]} ${NOME[r]}</b>
+        ${rr.permalink ? `<a href="${esc(rr.permalink)}" target="_blank" rel="noopener">ver publicação ›</a>` : rr.erro ? `<span class="rd-erro">${esc(rr.erro)}</span>` : ''}
+        ${r === 'tiktok' && rr.estado ? `<span>${esc(TT_ESTADO[rr.estado] || rr.estado)}${rr.estado === 'na_caixa' ? ' <button class="btn btn-mini" data-copiar-legenda>Copiar legenda</button>' : ''}</span>` : ''}
+        <span>${nums.map(k => `${k === 'visualizacoes' ? 'visualizações' : k === 'comentarios' ? 'comentários' : k}: <b>${x[k] ?? '—'}</b>`).join(' · ')}</span></div>`;
     };
     return `<section class="ficha-secao"><div class="ficha-secao-topo"><h3>Publicado</h3><p>Números atualizados a cada 6 horas.</p></div>
       <div class="rd-pubs">${(p.redes || []).map(linha).join('')}</div></section>`;
@@ -442,10 +457,10 @@
     const ult30 = posts.filter(p => p.publicado_em >= desde);
     const soma = k => ult30.reduce((a, p) => a + ((porPost[p.id] || {})[k] || 0), 0);
     const alcance = soma('alcance'), inter = soma('inter');
-    const daRede = v => /instagram|facebook/i.test(v.origem || '') || /^post-/.test(v.utm_campaign || '') || /instagram|facebook/i.test(v.utm_source || '');
+    const daRede = v => /instagram|facebook|tiktok/i.test(v.origem || '') || /^post-/.test(v.utm_campaign || '') || /instagram|facebook|tiktok/i.test(v.utm_source || '');
     const visRede = visitas.filter(v => v.tipo === 'pagina' && daRede(v)).length;
     const zapRede = visitas.filter(v => v.tipo === 'whatsapp' && daRede(v)).length;
-    const leadsRede = leads.filter(l => /instagram|facebook/i.test(l.origem || '') && !/ads/i.test(l.origem || '')).length;
+    const leadsRede = leads.filter(l => /instagram|facebook|tiktok/i.test(l.origem || '') && !/ads/i.test(l.origem || '')).length;
     const porCamp = {};
     for (const v of visitas) if (v.utm_campaign) { const c = porCamp[v.utm_campaign] = porCamp[v.utm_campaign] || { vis: 0, zap: 0 }; v.tipo === 'whatsapp' ? c.zap++ : c.vis++; }
 
@@ -456,8 +471,8 @@
     horasCache = horasProprias.length >= 3 ? horasProprias.slice(0, 4).map(x => x[0]) : null;
 
     const funil = [['Posts publicados', ult30.length], ['Pessoas alcançadas', alcance], ['Interações', inter], ['Visitas ao site vindas das redes', visRede], ['Cliques no WhatsApp vindos das redes', zapRede], ['Leads das redes (sem anúncio)', leadsRede]];
-    alvo.innerHTML = topo('Redes sociais · Resultados', 'Últimos 30 dias. Números do Instagram e do Facebook atualizados a cada 6 horas.',
-      `<button class="btn" data-ir-sub="calendario">‹ Calendário</button>${statusCache && statusCache.conectado ? '<button class="btn btn-primario" id="rdAtualizar">Atualizar números agora</button>' : ''}`) + `
+    alvo.innerHTML = topo('Redes sociais · Resultados', 'Últimos 30 dias. Números do Instagram, Facebook e TikTok atualizados a cada 6 horas. No TikTok, alcance é o número de visualizações.',
+      `<button class="btn" data-ir-sub="calendario">‹ Calendário</button>${statusCache && (statusCache.conectado || ttConectado()) ? '<button class="btn btn-primario" id="rdAtualizar">Atualizar números agora</button>' : ''}`) + `
       ${avisoConexao()}
       <section class="ficha-secao"><div class="ficha-secao-topo"><h3>Do post à venda</h3><p>Cada etapa do caminho. O site conta as visitas pelo link com rastreio e pela origem Instagram/Facebook.</p></div>
         <div class="rd-funil">${funil.map(([r, v], i) => `<div class="rd-funil-et" style="--i:${i}"><b>${Number(v).toLocaleString('pt-BR')}</b><span>${r}</span></div>`).join('')}</div>
@@ -480,7 +495,8 @@
     statusCache = null; await carregarBase();
     const s = statusCache || {}, c = cfgCache || {}, adm = souAdmin(), dis = adm ? '' : 'disabled';
     const retorno = location.origin + '/meta-retorno.html';
-    alvo.innerHTML = topo('Redes sociais · Configurar', 'Conexão com a Meta, assinatura e padrões dos posts.', `<button class="btn" data-ir-sub="calendario">‹ Calendário</button>`) + `
+    const t = s.tiktok || {}, retornoTt = 'https://app.maysimoveis.com/tiktok-retorno.html';
+    alvo.innerHTML = topo('Redes sociais · Configurar', 'Conexão com a Meta e com o TikTok, assinatura e padrões dos posts.', `<button class="btn" data-ir-sub="calendario">‹ Calendário</button>`) + `
       <section class="ficha-secao"><div class="ficha-secao-topo"><h3>Conexão com Facebook e Instagram</h3><p>Pelo app da Meta que a Maysonnave já usa para os leads.</p></div>
         <div class="sdr-status-grade">
           <div class="sdr-status ${s.conectado ? 'ok' : 'falta'}"><span class="sdr-status-ico">${s.conectado ? '✓' : '!'}</span>
@@ -506,6 +522,21 @@
           ${s.conectado ? '<button class="btn btn-fantasma" id="rdDesconectar">Desconectar</button>' : ''}
         </div>` : '<p class="campo-dica" style="padding:0 20px 18px">Só o administrador conecta.</p>'}
       </section>
+      <section class="ficha-secao"><div class="ficha-secao-topo"><h3>Conexão com o TikTok</h3><p>O vídeo vai para a caixa de rascunhos do seu TikTok; você publica pelo celular, com a música que quiser.</p></div>
+        <div class="sdr-status-grade">
+          <div class="sdr-status ${t.conectado ? 'ok' : 'falta'}"><span class="sdr-status-ico">${t.conectado ? '✓' : '!'}</span>
+            <div><b>${t.conectado ? 'Conectado' : t.configurado ? 'Não conectado' : 'Aguardando o app do TikTok'}</b>
+              <p>${t.conectado ? `Conta: ${esc(t.nome || '—')}${t.conectado_em ? ` · desde ${dataLocal(t.conectado_em)}` : ''}${t.expira ? ` · reconectar até ${new Date(t.expira).toLocaleDateString('pt-BR')}` : ''}`
+                : t.configurado ? 'Clique em Conectar TikTok e entre com a conta que vai publicar.' : 'Falta criar o app no portal de desenvolvedores do TikTok e guardar a chave no servidor.'}</p>
+              ${t.permissoes_faltando && t.permissoes_faltando.length ? `<p class="rd-erro">Faltam permissões: ${esc(t.permissoes_faltando.join(', '))}</p>` : ''}
+              ${t.erro ? `<p class="rd-erro">${esc(t.erro)}</p>` : ''}</div></div>
+        </div>
+        ${adm && t.configurado ? `<div style="padding:0 20px 18px">
+          <p class="campo-dica" style="margin-bottom:10px">Endereço de retorno cadastrado no app do TikTok: <b>${esc(retornoTt)}</b></p>
+          <button class="btn btn-primario" id="rdTtConectar">${t.conectado ? 'Conectar de novo' : 'Conectar TikTok'}</button>
+          ${t.conectado ? '<button class="btn btn-fantasma" id="rdTtDesconectar">Desconectar</button>' : ''}
+        </div>` : ''}
+      </section>
       <section class="ficha-secao"><div class="ficha-secao-topo"><h3>Padrões dos posts</h3><p>Usados pelos botões do editor.</p></div>
         <div class="ficha-grade">
           <div class="campo campo-largo"><label for="rdCfgAssin">Assinatura (CRECI)</label><input type="text" id="rdCfgAssin" value="${esc(c.assinatura || '')}" ${dis}>
@@ -530,6 +561,16 @@
         avisar(`Publicando em ${r.pagina} e @${r.instagram}.`); configurar(alvo);
       } catch (e) { avisar(e.message); }
     };
+    const ttc = alvo.querySelector('#rdTtConectar');
+    if (ttc) ttc.onclick = async () => {
+      try {
+        const r = await funcao({ acao: 'tiktok_url_conectar', redirect_uri: retornoTt });
+        try { localStorage.setItem('plat_modulo', 'redes'); } catch (e) { /* ok */ }
+        location.href = r.url;
+      } catch (e) { avisar(e.message); }
+    };
+    const ttd = alvo.querySelector('#rdTtDesconectar');
+    if (ttd) ttd.onclick = async () => { if (!confirm('Desconectar o TikTok? Os vídeos agendados para o TikTok ficam esperando.')) return; await funcao({ acao: 'tiktok_desconectar' }); avisar('TikTok desconectado.'); configurar(alvo); };
     const des = alvo.querySelector('#rdDesconectar');
     if (des) des.onclick = async () => { if (!confirm('Desconectar? Os agendados param de publicar.')) return; await funcao({ acao: 'desconectar' }); avisar('Desconectado.'); configurar(alvo); };
     alvo.querySelector('#rdCfgSalvar').onclick = async () => {
@@ -540,6 +581,19 @@
 
   /** Volta do Facebook: meta-retorno.html guardou o código; aqui ele vira a conexão. */
   async function concluirConexao(alvo) {
+    let tt = null;
+    try { tt = JSON.parse(sessionStorage.getItem('tiktok_oauth') || 'null'); sessionStorage.removeItem('tiktok_oauth'); } catch (e) { /* nada */ }
+    if (tt) {
+      alvo.innerHTML = '<p class="iv-carregando">Concluindo a conexão com o TikTok…</p>';
+      if (tt.error) avisar('O TikTok não autorizou: ' + tt.error);
+      else {
+        try {
+          const r = await funcao({ acao: 'tiktok_conectar', code: tt.code, state: tt.state, redirect_uri: 'https://app.maysimoveis.com/tiktok-retorno.html' });
+          avisar(`TikTok conectado${r.nome ? ': ' + r.nome : ''}.` + (r.permissoes_faltando && r.permissoes_faltando.length ? ' Faltaram permissões: ' + r.permissoes_faltando.join(', ') : ''));
+        } catch (e) { avisar('Não conectou o TikTok: ' + e.message); }
+      }
+      statusCache = null; await configurar(alvo); return true;
+    }
     let pend = null;
     try { pend = JSON.parse(sessionStorage.getItem('meta_oauth') || 'null'); sessionStorage.removeItem('meta_oauth'); } catch (e) { /* nada */ }
     if (!pend) return false;
