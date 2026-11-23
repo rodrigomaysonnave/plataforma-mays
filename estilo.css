@@ -2177,3 +2177,78 @@ span.rd-chip { cursor: default; }
   .lo-cartao-total{align-items:flex-start}
   .lo-avulso .lo-av-desc,.lo-avulso .lo-av-val,.lo-avulso select,.lo-avulso .btn{flex:1 1 100%;width:100%;max-width:none}
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   MODO CLARO (Configurações > Aparência). Mesmas fichas, outros valores.
+   Papel com calor (bege muito claro) em vez de branco puro, para o dourado
+   continuar parecendo da casa. O dourado escurece porque o dourado da tela
+   escura some em fundo claro (1,6:1); o #8f6c12 dá 4,9:1 como texto.
+   Com o dourado escuro o texto em cima dele vira branco (--tinta).
+   ══════════════════════════════════════════════════════════════════════ */
+:root[data-tema="claro"] {
+  color-scheme: light;
+  --bg: #f2eee6;
+  --superficie: #fbf9f5;
+  --superficie-2: #ede8de;
+  --borda: #cfc6b4;
+  --texto: #1f1b14;
+  --texto-fraco: #5f574a;
+  --dourado: #8f6c12;
+  --dourado-rgb: 143,108,18;
+  --dourado-fosco: #a8862f;
+  --tinta: #ffffff;
+  --vermelho: #c0392b;
+  --amarelo: #9a6f00;
+  --verde: #2b8250;
+
+  --verniz: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,0) 56%);
+  --verniz-forte: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,0) 50%);
+  --bisel: inset 0 1px 0 rgba(255,255,255,.9), inset 0 -1px 0 rgba(60,45,10,.06);
+  --bisel-forte: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(60,45,10,.1);
+  --sombra-cartao: 0 1px 2px rgba(60,45,10,.08), 0 6px 18px rgba(60,45,10,.08);
+  --sombra-alta: 0 10px 28px rgba(60,45,10,.16), 0 30px 60px rgba(60,45,10,.12);
+
+  --btn-fundo: #ffffff;
+  --btn-fundo-hover: #f5f1e8;
+  --btn-borda: #c9c0ae;
+  --btn-sombra: inset 0 -1px 0 rgba(60,45,10,.06), 0 1px 2px rgba(60,45,10,.12);
+  --btn-sombra-hover: inset 0 -1px 0 rgba(60,45,10,.06), 0 3px 8px rgba(60,45,10,.16);
+
+  --primario-fundo: linear-gradient(180deg, #b38f2e 0%, #9a7818 50%, #84650f 100%);
+  --primario-sombra: inset 0 1px 0 rgba(255,255,255,.35), 0 2px 5px rgba(60,45,10,.25);
+  --primario-sombra-hover: inset 0 1px 0 rgba(255,255,255,.4), 0 5px 14px rgba(143,108,18,.35);
+
+  --campo-sombra: inset 0 1px 2px rgba(60,45,10,.08);
+  --menu-cor: #3b352b;
+  --menu-fundo: #e9e3d7;
+  --cabecalho-tabela: #e6e0d3;
+}
+:root[data-tema="claro"] input[type="text"], :root[data-tema="claro"] input[type="email"],
+:root[data-tema="claro"] input[type="password"], :root[data-tema="claro"] input[type="number"],
+:root[data-tema="claro"] input[type="search"], :root[data-tema="claro"] input[type="tel"],
+:root[data-tema="claro"] input[type="time"], :root[data-tema="claro"] input[type="datetime-local"],
+:root[data-tema="claro"] input[type="date"], :root[data-tema="claro"] select,
+:root[data-tema="claro"] textarea { background: #ffffff; }
+:root[data-tema="claro"] select option { background: #ffffff; }
+:root[data-tema="claro"] .btn:active { box-shadow: inset 0 2px 4px rgba(60,45,10,.18); }
+/* Textos em rosa e azul claros foram pensados para fundo escuro. */
+:root[data-tema="claro"] .cv-temp-quente,
+:root[data-tema="claro"] .cv-janela-bad, :root[data-tema="claro"] .cv-humano b,
+:root[data-tema="claro"] .cv-status.erro, :root[data-tema="claro"] .sim-corretor,
+:root[data-tema="claro"] .rd-checks li.falta, :root[data-tema="claro"] .rd-erro { color: #a8281c; }
+:root[data-tema="claro"] .cv-temp-frio { color: #2b5797; }
+:root[data-tema="claro"] .seo-titulo-previa { color: #1a0dab; }
+:root[data-tema="claro"] .cv-item:hover,
+:root[data-tema="claro"] .cv-quali { background: rgba(60,45,10,.04); }
+:root[data-tema="claro"] .sim-rastro span { background: rgba(60,45,10,.05); }
+
+/* Seletor de aparência em Configurações */
+.cfg-aparencia { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cfg-aparencia-rot { font-size: 12px; color: var(--texto-fraco); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.cfg-tema { display: inline-flex; border: 1px solid var(--btn-borda); border-radius: 999px; padding: 3px; background: var(--superficie-2); }
+.cfg-tema button {
+  font: inherit; font-size: 13px; font-weight: 600; border: 0; border-radius: 999px;
+  padding: 7px 16px; cursor: pointer; background: transparent; color: var(--texto-fraco);
+}
+.cfg-tema button[aria-pressed="true"] { background: var(--dourado); color: var(--tinta); }
+.cfg-tema button:focus-visible { outline: 2px solid var(--dourado); outline-offset: 2px; }

@@ -452,12 +452,27 @@
               Mudar aqui muda em todo lugar, sem precisar de programador.</div>
           </div>
         </div>
+        <div class="cfg-aparencia">
+          <span class="cfg-aparencia-rot">Aparência</span>
+          <div class="cfg-tema" role="group" aria-label="Aparência da tela" id="cfgTema">
+            <button type="button" data-tema="escuro" aria-pressed="${PlatTema.atual() === 'escuro'}">Escuro</button>
+            <button type="button" data-tema="claro" aria-pressed="${PlatTema.atual() === 'claro'}">Claro</button>
+          </div>
+        </div>
       </div>
 
       <div class="cfg">
         <div class="cfg-listas" id="cfgListas">${htmlListas()}</div>
         <div class="cfg-painel" id="cfgPainel"></div>
       </div>`;
+
+    alvo.querySelector('#cfgTema').addEventListener('click', e => {
+      const b = e.target.closest('button[data-tema]');
+      if (!b) return;
+      PlatTema.definir(b.dataset.tema);
+      alvo.querySelectorAll('#cfgTema button').forEach(x =>
+        x.setAttribute('aria-pressed', String(x === b)));
+    });
 
     alvo.querySelector('#cfgListas').addEventListener('click', async e => {
       const b = e.target.closest('.cfg-lista-btn');
