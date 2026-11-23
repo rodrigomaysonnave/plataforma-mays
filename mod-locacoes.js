@@ -2,14 +2,15 @@
 // MÓDULO: LOCAÇÕES
 //
 // Administração de aluguéis, no lugar do Pleno (que acabou em 11/2026).
-// Banco: migrações 80 e 82 (itens fixos e destino de cada item). Acesso: admin ou quem tiver a função "gestão
+// Banco: migrações 80, 82 (itens fixos e destino) e 88 (avulsos e Asaas).
+// Asaas: edge function "asaas" emite, cancela e recebe o aviso de pagamento. Acesso: admin ou quem tiver a função "gestão
 // imobiliária" (perfil.gestao_locacao). A trava está no banco.
 //
-// Quatro vistas: Painel (o que pede ação), Mês a mês (cobrar, receber,
+// Quatro vistas: Painel (o que pede ação), Lançamentos do mês (cobrar, receber,
 // repassar), Contratos e Pessoas.
 //
 // Regras combinadas com o Rodrigo em 16/11/2026:
-//   * cobrança por PIX manual: a tela calcula e monta a mensagem;
+//   * cobrança pelo Asaas (desde 23/11/2026): Pix ou boleto, aviso por e-mail;
 //   * multa e juros vão para o proprietário (entram no repasse);
 //   * no primeiro aluguel, 100% fica com a imobiliária (intermediação);
 //   * aluguel e repasse NÃO entram no caixa; no Financeiro entra só a taxa,
@@ -227,7 +228,7 @@
 
     alvo.innerHTML = `
       ${topo('Locações', 'Carteira de aluguéis administrados. Aluguel e repasse são dinheiro do proprietário; no caixa entra só a taxa.',
-        '<button class="btn" id="loIrMes">Mês a mês</button><button class="btn btn-primario" id="loNovoContrato">Novo contrato</button>')}
+        '<button class="btn" id="loIrMes">Lançamentos do mês</button><button class="btn btn-primario" id="loNovoContrato">Novo contrato</button>')}
 
       <div class="painel-numeros">
         <div class="num"><span class="num-v">${ativos.length}</span><span class="num-r">Contratos ativos</span></div>
@@ -337,100 +338,212 @@
   // ══════════════════════════════════════════════════════════════════
   // MÊS A MÊS
   // ══════════════════════════════════════════════════════════════════
+  // Chama a função do servidor que fala com o Asaas (edge function "asaas").
+  async function chamarAsaas(acao, cobranca, extra = {}) {
+    const { data, error } = await supabaseClient.functions.invoke('asaas', { body: { acao, cobranca, ...extra } });
+    if (error) {
+      let msg = error.message;
+      try { const j = await error.context.json(); if (j && j.erro) msg = j.erro; } catch (_) { /* resposta sem corpo */ }
+      avisar('Asaas: ' + msg);
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  const ASAAS_SITU = {
+    PENDING: ['aguardando pagamento', 'cad-selo-autorizado'], OVERDUE: ['vencida no Asaas', 'cad-selo-restrito'],
+    RECEIVED: ['paga no Asaas', 'cad-selo-vitrine'], CONFIRMED: ['paga no Asaas', 'cad-selo-vitrine'],
+    RECEIVED_IN_CASH: ['baixada por fora', 'cad-selo-vitrine'], REFUNDED: ['estornada', 'cad-selo-vazio'],
+  };
+
   async function montarMes(alvo) {
     const D = await carregar();
-    const [cfgL] = await Promise.all([
-      db(supabaseClient.from('configuracao').select('pix_locacao').limit(1), 'carregar configuração')]);
-    const pix = cfgL && cfgL[0] ? cfgL[0].pix_locacao : '';
     const d = hoje();
-    // Mês padrão: o primeiro com cobrança em aberto, senão o atual.
     const primeiraAberta = D.cobrancas.find(c => !c.pago_em && !c.cancelada);
     const mes = mesEscolhido || (primeiraAberta ? primeiraAberta.vencimento.slice(0, 7) : d.slice(0, 7));
     const lista = D.cobrancas.filter(c => c.vencimento.slice(0, 7) === mes)
       .sort((a, b) => a.vencimento.localeCompare(b.vencimento));
-    const total = lista.filter(c => !c.cancelada).reduce((s, c) => s + totalDe(c), 0);
+    const ativas = lista.filter(c => !c.cancelada);
+    const total = ativas.reduce((s, c) => s + totalDe(c), 0);
     const recebido = lista.reduce((s, c) => s + Number(c.valor_pago || 0), 0);
     const meses = [...new Set([...D.cobrancas.map(c => c.vencimento.slice(0, 7)), d.slice(0, 7), mes])].sort();
+    const aEmitir = ativas.filter(c => !c.pago_em && !c.asaas_id);
+    const recarregar = () => { mesEscolhido = mes; montarMes(alvo); };
 
-    const linha = cb => {
+    const origem = (i, c) => i.avulso_id ? 'avulso'
+      : (c.itens_fixos || []).some(f => f.descricao === i.descricao && Number(f.valor) === Number(i.valor)) ? 'fixo' : 'deste mês';
+
+    const cartao = cb => {
       const c = D.contrato(cb.contrato_id);
       const locs = D.partesDe(c.id, 'locatario');
+      const loc = locs[0] && locs[0].pessoa;
+      const emitida = !!cb.asaas_id;
+      const editavel = !cb.pago_em && !cb.cancelada && !emitida;
       const atras = !cb.pago_em && !cb.cancelada && cb.vencimento < d;
       const reps = D.repasses.filter(r => r.cobranca_id === cb.id);
+      const [asTxt, asCls] = ASAAS_SITU[cb.asaas_status] || [cb.asaas_status ? cb.asaas_status.toLowerCase() : '', 'cad-selo-autorizado'];
       const situ = cb.cancelada ? '<span class="cad-selo cad-selo-vazio">cancelada</span>'
-        : cb.pago_em ? `<span class="cad-selo cad-selo-vitrine">recebido ${dataBr(cb.pago_em)}</span>`
+        : cb.pago_em ? `<span class="cad-selo cad-selo-vitrine">recebido ${dataBr(cb.pago_em)}${cb.forma ? ' · ' + esc(cb.forma) : ''}</span>`
+        : emitida ? `<span class="cad-selo ${atras ? 'cad-selo-restrito' : asCls}">${esc(atras ? `atrasada ${dias(cb.vencimento, d)} dias` : asTxt)}</span>`
         : atras ? `<span class="cad-selo cad-selo-restrito">atrasada ${dias(cb.vencimento, d)} dias</span>`
-        : '<span class="cad-selo cad-selo-autorizado">em aberto</span>';
-      const msg = `Olá, ${primeiroNome(locs[0] && locs[0].pessoa.nome)}! Segue o aluguel de ${mesBr(cb.competencia)} do ${D.rotulo(c)}: ${brl(totalDe(cb))}, com vencimento em ${dataBr(cb.vencimento)}.${pix ? ` PIX: ${pix}.` : ''} Depois de pagar, me manda o comprovante por aqui. Obrigado! Maysonnave Imóveis`;
+        : '<span class="cad-selo cad-selo-mural">ainda não emitida</span>';
+      const msg = `Olá, ${primeiroNome(loc && loc.nome)}! Segue o aluguel de ${mesBr(cb.competencia)} do ${D.rotulo(c)}: ${brl(totalDe(cb))}, com vencimento em ${dataBr(cb.vencimento)}. Para pagar por Pix ou boleto: ${cb.asaas_link || ''} Obrigado! Maysonnave Imóveis`;
+      const itens = cb.itens || [];
       return `
-        <tr class="cad-linha" data-cob="${cb.id}">
-          <td class="cad-num${atras ? ' ini-vencida' : ''}">${dataBr(cb.vencimento)}</td>
-          <td><div class="cad-end-rua">${esc(D.rotulo(c))}${cb.intermediacao ? ' <span class="cad-selo cad-selo-mural">1º aluguel</span>' : ''}</div>
-              <div class="cad-end-sub">${esc(locs.map(p => p.pessoa.nome).join(', ') || 'sem locatário')} · ref. ${esc(mesBr(cb.competencia))}</div></td>
-          <td class="cad-valor">${brl(totalDe(cb))}${cb.pago_em && Number(cb.valor_pago) !== totalDe(cb) ? `<div class="cad-end-sub">pago ${brl(cb.valor_pago)}</div>` : ''}</td>
-          <td>${situ}</td>
-          <td class="fi-ag-acao">
-            ${!cb.pago_em && !cb.cancelada ? `
-              ${locs[0] && locs[0].pessoa.telefone ? `<a class="btn btn-mini" target="_blank" rel="noopener" href="${esc(linkWhats(locs[0].pessoa.telefone, msg))}">Cobrar</a>` : ''}
-              <button class="btn btn-mini btn-primario" data-receber="${cb.id}">Recebido</button>` : ''}
-            ${cb.pago_em ? `<button class="btn btn-mini" data-desfazer="${cb.id}">Desfazer</button>` : ''}
-          </td>
-        </tr>
-        ${cb.pago_em ? (cb.itens || []).filter(i => destinoDe(i) === 'conta').map(i => `<tr class="lo-repasse"><td></td>
-            <td colspan="4"><div class="cad-end-sub">Conta a pagar com este recebimento: ${esc(i.descricao || 'Conta')} ${brl(i.valor)}</div></td></tr>`).join('') : ''}
-        ${reps.map(r => {
-          const p = D.pessoa(r.pessoa_id);
-          return `<tr class="lo-repasse"><td></td>
-            <td colspan="2"><div class="cad-end-sub">Repasse a ${esc(p.nome || '')}${Number(r.percentual) !== 100 ? ` (${r.percentual}%)` : ''}:
-              ${brl(r.bruto)} recebido, menos ${brl(r.taxa)} de ${cb.intermediacao ? 'intermediação' : 'taxa'}${Number(r.despesas) ? ` e ${brl(r.despesas)} de despesas` : ''} =
-              <strong>${brl(r.liquido)}</strong>${p.pix ? ` · PIX ${esc(p.pix)}` : ' · <span class="ini-vencida">sem PIX cadastrado</span>'}</div></td>
-            <td>${r.repassado_em ? `<span class="cad-selo cad-selo-vitrine">repassado ${dataBr(r.repassado_em)}</span>` : '<span class="cad-selo cad-selo-restrito">a repassar</span>'}</td>
-            <td class="fi-ag-acao">
-              ${r.repassado_em
-                ? `<button class="btn btn-mini" data-desrepassar="${r.id}">Desfazer</button>`
-                : `<button class="btn btn-mini btn-primario" data-repassar="${r.id}">Repassado</button>`}
-              <button class="btn btn-mini" data-extrato="${r.id}">Extrato</button>
-            </td></tr>`;
-        }).join('')}`;
+      <div class="ficha-secao lo-cartao" data-cob="${cb.id}">
+        <div class="lo-cartao-topo">
+          <div><h3>${esc(D.rotulo(c))}${cb.intermediacao ? ' <span class="cad-selo cad-selo-mural">1º aluguel</span>' : ''}</h3>
+            <p>${esc(locs.map(p => p.pessoa.nome).join(', ') || 'sem locatário')} · ref. ${esc(mesBr(cb.competencia))} ·
+              vence <strong class="${atras ? 'ini-vencida' : ''}">${dataBr(cb.vencimento)}</strong></p></div>
+          <div class="lo-cartao-total">${brl(totalDe(cb))}${cb.pago_em && Number(cb.valor_pago) !== totalDe(cb) ? `<span>pago ${brl(cb.valor_pago)}</span>` : ''}${situ}</div>
+        </div>
+        <ul class="ini-lista lo-lista lo-itens">
+          <li><span class="ini-txt">Aluguel<div class="cad-end-sub">fixo · vai para o proprietário (com taxa)</div></span>
+            <span class="ini-sub">${brl(cb.aluguel)}</span></li>
+          ${itens.map((i, k) => `<li><span class="ini-txt">${esc(i.descricao || 'Ajuste')}<div class="cad-end-sub">${origem(i, c)} · ${esc(rot(DESTINOS, destinoDe(i)).toLowerCase())}</div></span>
+            <span class="ini-sub">${brl(i.valor)}</span>
+            ${editavel ? `<button class="btn btn-mini btn-remover" data-tira-item="${k}">Tirar</button>` : ''}</li>`).join('')}
+        </ul>
+        ${editavel ? `
+        <div class="lo-add lo-avulso">
+          <input type="text" class="lo-av-desc" placeholder="Lançamento avulso (condomínio de outubro, reparo, desconto)">
+          <input type="number" step="0.01" class="lo-av-val" placeholder="Valor">
+          <select class="lo-av-dest">${opts(DESTINOS, 'conta')}</select>
+          <select class="lo-av-rep" title="Repetir nos próximos meses">${[1, 2, 3, 4, 5, 6, 10, 12].map(n => `<option value="${n}">${n === 1 ? 'Só este mês' : `Em ${n} meses`}</option>`).join('')}</select>
+          <button class="btn lo-av-add">Lançar</button>
+        </div>
+        <p class="campo-dica lo-dica">Valor negativo é desconto. "Em N meses" repete o lançamento nas próximas cobranças (parcelado).</p>` : ''}
+        <div class="lo-acoes">
+          ${editavel ? `<button class="btn btn-primario" data-emitir="${cb.id}">Emitir no Asaas</button>` : ''}
+          ${emitida && !cb.pago_em ? `
+            <a class="btn" target="_blank" rel="noopener" href="${esc(cb.asaas_link)}">Ver cobrança</a>
+            <button class="btn" data-copiar="${esc(cb.asaas_link)}">Copiar link</button>
+            ${loc && loc.telefone ? `<a class="btn" target="_blank" rel="noopener" href="${esc(linkWhats(loc.telefone, msg))}">WhatsApp</a>` : ''}
+            <button class="btn" data-conferir="${cb.id}">Conferir pagamento</button>
+            <button class="btn btn-remover" data-cancelar="${cb.id}">Cancelar no Asaas</button>` : ''}
+          ${!cb.pago_em && !cb.cancelada ? `<button class="btn" data-receber="${cb.id}">${emitida ? 'Recebido por fora' : 'Recebido'}</button>` : ''}
+          ${cb.pago_em ? `<button class="btn" data-desfazer="${cb.id}">Desfazer recebimento</button>` : ''}
+          ${editavel ? `<button class="btn" data-ajustar="${cb.id}">Vencimento e valor</button>` : ''}
+          <div class="lo-receber-alvo"></div>
+        </div>
+        ${emitida && !cb.pago_em ? `<p class="campo-dica lo-dica">Emitida em ${dataBr(cb.emitida_em)}. Quando o inquilino pagar, o Asaas avisa e a baixa, o repasse e a taxa entram sozinhos. Para mudar valores, cancele no Asaas e emita de novo.</p>` : ''}
+        ${cb.pago_em ? `<div class="lo-repasses">
+          ${itens.filter(i => destinoDe(i) === 'conta').map(i => `<p class="cad-end-sub">Conta a pagar com este recebimento: ${esc(i.descricao || 'Conta')} ${brl(i.valor)}</p>`).join('')}
+          ${reps.map(r => {
+            const p = D.pessoa(r.pessoa_id);
+            return `<div class="lo-repasse-linha">
+              <div class="cad-end-sub">Repasse a ${esc(p.nome || '')}${Number(r.percentual) !== 100 ? ` (${r.percentual}%)` : ''}:
+                ${brl(r.bruto)} recebido, menos ${brl(r.taxa)} de ${cb.intermediacao ? 'intermediação' : 'taxa'}${Number(r.despesas) ? ` e ${brl(r.despesas)} de despesas` : ''} =
+                <strong>${brl(r.liquido)}</strong>${p.pix ? ` · PIX ${esc(p.pix)}` : ' · <span class="ini-vencida">sem PIX cadastrado</span>'}</div>
+              <div class="lo-acoes">
+                ${r.repassado_em ? `<span class="cad-selo cad-selo-vitrine">repassado ${dataBr(r.repassado_em)}</span>
+                  <button class="btn btn-mini" data-desrepassar="${r.id}">Desfazer</button>`
+                  : `<span class="cad-selo cad-selo-restrito">a repassar</span>
+                  <button class="btn btn-mini btn-primario" data-repassar="${r.id}">Repassado</button>`}
+                <button class="btn btn-mini" data-extrato="${r.id}">Extrato</button></div></div>`;
+          }).join('')}</div>` : ''}
+      </div>`;
     };
 
     alvo.innerHTML = `
-      ${topo('Mês a mês', 'Cobrar, receber e repassar. Cada linha tem o botão que fecha a pendência.',
+      ${topo('Lançamentos do mês', 'Confira os lançamentos de cada contrato, inclua os avulsos e emita a cobrança no Asaas.',
         `<select id="loMes">${meses.map(m => `<option value="${m}"${m === mes ? ' selected' : ''}>${esc(mesBr(m + '-01'))}</option>`).join('')}</select>
-         <button class="btn" id="loGerar">Gerar cobranças do mês</button>`)}
+         <button class="btn" id="loGerar">Gerar cobranças do mês</button>
+         ${aEmitir.length ? `<button class="btn btn-primario" id="loEmitirTodas">Emitir ${aEmitir.length} no Asaas</button>` : ''}`)}
       <div class="painel-numeros">
-        <div class="num"><span class="num-v">${lista.filter(c => !c.cancelada).length}</span><span class="num-r">Cobranças</span></div>
+        <div class="num"><span class="num-v">${ativas.length}</span><span class="num-r">Cobranças</span></div>
         <div class="num"><span class="num-v">${brl(total)}</span><span class="num-r">A receber no mês</span></div>
         <div class="num num-destaque"><span class="num-v">${brl(recebido)}</span><span class="num-r">Recebido</span></div>
         <div class="num"><span class="num-v">${brl(lista.reduce((s, c) => s + D.repasses.filter(r => r.cobranca_id === c.id && r.repassado_em).reduce((x, r) => x + Number(r.liquido), 0), 0))}</span><span class="num-r">Repassado</span></div>
       </div>
-      ${!pix ? '<p class="campo-dica" style="margin:0 0 12px">Sem chave PIX cadastrada: a mensagem de cobrança sai sem ela. Cadastre no Painel.</p>' : ''}
-      ${lista.length ? `
-        <div class="cad-tabela-scroll"><table class="cad-tabela">
-          <thead><tr><th>Vencimento</th><th>Contrato</th><th>Valor</th><th>Situação</th><th></th></tr></thead>
-          <tbody>${lista.map(linha).join('')}</tbody></table></div>`
+      ${lista.length ? lista.map(cartao).join('')
         : `<div class="vazio"><div class="vazio-ico">◎</div><h3>Nenhuma cobrança neste mês</h3>
-            <p>Use "Gerar cobranças do mês" para criar a de cada contrato ativo.</p></div>`}
-      <p class="rel-nota">Clique na linha para ajustar a cobrança (proporcional, desconto, valor, vencimento).
+            <p>Use "Gerar cobranças do mês": cada contrato ativo ganha a sua, já com os lançamentos fixos.</p></div>`}
+      <p class="rel-nota">Fixo vem do contrato (Contratos, "Cobrado todo mês"). Avulso é o que você lança aqui.
         Multa e juros entram no repasse do proprietário; a taxa vai sozinha para o Financeiro.</p>`;
+
+    const cobDe = el => D.cobrancas.find(x => x.id === el.closest('[data-cob]').dataset.cob);
+    const salvarItens = async (cb, itens) =>
+      db(supabaseClient.from('locacao_cobranca').update({ itens }).eq('id', cb.id), 'salvar os lançamentos');
 
     document.getElementById('loMes').addEventListener('change', e => { mesEscolhido = e.target.value; montarMes(alvo); });
     document.getElementById('loGerar').addEventListener('click', async () => {
       const n = await db(supabaseClient.rpc('locacao_gerar_cobrancas', { p_mes: mes + '-01' }), 'gerar cobranças');
-      avisar(n ? `${n} cobrança(s) gerada(s).` : 'Nada novo: as cobranças deste mês já existem.');
-      mesEscolhido = mes; montarMes(alvo);
+      avisar(n ? `${n} cobrança(s) gerada(s), já com os lançamentos fixos.` : 'Nada novo: as cobranças deste mês já existem.');
+      recarregar();
     });
-    alvo.querySelectorAll('tr[data-cob]').forEach(tr => tr.addEventListener('click', e => {
-      if (e.target.closest('button, a, input')) return;
-      abrirCobranca(tr.dataset.cob);
+    const btTodas = document.getElementById('loEmitirTodas');
+    if (btTodas) btTodas.addEventListener('click', async () => {
+      if (!confirm(`Emitir ${aEmitir.length} cobrança(s) no Asaas? Cada inquilino recebe o e-mail do Asaas com o link de pagamento.`)) return;
+      btTodas.disabled = true;
+      let ok = 0;
+      for (const cb of aEmitir) { try { await chamarAsaas('emitir', cb.id); ok++; } catch (_) { /* aviso já mostrado */ } }
+      avisar(`${ok} de ${aEmitir.length} emitida(s) no Asaas.`);
+      recarregar();
+    });
+
+    alvo.querySelectorAll('[data-tira-item]').forEach(b => b.addEventListener('click', async () => {
+      const cb = cobDe(b);
+      const itens = [...(cb.itens || [])];
+      const [tirado] = itens.splice(Number(b.dataset.tiraItem), 1);
+      // Avulso que começou neste mês: tirar desfaz a repetição inteira.
+      if (tirado && tirado.avulso_id) {
+        await db(supabaseClient.from('locacao_avulso').delete().eq('id', tirado.avulso_id).eq('competencia_inicio', cb.competencia), 'tirar o avulso');
+      }
+      await salvarItens(cb, itens);
+      recarregar();
+    }));
+    alvo.querySelectorAll('.lo-av-add').forEach(b => b.addEventListener('click', async () => {
+      const cb = cobDe(b);
+      const box = b.closest('.lo-avulso');
+      const q = s => box.querySelector(s);
+      const descricao = q('.lo-av-desc').value.trim();
+      const valor = num(q('.lo-av-val').value);
+      const destino = q('.lo-av-dest').value;
+      const parcelas = Number(q('.lo-av-rep').value);
+      if (!descricao || valor == null) return avisar('Informe a descrição e o valor do lançamento.');
+      let item = { descricao, valor, destino };
+      if (parcelas > 1) {
+        const r = await db(supabaseClient.from('locacao_avulso').insert({
+          contrato_id: cb.contrato_id, descricao, valor, destino, competencia_inicio: cb.competencia, parcelas,
+        }).select('id'), 'criar o lançamento parcelado');
+        item = { descricao: `${descricao} (1/${parcelas})`, valor, destino, avulso_id: r[0].id };
+      }
+      await salvarItens(cb, [...(cb.itens || []), item]);
+      avisar(parcelas > 1 ? `Lançado. Entra também nas próximas ${parcelas - 1} cobranças.` : 'Lançado.');
+      recarregar();
+    }));
+    alvo.querySelectorAll('[data-ajustar]').forEach(b => b.addEventListener('click', () => abrirCobranca(b.dataset.ajustar)));
+    alvo.querySelectorAll('[data-emitir]').forEach(b => b.addEventListener('click', async () => {
+      const cb = cobDe(b);
+      if (!confirm(`Emitir ${brl(totalDe(cb))} no Asaas? O inquilino recebe o e-mail do Asaas com o link de pagamento.`)) return;
+      b.disabled = true; b.textContent = 'Emitindo...';
+      try { await chamarAsaas('emitir', cb.id); avisar('Emitida no Asaas. Use "WhatsApp" para mandar o link também.'); }
+      finally { recarregar(); }
+    }));
+    alvo.querySelectorAll('[data-copiar]').forEach(b => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copiar); avisar('Link copiado.'); }
+      catch (_) { avisar(b.dataset.copiar); }
+    }));
+    alvo.querySelectorAll('[data-conferir]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try {
+        const r = await chamarAsaas('conferir', b.dataset.conferir);
+        avisar(r.resultado === 'baixada' ? 'Pago! Baixa, repasse e taxa lançados.' : `Asaas: ${(ASAAS_SITU[r.status] || [r.status])[0]}.`);
+      } finally { recarregar(); }
+    }));
+    alvo.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Cancelar esta cobrança no Asaas? O link deixa de valer. Depois você ajusta e emite de novo.')) return;
+      b.disabled = true;
+      try { await chamarAsaas('cancelar', b.dataset.cancelar); avisar('Cancelada no Asaas. Agora dá para ajustar e emitir de novo.'); }
+      finally { recarregar(); }
     }));
 
-    // Recebido: abre na própria linha data, valor, multa e juros já calculados.
-    alvo.querySelectorAll('[data-receber]').forEach(b => b.addEventListener('click', e => {
-      e.stopPropagation();
-      const cb = D.cobrancas.find(x => x.id === b.dataset.receber);
+    // Recebido (ou recebido por fora do Asaas): data, multa e juros calculados.
+    alvo.querySelectorAll('[data-receber]').forEach(b => b.addEventListener('click', () => {
+      const cb = cobDe(b);
       const ct = D.contrato(cb.contrato_id);
-      const cel = b.closest('td');
+      const cel = b.closest('.lo-acoes').querySelector('.lo-receber-alvo');
       const desenhar = dt => {
         const a = encargosAtraso(cb, ct, dt);
         return { a, total: Math.round((totalDe(cb) + a.multa + a.juros) * 100) / 100 };
@@ -454,35 +567,33 @@
       ['.lo-mu', '.lo-ju'].forEach(s => q(s).addEventListener('input', () => {
         q('.lo-vp').value = Math.round((totalDe(cb) + Number(q('.lo-mu').value || 0) + Number(q('.lo-ju').value || 0)) * 100) / 100;
       }));
-      cel.addEventListener('click', ev => ev.stopPropagation());
       q('.lo-ok').addEventListener('click', async () => {
         await db(supabaseClient.rpc('locacao_confirmar_recebimento', {
           p_cobranca: cb.id, p_pago_em: q('.lo-dt').value, p_valor_pago: Number(q('.lo-vp').value),
-          p_multa: Number(q('.lo-mu').value || 0), p_juros: Number(q('.lo-ju').value || 0), p_forma: 'PIX' }), 'confirmar o recebimento');
+          p_multa: Number(q('.lo-mu').value || 0), p_juros: Number(q('.lo-ju').value || 0),
+          p_forma: cb.asaas_id ? 'Por fora do Asaas' : 'PIX' }), 'confirmar o recebimento');
+        // Emitida no Asaas e paga por fora: baixa lá também, para parar os lembretes.
+        if (cb.asaas_id) { try { await chamarAsaas('pago_fora', cb.id, { data: q('.lo-dt').value }); } catch (_) { /* aviso já mostrado */ } }
         avisar('Recebido. Repasse calculado e taxa lançada no Financeiro.');
-        mesEscolhido = mes; montarMes(alvo);
+        recarregar();
       });
     }));
 
-    alvo.querySelectorAll('[data-desfazer]').forEach(b => b.addEventListener('click', async e => {
-      e.stopPropagation();
+    alvo.querySelectorAll('[data-desfazer]').forEach(b => b.addEventListener('click', async () => {
       await db(supabaseClient.rpc('locacao_desfazer_recebimento', { p_cobranca: b.dataset.desfazer }), 'desfazer o recebimento');
       avisar('Voltou para em aberto. Repasse e lançamento da taxa foram removidos.');
-      mesEscolhido = mes; montarMes(alvo);
+      recarregar();
     }));
-    alvo.querySelectorAll('[data-repassar]').forEach(b => b.addEventListener('click', async e => {
-      e.stopPropagation();
+    alvo.querySelectorAll('[data-repassar]').forEach(b => b.addEventListener('click', async () => {
       await db(supabaseClient.from('locacao_repasse').update({ repassado_em: hoje() }).eq('id', b.dataset.repassar), 'marcar o repasse');
       avisar('Repasse marcado como feito hoje.');
-      mesEscolhido = mes; montarMes(alvo);
+      recarregar();
     }));
-    alvo.querySelectorAll('[data-desrepassar]').forEach(b => b.addEventListener('click', async e => {
-      e.stopPropagation();
+    alvo.querySelectorAll('[data-desrepassar]').forEach(b => b.addEventListener('click', async () => {
       await db(supabaseClient.from('locacao_repasse').update({ repassado_em: null }).eq('id', b.dataset.desrepassar), 'desfazer o repasse');
-      mesEscolhido = mes; montarMes(alvo);
+      recarregar();
     }));
-    alvo.querySelectorAll('[data-extrato]').forEach(b => b.addEventListener('click', e => {
-      e.stopPropagation();
+    alvo.querySelectorAll('[data-extrato]').forEach(b => b.addEventListener('click', () => {
       const r = D.repasses.find(x => x.id === b.dataset.extrato);
       const cb = D.cobrancas.find(x => x.id === r.cobranca_id);
       abrirExtrato(D, r, cb);
@@ -538,10 +649,10 @@
     const cb = D.cobrancas.find(x => x.id === id);
     const c = D.contrato(cb.contrato_id);
     let itens = [...(cb.itens || [])];
-    const travada = !!cb.pago_em;
+    const travada = !!cb.pago_em || !!cb.asaas_id;
 
     alvoEl.innerHTML = `
-      ${topo(`Cobrança ${esc(D.rotulo(c))} · ${esc(mesBr(cb.competencia))}`, travada ? 'Recebida. Para mudar valores, desfaça o recebimento antes.' : '',
+      ${topo(`Cobrança ${esc(D.rotulo(c))} · ${esc(mesBr(cb.competencia))}`, travada ? (cb.pago_em ? 'Recebida. Para mudar valores, desfaça o recebimento antes.' : 'Emitida no Asaas. Para mudar valores, cancele no Asaas antes.') : '',
         `<button class="btn" id="lcVoltar">Voltar</button>${travada ? '' : '<button class="btn btn-primario" id="lcSalvar">Salvar</button>'}`)}
       <div class="ficha-secao"><div class="ficha-grade">
         <div class="campo"><label>Vencimento</label><input type="date" id="lcVenc" value="${cb.vencimento}" ${travada ? 'disabled' : ''}></div>
